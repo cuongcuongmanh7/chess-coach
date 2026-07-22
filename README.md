@@ -46,6 +46,7 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Kho ván và Dashboard được lọc theo hồ sơ đang chọn; một ván có thể liên kết với nhiều hồ sơ nếu các tài khoản gặp nhau.
 - Dashboard tiến bộ của từng hồ sơ tổng hợp ACPL, lỗi theo giai đoạn, màu quân, thể loại và khai cuộc.
 - Đồng bộ 20 ván gần nhất cho hồ sơ đang chọn theo thể loại; ván trùng tự bỏ qua.
+- Đăng nhập Google và hợp nhất hồ sơ + PGN giữa SQLite local với Cloud Firestore; API key và kết quả Stockfish không được tải lên.
 - Hiển thị tên khai cuộc và biến ECO theo vị trí đang xem bằng bộ dữ liệu offline; Kho ván được sắp theo thời điểm thi đấu và dùng ngày giờ Việt Nam.
 - Bấm vào một phương án Stockfish để phát lại biến trực tiếp trên bàn cờ.
 - Đọc `%clk` trong PGN để thống kê thời gian suy nghĩ, lỗi đi quá nhanh và lỗi dưới áp lực thời gian.
@@ -59,6 +60,15 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 - OpenAI hỗ trợ `gpt-5.6-sol`, `gpt-5.6-terra` và `gpt-5.6-luna`.
 - Có thể dùng biến môi trường `GEMINI_API_KEY`, `GOOGLE_API_KEY` hoặc `OPENAI_API_KEY`.
 - Mặc định app tự giải thích các nước được Stockfish phân loại Sai lầm hoặc Blunder. Có thể đổi sang mọi nước đã xem hoặc tắt tự động trong Cài đặt.
+
+## Cấu hình Firebase
+
+1. Trong Firebase Authentication, bật provider **Google**.
+2. Tạo Cloud Firestore ở production mode và deploy file `firestore.rules`.
+3. Tạo một Firebase Web App, sao chép `.env.example` thành `.env.local` rồi điền các giá trị `VITE_FIREBASE_*`.
+4. Chạy lại `npm run tauri dev`. Nút tài khoản trên thanh đầu sẽ mở Google Sign-In và tự đồng bộ sau khi đăng nhập.
+
+Rules trong repo chỉ cho phép người dùng đã xác thực đọc/ghi đường dẫn `users/{uid}` của chính họ. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
 
 ## Thành phần mã nguồn mở
 

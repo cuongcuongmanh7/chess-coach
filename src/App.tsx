@@ -14,17 +14,22 @@ import {
   CircleGauge,
   ClipboardPaste,
   Clock,
+  Cloud,
+  CloudOff,
   Database,
   Download,
   Dumbbell,
   Cpu,
   Eye,
   Lightbulb,
+  LogIn,
+  LogOut,
   KeyRound,
   Library,
   Link2,
   LoaderCircle,
   RotateCcw,
+  RefreshCw,
   Play,
   Settings,
   ShieldCheck,
@@ -36,6 +41,8 @@ import {
   Upload,
   UserPlus,
   UserRound,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { analyzePgn, type AnalysisStep, type GameAnalysis, type MoveQuality } from "./analysis";
@@ -43,6 +50,21 @@ import { DEMO_PGN } from "./demo";
 import { analyzeGameWithStockfish, analyzeMoveWithStockfish, type EngineMoveAnalysis } from "./stockfish";
 import { buildDashboardStats, type DashboardMoveRecord } from "./dashboard";
 import { lastKnownOpening, openingTimeline, type OpeningInfo } from "./openings";
+import appIcon from "../src-tauri/icons/128x128.png";
+import { playSfx, setSfxEnabled as persistSfxEnabled, sfxEnabled as storedSfxEnabled } from "./sfx";
+import {
+  deleteCloudGame,
+  deleteCloudProfile,
+  downloadCloudSnapshot,
+  firebaseConfigured,
+  firebaseErrorMessage,
+  observeFirebaseUser,
+  signInWithGoogle,
+  signOutFirebase,
+  uploadCloudSnapshot,
+  type CloudSyncSnapshot,
+  type User as FirebaseUser,
+} from "./firebase";
 
 const QUALITY_LABELS: Record<MoveQuality, string> = {
   best: "Best move",
@@ -113,6 +135,11 @@ type SavedGameSummary = {
   created_at: string;
   last_opened_at: string;
 };
+type GameOutcome = {
+  kind: "win" | "loss" | "draw" | "unknown";
+  label: "Thắng" | "Thua" | "Hòa" | "Chưa rõ";
+  side: "Trắng" | "Đen" | null;
+};
 type SavedGameDetail = { id: string; pgn: string };
 type StoredEngineAnalysis = { ply: number; depth: number; result: EngineMoveAnalysis };
 type SyncPlatform = "chesscom" | "lichess";
@@ -141,6 +168,27 @@ type VariationState = {
 };
 type SyncNotice = { type: "success" | "info" | "error"; message: string };
 type SyncProgress = { phase: "fetching" | "saving"; completed: number; total: number };
+type CloudMergeResult = { profiles_added: number; games_added: number };
+
+function gameOutcomeForProfile(game: SavedGameSummary, username?: string): GameOutcome {
+  const normalizedUsername = username?.trim().toLocaleLowerCase();
+  const isWhite = Boolean(normalizedUsername && game.white.trim().toLocaleLowerCase() === normalizedUsername);
+  const isBlack = Boolean(normalizedUsername && game.black.trim().toLocaleLowerCase() === normalizedUsername);
+  const side = isWhite ? "Trắng" : isBlack ? "Đen" : null;
+
+  if (["1/2-1/2", "½-½", "0.5-0.5"].includes(game.result || "")) {
+    return { kind: "draw", label: "Hòa", side };
+  }
+  if (game.result === "1-0") {
+    if (isWhite) return { kind: "win", label: "Thắng", side };
+    if (isBlack) return { kind: "loss", label: "Thua", side };
+  }
+  if (game.result === "0-1") {
+    if (isBlack) return { kind: "win", label: "Thắng", side };
+    if (isWhite) return { kind: "loss", label: "Thua", side };
+  }
+  return { kind: "unknown", label: "Chưa rõ", side };
+}
 
 const PROVIDER_LABELS: Record<AiProvider, string> = { openai: "OpenAI", gemini: "Gemini" };
 const DEFAULT_MODELS: Record<AiProvider, string> = {
@@ -378,6 +426,14 @@ function App() {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sfxEnabled, setSfxEnabled] = useState(storedSfxEnabled);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(() =>
+    localStorage.getItem("kypho-cloud-last-sync"),
+  );
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
@@ -435,6 +491,11 @@ function App() {
   const fullAnalysisAbortRef = useRef<AbortController | null>(null);
   const timelineScrollerRef = useRef<HTMLDivElement | null>(null);
   const coachScrollerRef = useRef<HTMLDivElement | null>(null);
+  const cloudSyncInFlightRef = useRef(false);
+  const cloudSyncedUserRef = useRef<string | null>(null);
+  const previousMoveIndexRef = useRef<number | null>(null);
+  const modalWasOpenRef = useRef(false);
+  const analysisWasCompleteRef = useRef(false);
 
   const step = analysis.steps[currentIndex];
   const engine = engineCache[step.ply];
@@ -464,6 +525,10 @@ function App() {
   const activeProfileLabel = activeProfile
     ? `${activeProfile.platform === "chesscom" ? "Chess.com" : "Lichess"} · ${activeProfile.username}`
     : "Chưa chọn hồ sơ";
+  const accountInitial = (firebaseUser?.displayName || firebaseUser?.email || "G").trim().charAt(0).toUpperCase();
+  const cloudAccountLabel = firebaseUser
+    ? firebaseUser.displayName || firebaseUser.email || "Google"
+    : firebaseConfigured ? "Đăng nhập" : "Cloud chưa cấu hình";
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -511,6 +576,82 @@ function App() {
       setLibraryLoading(false);
     }
   }, [activeProfileId]);
+
+  const syncCloud = useCallback(async (
+    targetUser: FirebaseUser | null = firebaseUser,
+    showSuccess = true,
+  ) => {
+    if (!targetUser || cloudSyncInFlightRef.current) return;
+    if (!isTauri()) {
+      setSyncNotice({ type: "error", message: "Đồng bộ cloud cần chạy trong ứng dụng desktop." });
+      return;
+    }
+    cloudSyncInFlightRef.current = true;
+    setCloudSyncing(true);
+    try {
+      const remoteSnapshot = await downloadCloudSnapshot(targetUser.uid);
+      const merged = await invoke<CloudMergeResult>("merge_cloud_snapshot", {
+        request: remoteSnapshot,
+      });
+      const localSnapshot = await invoke<CloudSyncSnapshot>("export_cloud_snapshot");
+      await uploadCloudSnapshot(targetUser.uid, localSnapshot);
+      const completedAt = new Date().toISOString();
+      localStorage.setItem("kypho-cloud-last-sync", completedAt);
+      setLastCloudSyncAt(completedAt);
+      await Promise.all([refreshProfiles(), refreshSavedGames()]);
+      if (showSuccess) {
+        const imported = merged.profiles_added + merged.games_added;
+        setSyncNotice({
+          type: "success",
+          message: imported
+            ? `Đã nhập ${merged.profiles_added} hồ sơ và ${merged.games_added} ván từ cloud; dữ liệu trên máy cũng đã được tải lên.`
+            : `Đã sao lưu ${localSnapshot.profiles.length} hồ sơ và ${localSnapshot.games.length} ván lên Firebase.`,
+        });
+      }
+    } catch (reason) {
+      setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
+    } finally {
+      cloudSyncInFlightRef.current = false;
+      setCloudSyncing(false);
+    }
+  }, [firebaseUser, refreshProfiles, refreshSavedGames]);
+
+  const handleGoogleLogin = async () => {
+    if (authLoading || cloudSyncing) return;
+    setAuthLoading(true);
+    setSyncNotice(null);
+    try {
+      const user = await signInWithGoogle();
+      cloudSyncedUserRef.current = user.uid;
+      setFirebaseUser(user);
+      setAccountOpen(true);
+      await syncCloud(user, true);
+    } catch (reason) {
+      setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    if (cloudSyncing) return;
+    try {
+      await signOutFirebase();
+      cloudSyncedUserRef.current = null;
+      setFirebaseUser(null);
+      setSyncNotice({ type: "info", message: "Đã đăng xuất. Dữ liệu SQLite vẫn được giữ nguyên trên máy này." });
+    } catch (reason) {
+      setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
+    }
+  };
+
+  const toggleSfx = () => {
+    const next = !sfxEnabled;
+    if (!next) playSfx("tap");
+    persistSfxEnabled(next);
+    setSfxEnabled(next);
+    if (next) playSfx("success");
+  };
 
   const persistEngineResult = useCallback(async (
     gameId: string,
@@ -593,6 +734,7 @@ function App() {
       });
       setNewProfileUsername("");
       await refreshProfiles(created.id);
+      if (firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setProfilesError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -603,10 +745,11 @@ function App() {
   const removePlayerProfile = async (profile: PlayerProfile) => {
     if (!isTauri() || profilesLoading) return;
     const platform = profile.platform === "chesscom" ? "Chess.com" : "Lichess";
-    if (!window.confirm(`Xoá hồ sơ ${platform} · ${profile.username}? Các ván đã tải vẫn được giữ trên máy.`)) return;
+    if (!window.confirm(`Xoá hồ sơ ${platform} · ${profile.username}? Các ván đã tải vẫn được giữ${firebaseUser ? ", nhưng hồ sơ sẽ bị xoá khỏi các thiết bị đã đồng bộ" : " trên máy"}.`)) return;
     setProfilesLoading(true);
     setProfilesError("");
     try {
+      if (firebaseUser) await deleteCloudProfile(firebaseUser.uid, profile);
       await invoke("delete_player_profile", { profileId: profile.id });
       await refreshProfiles();
     } catch (reason) {
@@ -700,6 +843,17 @@ function App() {
     };
   }, [analysis.steps.length, fullAnalysis.complete, fullGameSummary, gameOpening, headers]);
 
+  useEffect(() => observeFirebaseUser((user) => {
+    setFirebaseUser(user);
+    setAuthLoading(false);
+  }), []);
+
+  useEffect(() => {
+    if (!firebaseUser || cloudSyncedUserRef.current === firebaseUser.uid) return;
+    cloudSyncedUserRef.current = firebaseUser.uid;
+    void syncCloud(firebaseUser, false);
+  }, [firebaseUser, syncCloud]);
+
   useEffect(() => {
     if (!isTauri()) return;
     Promise.all([
@@ -712,9 +866,35 @@ function App() {
 
   useEffect(() => {
     if (!syncNotice) return;
+    if (syncNotice.type === "success") playSfx("success");
+    if (syncNotice.type === "error") playSfx("error");
     const timeout = window.setTimeout(() => setSyncNotice(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [syncNotice]);
+
+  useEffect(() => {
+    if (previousMoveIndexRef.current !== null && previousMoveIndexRef.current !== currentIndex) {
+      playSfx("move");
+    }
+    previousMoveIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    const modalOpen = importOpen
+      || libraryOpen
+      || dashboardOpen
+      || profilesOpen
+      || settingsOpen
+      || accountOpen
+      || summaryOpen;
+    if (modalOpen && !modalWasOpenRef.current) playSfx("open");
+    modalWasOpenRef.current = modalOpen;
+  }, [accountOpen, dashboardOpen, importOpen, libraryOpen, profilesOpen, settingsOpen, summaryOpen]);
+
+  useEffect(() => {
+    if (fullAnalysis.complete && !analysisWasCompleteRef.current) playSfx("success");
+    analysisWasCompleteRef.current = fullAnalysis.complete;
+  }, [fullAnalysis.complete]);
 
   useEffect(() => {
     void refreshProfiles();
@@ -883,6 +1063,7 @@ function App() {
           });
           loadAnalysis(pgn, gameId);
           await refreshSavedGames();
+          if (firebaseUser) void syncCloud(firebaseUser, false);
         } catch (reason) {
           setLibraryError(reason instanceof Error ? reason.message : String(reason));
           loadAnalysis(pgn);
@@ -961,6 +1142,7 @@ function App() {
       await invoke("mark_profile_synced", { profileId: activeProfile.id });
       await refreshProfiles(activeProfile.id);
       await refreshSavedGames();
+      if (firebaseUser) void syncCloud(firebaseUser, false);
       const message = imported > 0
         ? `Đồng bộ hoàn tất: đã thêm ${imported} ván mới${skipped ? `, bỏ qua ${skipped} ván đã có hoặc không hợp lệ` : ""}.`
         : `Đồng bộ hoàn tất: không có ván mới${skipped ? `; ${skipped} ván đã có hoặc không hợp lệ` : ""}.`;
@@ -993,10 +1175,11 @@ function App() {
 
   const removeStoredGame = async (game: SavedGameSummary) => {
     if (!isTauri() || libraryLoading) return;
-    if (!window.confirm(`Xoá ván ${game.white} — ${game.black} khỏi Kho ván?`)) return;
+    if (!window.confirm(`Xoá ván ${game.white} — ${game.black} khỏi Kho ván${firebaseUser ? " trên mọi thiết bị đã đồng bộ" : ""}?`)) return;
     setLibraryLoading(true);
     setLibraryError("");
     try {
+      if (firebaseUser) await deleteCloudGame(firebaseUser.uid, game.id);
       await invoke<boolean>("delete_saved_game", { id: game.id });
       await refreshSavedGames();
     } catch (reason) {
@@ -1338,7 +1521,7 @@ function App() {
       )}
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">CC</div>
+          <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
           <div>
             <div className="brand-name">Chess Coach <span className="version-badge">v0.5.0</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
@@ -1363,6 +1546,17 @@ function App() {
             </select>
             <button onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ" title="Quản lý hồ sơ"><UserPlus size={15} /></button>
           </div>
+          <button
+            className={`cloud-account-button ${firebaseUser ? "signed-in" : ""}`}
+            onClick={() => setAccountOpen(true)}
+            aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
+            title={firebaseUser ? `Đã đăng nhập: ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
+          >
+            {authLoading || cloudSyncing
+              ? <LoaderCircle className="spin" size={15} />
+              : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={15} />}
+            <span>{cloudSyncing ? "Đang đồng bộ" : cloudAccountLabel}</span>
+          </button>
           <div className={`service-pill ${engine ? "online" : "working"}`}>
             <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
           </div>
@@ -1852,12 +2046,17 @@ function App() {
             <div className="library-list">
               {libraryLoading && !savedGames.length ? (
                 <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc kho ván…</div>
-              ) : savedGames.length ? savedGames.map((game) => (
-                <article className="library-game" key={game.id}>
+              ) : savedGames.length ? savedGames.map((game) => {
+                const outcome = gameOutcomeForProfile(game, activeProfile?.username);
+                return (
+                <article className={`library-game outcome-${outcome.kind}`} key={game.id}>
                   <button className="library-game-open" onClick={() => void openStoredGame(game.id)} disabled={libraryLoading}>
                     <div className="library-game-players">
                       <span className="library-player white"><i className="side-badge white-side">Trắng</i><strong>{game.white}</strong><small>{game.white_elo ? `Elo ${game.white_elo}` : "Elo —"}</small></span>
-                      <span className="library-result">{game.result || "*"}</span>
+                      <span className={`library-outcome ${outcome.kind}`} aria-label={`${outcome.label}${outcome.side ? ` khi cầm quân ${outcome.side}` : ""}, kết quả ${game.result || "chưa xác định"}`}>
+                        <strong>{outcome.label}</strong>
+                        <small>{outcome.side ? `${outcome.side} · ` : ""}{game.result || "*"}</small>
+                      </span>
                       <span className="library-player black"><strong>{game.black}</strong><small>{game.black_elo ? `Elo ${game.black_elo}` : "Elo —"}</small><i className="side-badge black-side">Đen</i></span>
                     </div>
                     <div className="library-game-meta">
@@ -1873,7 +2072,8 @@ function App() {
                   </button>
                   <button className="library-delete" onClick={() => void removeStoredGame(game)} disabled={libraryLoading} aria-label={`Xoá ván ${game.white} gặp ${game.black}`} title="Xoá khỏi Kho ván"><Trash2 size={16} /></button>
                 </article>
-              )) : (
+                );
+              }) : (
                 <div className="library-empty"><Library size={28} /><strong>Kho ván đang trống</strong><span>Nạp PGN hoặc link Chess.com để lưu ván đầu tiên.</span></div>
               )}
             </div>
@@ -1929,6 +2129,59 @@ function App() {
               </div>
             </div>
             <div className="modal-note">Xoá hồ sơ chỉ bỏ liên kết với tài khoản; các ván đã tải vẫn được giữ trên máy.</div>
+          </section>
+        </div>
+      )}
+
+      {accountOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setAccountOpen(false)}>
+          <section className="modal-card account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            <div className="modal-icon"><Cloud size={24} /></div>
+            <div className="eyebrow">GOOGLE · FIREBASE · SQLITE</div>
+            <h2 id="account-title">Tài khoản & đồng bộ</h2>
+            <p>Đăng nhập Google để sao lưu hồ sơ và kho ván, rồi tiếp tục trên máy khác. SQLite vẫn là bản dữ liệu offline trên máy này.</p>
+
+            {firebaseUser ? (
+              <>
+                <div className="account-identity">
+                  <span className="account-avatar">{accountInitial}</span>
+                  <div>
+                    <strong>{firebaseUser.displayName || "Tài khoản Google"}</strong>
+                    <span>{firebaseUser.email}</span>
+                  </div>
+                  <i><CheckCircle2 size={13} /> Đã kết nối</i>
+                </div>
+                <div className="cloud-summary">
+                  <div><Database size={16} /><span><strong>{profiles.length} hồ sơ · {savedGames.length} ván đang hiển thị</strong><small>Dữ liệu local sẵn sàng khi offline</small></span></div>
+                  <div><RefreshCw size={16} /><span><strong>{lastCloudSyncAt ? `Đồng bộ ${formatVietnamDate(lastCloudSyncAt, true)}` : "Chưa đồng bộ lần đầu"}</strong><small>Hợp nhất hai chiều, không tạo ván trùng</small></span></div>
+                </div>
+                <div className="security-note"><ShieldCheck size={15} /> Mỗi tài khoản chỉ đọc và ghi vùng dữ liệu theo Firebase UID của chính mình. API key AI và kết quả Stockfish không được tải lên.</div>
+                <div className="modal-actions account-actions">
+                  <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={cloudSyncing}><LogOut size={15} /> Đăng xuất</button>
+                  <button className="primary-button large" onClick={() => void syncCloud(firebaseUser, true)} disabled={cloudSyncing}>
+                    {cloudSyncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+                    {cloudSyncing ? "Đang đồng bộ…" : "Đồng bộ ngay"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="account-signin-card">
+                  <div className="google-mark">G</div>
+                  <div><strong>Đăng nhập bằng Google</strong><span>Firebase dùng tài khoản này để tách riêng dữ liệu của mày.</span></div>
+                </div>
+                {!firebaseConfigured && <div className="error-message">Bản build này chưa có Firebase Web App config. Điền các biến VITE_FIREBASE_* rồi build lại.</div>}
+                <div className="security-note"><ShieldCheck size={15} /> App chỉ nhận tên, email và mã UID từ Google. Mật khẩu không đi qua Chess Coach.</div>
+                <div className="modal-actions">
+                  <button className="ghost-button" onClick={() => setAccountOpen(false)}>Để sau</button>
+                  <button className="primary-button large" onClick={() => void handleGoogleLogin()} disabled={!firebaseConfigured || authLoading}>
+                    {authLoading ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}
+                    {authLoading ? "Đang mở Google…" : "Tiếp tục với Google"}
+                  </button>
+                </div>
+              </>
+            )}
           </section>
         </div>
       )}
@@ -2027,6 +2280,12 @@ function App() {
               <option value="off">Tắt — chỉ phân tích khi bấm nút</option>
             </select>
 
+            <label className="field-label">Âm thanh giao diện</label>
+            <div className="sfx-setting">
+              <span>{sfxEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}<span><strong>{sfxEnabled ? "Đang bật SFX" : "Đã tắt SFX"}</strong><small>Chuyển nước, mở bảng, hoàn tất và báo lỗi</small></span></span>
+              <button type="button" className={sfxEnabled ? "active" : ""} onClick={toggleSfx} aria-pressed={sfxEnabled}>{sfxEnabled ? "Bật" : "Tắt"}</button>
+            </div>
+
             <label className="field-label" htmlFor="api-key">{providerLabel} API key</label>
             <div className="key-field">
               <KeyRound size={17} />
@@ -2048,7 +2307,7 @@ function App() {
 
       <footer>
         <span>Chess Coach v0.5.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
-        <span><ShieldCheck size={13} /> PGN ở lại trên máy · Lời giải thích AI được lưu cục bộ</span>
+        <span>{firebaseUser ? <Cloud size={13} /> : <ShieldCheck size={13} />} {firebaseUser ? "Hồ sơ + PGN được sao lưu Firebase · AI vẫn cục bộ" : "PGN ở lại trên máy · Đăng nhập Google để sao lưu"}</span>
       </footer>
     </div>
   );

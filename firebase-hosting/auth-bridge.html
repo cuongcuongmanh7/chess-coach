@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng nhập Chess Coach</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Segoe UI", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, #173328, #08110e 58%); color: #e1eee7; }
+      main { width: min(100%, 420px); padding: 34px; border: 1px solid #315345; border-radius: 18px; background: rgba(15, 29, 24, .94); box-shadow: 0 24px 80px rgba(0, 0, 0, .36); text-align: center; }
+      .mark { width: 54px; height: 54px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 15px; color: #08110e; background: #70e1b5; font-size: 27px; font-weight: 900; }
+      h1 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
+      p { margin: 12px 0 24px; color: #91a69c; line-height: 1.6; }
+      button { width: 100%; min-height: 48px; border: 0; border-radius: 10px; color: #102019; background: #f6faf8; font: 700 14px inherit; cursor: pointer; }
+      button:hover { background: #dff8ed; }
+      button:disabled { cursor: wait; opacity: .65; }
+      #status { min-height: 22px; margin: 16px 0 0; color: #79bda1; font-size: 13px; }
+      #status.error { color: #ff938a; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark">♞</div>
+      <h1>Đăng nhập Chess Coach</h1>
+      <p>Google sẽ xác thực trong trình duyệt này. Chess Coach chỉ nhận token đăng nhập để đồng bộ dữ liệu của bạn.</p>
+      <button id="login" type="button">Tiếp tục với Google</button>
+      <div id="status" role="status" aria-live="polite"></div>
+    </main>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDJeOVDPpBYiszq1wrThCC88jyKAHx9oLw",
+        authDomain: "chess-coach-4b50e.firebaseapp.com",
+        projectId: "chess-coach-4b50e",
+        storageBucket: "chess-coach-4b50e.firebasestorage.app",
+        messagingSenderId: "418794085597",
+        appId: "1:418794085597:web:14ec7d2fa8aa45ad5a0f34",
+      };
+      const params = new URLSearchParams(location.search);
+      const callbackValue = params.get("callback") || sessionStorage.getItem("chessCoachCallback");
+      const state = params.get("state") || sessionStorage.getItem("chessCoachState");
+      const button = document.querySelector("#login");
+      const status = document.querySelector("#status");
+
+      function validRequest() {
+        if (!callbackValue || !state || !/^[a-f0-9]{64}$/.test(state)) return false;
+        try {
+          const callback = new URL(callbackValue);
+          return callback.protocol === "http:"
+            && callback.hostname === "127.0.0.1"
+            && /^\d+$/.test(callback.port)
+            && callback.pathname === "/oauth/callback";
+        } catch {
+          return false;
+        }
+      }
+
+      function returnToApp(values) {
+        const callback = new URL(callbackValue);
+        callback.searchParams.set("state", state);
+        Object.entries(values).forEach(([key, value]) => callback.searchParams.set(key, value));
+        sessionStorage.removeItem("chessCoachCallback");
+        sessionStorage.removeItem("chessCoachState");
+        location.replace(callback);
+      }
+
+      if (!validRequest()) {
+        button.disabled = true;
+        status.className = "error";
+        status.textContent = "Yêu cầu đăng nhập không hợp lệ. Hãy mở lại từ ứng dụng Chess Coach.";
+      } else {
+        sessionStorage.setItem("chessCoachCallback", callbackValue);
+        sessionStorage.setItem("chessCoachState", state);
+        const auth = getAuth(initializeApp(firebaseConfig));
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          status.className = "";
+          status.textContent = "Đang mở Google…";
+          try {
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            if (!credential?.accessToken) throw new Error("Google không trả access token.");
+            status.textContent = "Đã xác thực. Đang quay lại Chess Coach…";
+            returnToApp({ access_token: credential.accessToken });
+          } catch (error) {
+            button.disabled = false;
+            status.className = "error";
+            status.textContent = error instanceof Error ? error.message : "Không thể mở Google.";
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

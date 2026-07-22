@@ -4,8 +4,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::process::Command;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 
 #[derive(Default)]
@@ -99,6 +103,55 @@ struct SaveGameRequest {
     time_class: Option<String>,
     source_url: Option<String>,
     source_platform: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct CloudPlayerProfile {
+    platform: String,
+    username: String,
+    last_sync_at: Option<String>,
+    created_at: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct CloudSavedGame {
+    id: String,
+    pgn: String,
+    white: String,
+    black: String,
+    white_elo: Option<String>,
+    black_elo: Option<String>,
+    result: Option<String>,
+    event: Option<String>,
+    date: Option<String>,
+    played_at: Option<String>,
+    eco: Option<String>,
+    opening: Option<String>,
+    time_control: Option<String>,
+    time_class: Option<String>,
+    source_url: Option<String>,
+    source_platform: Option<String>,
+    created_at: String,
+    last_opened_at: String,
+    profile_keys: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct MergeCloudSnapshotRequest {
+    profiles: Vec<CloudPlayerProfile>,
+    games: Vec<CloudSavedGame>,
+}
+
+#[derive(Serialize)]
+struct CloudSyncSnapshot {
+    profiles: Vec<CloudPlayerProfile>,
+    games: Vec<CloudSavedGame>,
+}
+
+#[derive(Serialize)]
+struct CloudMergeResult {
+    profiles_added: usize,
+    games_added: usize,
 }
 
 #[derive(Serialize)]
@@ -901,6 +954,231 @@ fn mark_profile_synced(
         )
         .map_err(|_| "Không thể cập nhật thời gian đồng bộ.".to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+fn export_cloud_snapshot(
+    database: tauri::State<'_, DatabaseState>,
+) -> Result<CloudSyncSnapshot, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở dữ liệu để đồng bộ.".to_string())?;
+
+    let mut profile_statement = connection
+        .prepare(
+            "SELECT platform, username, last_sync_at, created_at
+             FROM player_profiles
+             ORDER BY created_at, id",
+        )
+        .map_err(|_| "Không thể chuẩn bị danh sách hồ sơ để đồng bộ.".to_string())?;
+    let profiles = profile_statement
+        .query_map([], |row| {
+            Ok(CloudPlayerProfile {
+                platform: row.get(0)?,
+                username: row.get(1)?,
+                last_sync_at: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .map_err(|_| "Không thể đọc hồ sơ để đồng bộ.".to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu hồ sơ đồng bộ không hợp lệ.".to_string())?;
+
+    let mut game_statement = connection
+        .prepare(
+            "SELECT sg.id, sg.pgn, sg.white, sg.black, sg.white_elo, sg.black_elo,
+                    sg.result, sg.event, sg.game_date, sg.played_at, sg.eco, sg.opening,
+                    sg.time_control, sg.time_class, sg.source_url, sg.source_platform,
+                    sg.created_at, sg.last_opened_at,
+                    COALESCE((
+                      SELECT GROUP_CONCAT(pp.platform || ':' || lower(pp.username), '|')
+                      FROM game_profiles gp
+                      JOIN player_profiles pp ON pp.id = gp.profile_id
+                      WHERE gp.game_id = sg.id
+                    ), '')
+             FROM saved_games sg
+             ORDER BY sg.created_at, sg.id",
+        )
+        .map_err(|_| "Không thể chuẩn bị kho ván để đồng bộ.".to_string())?;
+    let games = game_statement
+        .query_map([], |row| {
+            let profile_keys: String = row.get(18)?;
+            Ok(CloudSavedGame {
+                id: row.get(0)?,
+                pgn: row.get(1)?,
+                white: row.get(2)?,
+                black: row.get(3)?,
+                white_elo: row.get(4)?,
+                black_elo: row.get(5)?,
+                result: row.get(6)?,
+                event: row.get(7)?,
+                date: row.get(8)?,
+                played_at: row.get(9)?,
+                eco: row.get(10)?,
+                opening: row.get(11)?,
+                time_control: row.get(12)?,
+                time_class: row.get(13)?,
+                source_url: row.get(14)?,
+                source_platform: row.get(15)?,
+                created_at: row.get(16)?,
+                last_opened_at: row.get(17)?,
+                profile_keys: profile_keys
+                    .split('|')
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+            })
+        })
+        .map_err(|_| "Không thể đọc kho ván để đồng bộ.".to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu ván đồng bộ không hợp lệ.".to_string())?;
+
+    Ok(CloudSyncSnapshot { profiles, games })
+}
+
+#[tauri::command]
+fn merge_cloud_snapshot(
+    database: tauri::State<'_, DatabaseState>,
+    request: MergeCloudSnapshotRequest,
+) -> Result<CloudMergeResult, String> {
+    if request.profiles.len() > 100 || request.games.len() > 10_000 {
+        return Err("Bản đồng bộ vượt quá giới hạn an toàn.".to_string());
+    }
+
+    let mut connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở dữ liệu để hợp nhất.".to_string())?;
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Không thể bắt đầu hợp nhất dữ liệu cloud.".to_string())?;
+    let mut profiles_added = 0usize;
+    let mut games_added = 0usize;
+
+    for profile in &request.profiles {
+        let platform = normalized_platform(Some(profile.platform.as_str()))
+            .ok_or_else(|| "Nền tảng hồ sơ cloud không hợp lệ.".to_string())?;
+        let username = profile.username.trim();
+        if !valid_username(username) {
+            return Err("Username hồ sơ cloud không hợp lệ.".to_string());
+        }
+        profiles_added += transaction
+            .execute(
+                "INSERT OR IGNORE INTO player_profiles
+                 (platform, username, last_sync_at, created_at)
+                 VALUES (?1, ?2, ?3, COALESCE(NULLIF(?4, ''), datetime('now')))",
+                params![
+                    platform,
+                    username,
+                    &profile.last_sync_at,
+                    &profile.created_at
+                ],
+            )
+            .map_err(|_| "Không thể nhập hồ sơ từ cloud.".to_string())?;
+        transaction
+            .execute(
+                "UPDATE player_profiles
+                 SET last_sync_at = CASE
+                   WHEN ?3 IS NOT NULL AND (last_sync_at IS NULL OR ?3 > last_sync_at) THEN ?3
+                   ELSE last_sync_at
+                 END
+                 WHERE platform = ?1 AND username = ?2 COLLATE NOCASE",
+                params![platform, username, &profile.last_sync_at],
+            )
+            .map_err(|_| "Không thể cập nhật hồ sơ từ cloud.".to_string())?;
+    }
+
+    for game in &request.games {
+        validate_game_id(&game.id)?;
+        let normalized_pgn = game.pgn.trim().replace("\r\n", "\n");
+        if normalized_pgn.is_empty() || normalized_pgn.len() > 900_000 {
+            return Err("PGN trên cloud không hợp lệ hoặc quá lớn.".to_string());
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(normalized_pgn.as_bytes());
+        if format!("{:x}", hasher.finalize()) != game.id {
+            return Err("Mã ván trên cloud không khớp nội dung PGN.".to_string());
+        }
+        let source_platform = normalized_platform(game.source_platform.as_deref());
+        games_added += transaction
+            .execute(
+                "INSERT OR IGNORE INTO saved_games
+                 (id, pgn, white, black, white_elo, black_elo, result, event, game_date,
+                  played_at, eco, opening, time_control, time_class, source_url,
+                  source_platform, analysis_complete, created_at, last_opened_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                         ?14, ?15, ?16, 0, COALESCE(NULLIF(?17, ''), datetime('now')),
+                         COALESCE(NULLIF(?18, ''), datetime('now')))",
+                params![
+                    &game.id,
+                    &normalized_pgn,
+                    &game.white,
+                    &game.black,
+                    &game.white_elo,
+                    &game.black_elo,
+                    &game.result,
+                    &game.event,
+                    &game.date,
+                    &game.played_at,
+                    &game.eco,
+                    &game.opening,
+                    &game.time_control,
+                    &game.time_class,
+                    &game.source_url,
+                    source_platform,
+                    &game.created_at,
+                    &game.last_opened_at,
+                ],
+            )
+            .map_err(|_| "Không thể nhập ván từ cloud.".to_string())?;
+
+        for profile_key in &game.profile_keys {
+            let Some((platform_value, username_value)) = profile_key.split_once(':') else {
+                continue;
+            };
+            let Some(platform) = normalized_platform(Some(platform_value)) else {
+                continue;
+            };
+            if !valid_username(username_value) {
+                continue;
+            }
+            transaction
+                .execute(
+                    "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+                     SELECT ?1, pp.id,
+                            CASE WHEN lower(?2) = lower(?4) THEN 'w' ELSE 'b' END,
+                            datetime('now')
+                     FROM player_profiles pp
+                     WHERE pp.platform = ?3 AND pp.username = ?2 COLLATE NOCASE
+                       AND (lower(?2) = lower(?4) OR lower(?2) = lower(?5))",
+                    params![&game.id, username_value, platform, &game.white, &game.black],
+                )
+                .map_err(|_| "Không thể liên kết ván cloud với hồ sơ.".to_string())?;
+        }
+    }
+
+    transaction
+        .execute(
+            "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+             SELECT sg.id, pp.id,
+                    CASE WHEN lower(sg.white) = lower(pp.username) THEN 'w' ELSE 'b' END,
+                    datetime('now')
+             FROM saved_games sg
+             JOIN player_profiles pp
+               ON lower(sg.white) = lower(pp.username) OR lower(sg.black) = lower(pp.username)
+             WHERE sg.source_platform IS NULL OR sg.source_platform = pp.platform",
+            [],
+        )
+        .map_err(|_| "Không thể hoàn tất liên kết dữ liệu cloud.".to_string())?;
+    transaction
+        .commit()
+        .map_err(|_| "Không thể lưu dữ liệu cloud đã hợp nhất.".to_string())?;
+
+    Ok(CloudMergeResult {
+        profiles_added,
+        games_added,
+    })
 }
 
 fn valid_username(username: &str) -> bool {
@@ -1760,6 +2038,173 @@ mod tests {
     }
 }
 
+fn open_system_browser(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("rundll32.exe");
+        command.args(["url.dll,FileProtocolHandler", url]);
+        command
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(url);
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Không thể mở trình duyệt mặc định: {error}"))
+}
+
+fn loopback_response(
+    stream: &mut std::net::TcpStream,
+    status: &str,
+    body: &str,
+) -> Result<(), String> {
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nPragma: no-cache\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n{body}",
+        body.len(),
+    );
+    stream
+        .write_all(response.as_bytes())
+        .map_err(|error| format!("Không thể trả phản hồi OAuth: {error}"))
+}
+
+fn run_google_oauth_loopback() -> Result<String, String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|error| format!("Không thể mở cổng đăng nhập cục bộ: {error}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|error| format!("Không thể cấu hình cổng đăng nhập: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("Không thể đọc cổng đăng nhập: {error}"))?
+        .port();
+
+    let mut random_state = [0_u8; 32];
+    getrandom::fill(&mut random_state)
+        .map_err(|error| format!("Không thể tạo mã bảo vệ đăng nhập: {error}"))?;
+    let state = random_state
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let callback = format!("http://127.0.0.1:{port}/oauth/callback");
+    let mut bridge_url = Url::parse("https://chess-coach-4b50e.firebaseapp.com/auth-bridge.html")
+        .map_err(|error| format!("URL đăng nhập không hợp lệ: {error}"))?;
+    bridge_url
+        .query_pairs_mut()
+        .append_pair("callback", &callback)
+        .append_pair("state", &state);
+    open_system_browser(bridge_url.as_str())?;
+
+    let deadline = Instant::now() + Duration::from_secs(300);
+    while Instant::now() < deadline {
+        let (mut stream, _) = match listener.accept() {
+            Ok(connection) => connection,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+            Err(error) => return Err(format!("Không thể nhận kết quả đăng nhập: {error}")),
+        };
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+        let mut request = Vec::with_capacity(4096);
+        let mut chunk = [0_u8; 2048];
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(count) => {
+                    request.extend_from_slice(&chunk[..count]);
+                    if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                        break;
+                    }
+                    if request.len() > 16_384 {
+                        return Err("Phản hồi đăng nhập vượt quá giới hạn an toàn.".into());
+                    }
+                }
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock
+                        || error.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    break;
+                }
+                Err(error) => return Err(format!("Không thể đọc kết quả đăng nhập: {error}")),
+            }
+        }
+
+        let request_text = String::from_utf8_lossy(&request);
+        let Some(target) = request_text
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("GET "))
+            .and_then(|line| line.split_whitespace().next())
+        else {
+            let _ = loopback_response(&mut stream, "400 Bad Request", "Yêu cầu không hợp lệ.");
+            continue;
+        };
+        let parsed = match Url::parse(&format!("http://127.0.0.1:{port}{target}")) {
+            Ok(url) if url.path() == "/oauth/callback" => url,
+            _ => {
+                let _ = loopback_response(&mut stream, "404 Not Found", "Không tìm thấy.");
+                continue;
+            }
+        };
+        let values = parsed
+            .query_pairs()
+            .collect::<std::collections::HashMap<_, _>>();
+        if values.get("state").map(|value| value.as_ref()) != Some(state.as_str()) {
+            let _ = loopback_response(
+                &mut stream,
+                "403 Forbidden",
+                "Mã bảo vệ đăng nhập không khớp.",
+            );
+            continue;
+        }
+        if let Some(error) = values.get("error") {
+            let message = values
+                .get("error_description")
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| error.to_string());
+            let _ = loopback_response(
+                &mut stream,
+                "200 OK",
+                "Đăng nhập đã được hủy. Bạn có thể đóng tab này.",
+            );
+            return Err(message);
+        }
+        let Some(access_token) = values.get("access_token").map(|value| value.to_string()) else {
+            let _ = loopback_response(&mut stream, "400 Bad Request", "Thiếu token đăng nhập.");
+            continue;
+        };
+        if access_token.len() > 12_000 {
+            return Err("Token đăng nhập vượt quá giới hạn an toàn.".into());
+        }
+
+        let success_page = r#"<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Đăng nhập thành công</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1411;color:#dce9e2;font:16px system-ui}.card{max-width:420px;padding:32px;border:1px solid #29483b;border-radius:16px;background:#111e19;text-align:center}h1{color:#70e1b5;font-size:22px}p{color:#92a69c;line-height:1.6}</style></head><body><main class="card"><h1>Đăng nhập thành công</h1><p>Bạn có thể đóng tab này và quay lại Chess Coach.</p></main><script>history.replaceState(null,'','/done');setTimeout(()=>window.close(),700)</script></body></html>"#;
+        loopback_response(&mut stream, "200 OK", success_page)?;
+        return Ok(access_token);
+    }
+
+    Err("Đăng nhập quá thời gian. Hãy thử lại.".into())
+}
+
+#[tauri::command]
+async fn begin_google_oauth() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(run_google_oauth_loopback)
+        .await
+        .map_err(|error| format!("Luồng đăng nhập bị gián đoạn: {error}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1912,6 +2357,9 @@ pub fn run() {
             add_player_profile,
             delete_player_profile,
             mark_profile_synced,
+            export_cloud_snapshot,
+            merge_cloud_snapshot,
+            begin_google_oauth,
             set_api_key,
             clear_api_key,
             has_api_key,
