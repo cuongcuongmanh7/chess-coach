@@ -1,0 +1,15 @@
+export const DEMO_PGN = `[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2026.07.21"]
+[Round "?"]
+[White "BradenXLi"]
+[Black "Cuongkool"]
+[Result "1-0"]
+[TimeControl "600"]
+[WhiteElo "1074"]
+[BlackElo "1081"]
+[Termination "BradenXLi thắng bởi chiếu hết"]
+[ECO "D10"]
+[Link "https://www.chess.com/game/live/171860573096"]
+
+1. d4 d5 2. c4 c6 3. Nc3 Nf6 4. Nf3 h6 5. Bf4 a6 6. e3 Bd7 7. Qb3 Qc8 8. O-O-O e6 9. cxd5 cxd5 10. Ne5 Be7 11. Nxd7 Nbxd7 12. Bd3 O-O 13. e4 Ng4 14. Bg3 Bg5+ 15. Kb1 Rb8 16. exd5 exd5 17. Bxb8 Nxf2 18. Qxd5 Nxh1 19. Bd6 Nf2 20. Rd2 Bxd2 21. Bxf8 Nxd3 22. Kc2 Nb4+ 23. Bxb4 Nb6 24. Qa5 Nc4 25. Qc5 Qxc5 26. Bxc5 Bf4 27. b3 Ne3+ 28. Kd3 Nxg2 29. Ne4 Bxh2 30. Bd6 Bxd6 31. Nxd6 Nf4+ 32. Ke4 g5 33. Nxb7 h5 34. d5 h4 35. d6 Kf8 36. d7 Ke7 37. d8=Q+ Ke6 38. Nc5# 1-0`;
