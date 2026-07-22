@@ -2,7 +2,7 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.5.0**.
+Phiên bản hiện tại: **0.6.0**.
 
 ## Chạy trên Windows
 

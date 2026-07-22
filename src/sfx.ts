@@ -1,4 +1,4 @@
-export type SfxName = "tap" | "move" | "open" | "success" | "error";
+export type SfxName = "tap" | "move" | "capture" | "check" | "castle" | "open" | "success" | "error";
 
 const STORAGE_KEY = "kypho-sfx-enabled";
 let audioContext: AudioContext | null = null;
@@ -38,6 +38,45 @@ function tone(
   oscillator.stop(start + duration + 0.02);
 }
 
+function woodImpact(
+  target: AudioContext,
+  delay: number,
+  volume: number,
+  pitch = 1,
+  duration = 0.085,
+) {
+  const start = target.currentTime + delay;
+  const frameCount = Math.ceil(target.sampleRate * duration);
+  const buffer = target.createBuffer(1, frameCount, target.sampleRate);
+  const samples = buffer.getChannelData(0);
+
+  for (let index = 0; index < frameCount; index += 1) {
+    const time = index / target.sampleRate;
+    const click = (Math.random() * 2 - 1) * Math.exp(-time * 105) * 0.68;
+    const grain = (Math.random() * 2 - 1) * Math.exp(-time * 42) * 0.12;
+    const lowBody = Math.sin(Math.PI * 2 * 185 * pitch * time) * Math.exp(-time * 35) * 0.28;
+    const highBody = Math.sin(Math.PI * 2 * 515 * pitch * time) * Math.exp(-time * 58) * 0.1;
+    samples[index] = Math.max(-1, Math.min(1, click + grain + lowBody + highBody));
+  }
+
+  const source = target.createBufferSource();
+  const filter = target.createBiquadFilter();
+  const gain = target.createGain();
+  source.buffer = buffer;
+  source.playbackRate.value = 0.985 + Math.random() * 0.03;
+  filter.type = "lowpass";
+  filter.frequency.value = 4300;
+  filter.Q.value = 0.72;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.0025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(target.destination);
+  source.start(start);
+  source.stop(start + duration + 0.02);
+}
+
 export function sfxEnabled() {
   return enabled;
 }
@@ -60,8 +99,16 @@ export function playSfx(name: SfxName) {
     if (name === "tap") {
       tone(target, 520, 0, 0.035, 0.018, "sine", 430);
     } else if (name === "move") {
-      tone(target, 185, 0, 0.045, 0.025, "triangle", 145);
-      tone(target, 760, 0.012, 0.028, 0.012, "square", 620);
+      woodImpact(target, 0, 0.115, 1);
+    } else if (name === "capture") {
+      woodImpact(target, 0, 0.145, 0.88, 0.105);
+      woodImpact(target, 0.017, 0.075, 1.16, 0.062);
+    } else if (name === "check") {
+      woodImpact(target, 0, 0.125, 0.96);
+      tone(target, 1040, 0.035, 0.045, 0.01, "sine", 820);
+    } else if (name === "castle") {
+      woodImpact(target, 0, 0.105, 0.94);
+      woodImpact(target, 0.072, 0.115, 1.04);
     } else if (name === "open") {
       tone(target, 310, 0, 0.08, 0.018, "sine", 470);
       tone(target, 465, 0.035, 0.085, 0.014, "sine", 620);

@@ -31,6 +31,7 @@ import {
   RotateCcw,
   RefreshCw,
   Play,
+  Plus,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -135,6 +136,17 @@ type SavedGameSummary = {
   created_at: string;
   last_opened_at: string;
 };
+
+type GameLibraryListProps = {
+  games: SavedGameSummary[];
+  activeGameId?: string | null;
+  activeProfileUsername?: string;
+  loading: boolean;
+  error: string;
+  variant: "sidebar" | "modal";
+  onOpen: (id: string) => void;
+  onDelete: (game: SavedGameSummary) => void;
+};
 type GameOutcome = {
   kind: "win" | "loss" | "draw" | "unknown";
   label: "Thắng" | "Thua" | "Hòa" | "Chưa rõ";
@@ -228,6 +240,55 @@ function formatVietnamDate(value?: string | null, includeTime = Boolean(value?.i
     hourCycle: "h23",
   }).formatToParts(parsed).map((part) => [part.type, part.value]));
   return `${parts.day}/${parts.month}/${parts.year}${includeTime ? ` ${parts.hour}:${parts.minute}` : ""}`;
+}
+
+function GameLibraryList({
+  games,
+  activeGameId,
+  activeProfileUsername,
+  loading,
+  error,
+  variant,
+  onOpen,
+  onDelete,
+}: GameLibraryListProps) {
+  return (
+    <div className={`library-list ${variant === "sidebar" ? "sidebar-library-list" : "modal-library-list"}`}>
+      {error && <div className="error-message library-inline-error">{error}</div>}
+      {loading && !games.length ? (
+        <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc kho ván…</div>
+      ) : games.length ? games.map((game) => {
+        const outcome = gameOutcomeForProfile(game, activeProfileUsername);
+        return (
+          <article className={`library-game outcome-${outcome.kind}${game.id === activeGameId ? " active" : ""}`} key={game.id}>
+            <button className="library-game-open" onClick={() => onOpen(game.id)} disabled={loading} aria-current={game.id === activeGameId ? "true" : undefined}>
+              <div className="library-game-players">
+                <span className="library-player white"><i className="side-badge white-side">Trắng</i><strong>{game.white}</strong><small>{game.white_elo ? `Elo ${game.white_elo}` : "Elo —"}</small></span>
+                <span className={`library-outcome ${outcome.kind}`} aria-label={`${outcome.label}${outcome.side ? ` khi cầm quân ${outcome.side}` : ""}, kết quả ${game.result || "chưa xác định"}`}>
+                  <strong>{outcome.label}</strong>
+                  <small>{outcome.side ? `${outcome.side} · ` : ""}{game.result || "*"}</small>
+                </span>
+                <span className="library-player black"><strong>{game.black}</strong><small>{game.black_elo ? `Elo ${game.black_elo}` : "Elo —"}</small><i className="side-badge black-side">Đen</i></span>
+              </div>
+              <div className="library-game-meta">
+                <span>{game.event || "Ván cờ đã nhập"}</span>
+                {(game.played_at || game.date) && <span>{formatVietnamDate(game.played_at || game.date)}</span>}
+                {game.eco && <span>{game.eco}</span>}
+                {game.opening && <span className="library-opening" title={game.opening}>{game.opening}</span>}
+                {game.time_control && <span>{game.time_control}s</span>}
+                {game.source_platform && <span>{game.source_platform === "lichess" ? "Lichess" : "Chess.com"}</span>}
+                {game.analysis_complete && <span className="analyzed-game">Đã phân tích</span>}
+                <span className="library-opened">Mở {formatVietnamDate(game.last_opened_at, true)}</span>
+              </div>
+            </button>
+            <button className="library-delete" onClick={() => onDelete(game)} disabled={loading} aria-label={`Xoá ván ${game.white} gặp ${game.black}`} title="Xoá khỏi Kho ván"><Trash2 size={16} /></button>
+          </article>
+        );
+      }) : (
+        <div className="library-empty"><Library size={28} /><strong>Kho ván đang trống</strong><span>Nạp PGN hoặc link Chess.com để lưu ván đầu tiên.</span></div>
+      )}
+    </div>
+  );
 }
 
 function getPgnPlayedAt(headers: Record<string, string>) {
@@ -423,6 +484,7 @@ function App() {
   const [orientation, setOrientation] = useState<"white" | "black">("white");
   const [importOpen, setImportOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("kypho-sidebar-collapsed") === "true");
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -653,6 +715,13 @@ function App() {
     if (next) playSfx("success");
   };
 
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem("kypho-sidebar-collapsed", String(next));
+    playSfx("tap");
+  };
+
   const persistEngineResult = useCallback(async (
     gameId: string,
     item: AnalysisStep,
@@ -874,10 +943,14 @@ function App() {
 
   useEffect(() => {
     if (previousMoveIndexRef.current !== null && previousMoveIndexRef.current !== currentIndex) {
-      playSfx("move");
+      const san = analysis.steps[currentIndex]?.san || "";
+      if (/^O-O/.test(san)) playSfx("castle");
+      else if (/[+#]$/.test(san)) playSfx("check");
+      else if (san.includes("x")) playSfx("capture");
+      else playSfx("move");
     }
     previousMoveIndexRef.current = currentIndex;
-  }, [currentIndex]);
+  }, [analysis.steps, currentIndex]);
 
   useEffect(() => {
     const modalOpen = importOpen
@@ -1511,7 +1584,7 @@ function App() {
   } as const;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       {syncNotice && (
         <div className={`sync-toast ${syncNotice.type}`} role={syncNotice.type === "error" ? "alert" : "status"} aria-live="polite">
           {syncNotice.type === "error" ? <TriangleAlert size={19} /> : <CheckCircle2 size={19} />}
@@ -1519,43 +1592,97 @@ function App() {
           <button onClick={() => setSyncNotice(null)} aria-label="Đóng thông báo"><X size={16} /></button>
         </div>
       )}
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
-          <div>
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.5.0</span></div>
-            <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
+      <aside className="app-sidebar" aria-label="Điều hướng và Kho ván">
+        <div className="sidebar-fixed-header">
+          <div className="sidebar-brand-row">
+            <div className="brand">
+              <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
+              <div className="brand-copy">
+                <div className="brand-name">Chess Coach <span className="version-badge">v0.6.0</span></div>
+                <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
+              </div>
+            </div>
+            <button className="sidebar-collapse-button" onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"} title={sidebarCollapsed ? "Mở rộng" : "Thu gọn"}>
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+          </div>
+
+          <div className="sidebar-account-controls">
+            <div className="sidebar-profile-switcher">
+              <UserRound size={16} />
+              <select
+                aria-label="Hồ sơ đang dùng"
+                value={activeProfileId || ""}
+                onChange={(event) => changeActiveProfile(Number(event.target.value))}
+                disabled={profilesLoading || !profiles.length}
+              >
+                {!profiles.length && <option value="">Đang tải hồ sơ…</option>}
+                {profiles.map((profile) => (
+                  <option value={profile.id} key={profile.id}>
+                    {profile.platform === "chesscom" ? "Chess.com" : "Lichess"} · {profile.username}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ" title="Quản lý hồ sơ"><UserPlus size={16} /></button>
+            </div>
           </div>
         </div>
 
-        <div className="top-actions">
-          <div className="profile-switcher">
-            <UserRound size={15} />
-            <select
-              aria-label="Hồ sơ đang dùng"
-              value={activeProfileId || ""}
-              onChange={(event) => changeActiveProfile(Number(event.target.value))}
-              disabled={profilesLoading || !profiles.length}
-            >
-              {!profiles.length && <option value="">Đang tải hồ sơ…</option>}
-              {profiles.map((profile) => (
-                <option value={profile.id} key={profile.id}>
-                  {profile.platform === "chesscom" ? "Chess.com" : "Lichess"} · {profile.username}
-                </option>
-              ))}
-            </select>
-            <button onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ" title="Quản lý hồ sơ"><UserPlus size={15} /></button>
+        <button className="sidebar-library-collapsed-button" onClick={toggleSidebar} aria-label={`Mở Kho ván, ${savedGames.length} ván`} title="Mở Kho ván">
+          <Library size={20} />
+          {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}
+        </button>
+
+        <section className="sidebar-library" aria-labelledby="sidebar-library-title">
+          <div className="sidebar-library-heading">
+            <div><span>THƯ VIỆN</span><h2 id="sidebar-library-title">Kho ván</h2></div>
+            <div className="sidebar-library-heading-actions">
+              <span className="library-count">{savedGames.length}</span>
+              <button onClick={() => void refreshSavedGames()} disabled={libraryLoading} aria-label="Làm mới Kho ván" title="Làm mới"><RefreshCw className={libraryLoading ? "spin" : ""} size={15} /></button>
+            </div>
           </div>
+          <GameLibraryList
+            games={savedGames}
+            activeGameId={currentGameId}
+            activeProfileUsername={activeProfile?.username}
+            loading={libraryLoading}
+            error={libraryError}
+            variant="sidebar"
+            onOpen={(id) => void openStoredGame(id)}
+            onDelete={(game) => void removeStoredGame(game)}
+          />
+        </section>
+
+        <div className="sidebar-library-footer">
           <button
-            className={`cloud-account-button ${firebaseUser ? "signed-in" : ""}`}
+            className={`cloud-account-button sidebar-cloud-button ${firebaseUser ? "signed-in" : ""}`}
             onClick={() => setAccountOpen(true)}
             aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
             title={firebaseUser ? `Đã đăng nhập: ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
           >
             {authLoading || cloudSyncing
-              ? <LoaderCircle className="spin" size={15} />
-              : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={15} />}
+              ? <LoaderCircle className="spin" size={16} />
+              : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={16} />}
             <span>{cloudSyncing ? "Đang đồng bộ" : cloudAccountLabel}</span>
+          </button>
+          <button className="sidebar-settings-button" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt" title="Cài đặt"><Settings size={17} /></button>
+          <button className="sidebar-add-button" onClick={() => setImportOpen(true)} aria-label="Nạp ván mới" title="Nạp ván mới"><Plus size={19} /></button>
+        </div>
+      </aside>
+
+      <header className="topbar">
+        <div className="brand mobile-brand">
+          <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
+          <div className="brand-copy">
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.6.0</span></div>
+            <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
+          </div>
+        </div>
+
+        <div className="top-actions">
+          <button className="icon-button mobile-sidebar-action" onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ"><UserRound size={17} /></button>
+          <button className={`icon-button mobile-sidebar-action ${firebaseUser ? "signed-in" : ""}`} onClick={() => setAccountOpen(true)} aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}>
+            {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={16} />}
           </button>
           <div className={`service-pill ${engine ? "online" : "working"}`}>
             <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
@@ -1566,10 +1693,10 @@ function App() {
           <button className="ghost-button dashboard-button" onClick={() => void openDashboard()}>
             <BarChart3 size={16} /> Tiến bộ
           </button>
-          <button className="ghost-button library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
+          <button className="ghost-button library-button mobile-library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
             <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}
           </button>
-          <button className="icon-button top-icon" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt">
+          <button className="icon-button top-icon mobile-sidebar-action" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt">
             <Settings size={17} />
           </button>
           <button className="primary-button" onClick={() => setImportOpen(true)}>
@@ -2042,41 +2169,16 @@ function App() {
                 <p>{savedGames.length ? `${savedGames.length} ván của ${activeProfileLabel} · mới thi đấu gần đây trước` : `Chưa có ván cho ${activeProfileLabel}.`}</p>
               </div>
             </div>
-            {libraryError && <div className="error-message">{libraryError}</div>}
-            <div className="library-list">
-              {libraryLoading && !savedGames.length ? (
-                <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc kho ván…</div>
-              ) : savedGames.length ? savedGames.map((game) => {
-                const outcome = gameOutcomeForProfile(game, activeProfile?.username);
-                return (
-                <article className={`library-game outcome-${outcome.kind}`} key={game.id}>
-                  <button className="library-game-open" onClick={() => void openStoredGame(game.id)} disabled={libraryLoading}>
-                    <div className="library-game-players">
-                      <span className="library-player white"><i className="side-badge white-side">Trắng</i><strong>{game.white}</strong><small>{game.white_elo ? `Elo ${game.white_elo}` : "Elo —"}</small></span>
-                      <span className={`library-outcome ${outcome.kind}`} aria-label={`${outcome.label}${outcome.side ? ` khi cầm quân ${outcome.side}` : ""}, kết quả ${game.result || "chưa xác định"}`}>
-                        <strong>{outcome.label}</strong>
-                        <small>{outcome.side ? `${outcome.side} · ` : ""}{game.result || "*"}</small>
-                      </span>
-                      <span className="library-player black"><strong>{game.black}</strong><small>{game.black_elo ? `Elo ${game.black_elo}` : "Elo —"}</small><i className="side-badge black-side">Đen</i></span>
-                    </div>
-                    <div className="library-game-meta">
-                      <span>{game.event || "Ván cờ đã nhập"}</span>
-                      {(game.played_at || game.date) && <span>{formatVietnamDate(game.played_at || game.date)}</span>}
-                      {game.eco && <span>{game.eco}</span>}
-                      {game.opening && <span className="library-opening" title={game.opening}>{game.opening}</span>}
-                      {game.time_control && <span>{game.time_control}s</span>}
-                      {game.source_platform && <span>{game.source_platform === "lichess" ? "Lichess" : "Chess.com"}</span>}
-                      {game.analysis_complete && <span className="analyzed-game">Đã phân tích</span>}
-                      <span className="library-opened">Mở {formatVietnamDate(game.last_opened_at, true)}</span>
-                    </div>
-                  </button>
-                  <button className="library-delete" onClick={() => void removeStoredGame(game)} disabled={libraryLoading} aria-label={`Xoá ván ${game.white} gặp ${game.black}`} title="Xoá khỏi Kho ván"><Trash2 size={16} /></button>
-                </article>
-                );
-              }) : (
-                <div className="library-empty"><Library size={28} /><strong>Kho ván đang trống</strong><span>Nạp PGN hoặc link Chess.com để lưu ván đầu tiên.</span></div>
-              )}
-            </div>
+            <GameLibraryList
+              games={savedGames}
+              activeGameId={currentGameId}
+              activeProfileUsername={activeProfile?.username}
+              loading={libraryLoading}
+              error={libraryError}
+              variant="modal"
+              onOpen={(id) => void openStoredGame(id)}
+              onDelete={(game) => void removeStoredGame(game)}
+            />
             <div className="modal-actions library-actions">
               <span>PGN chỉ được lưu trong database trên máy này.</span>
               <button className="primary-button" onClick={() => { setLibraryOpen(false); setImportOpen(true); }}><Upload size={15} /> Nạp ván mới</button>
@@ -2306,7 +2408,7 @@ function App() {
       )}
 
       <footer>
-        <span>Chess Coach v0.5.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
+        <span>Chess Coach v0.6.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
         <span>{firebaseUser ? <Cloud size={13} /> : <ShieldCheck size={13} />} {firebaseUser ? "Hồ sơ + PGN được sao lưu Firebase · AI vẫn cục bộ" : "PGN ở lại trên máy · Đăng nhập Google để sao lưu"}</span>
       </footer>
     </div>
