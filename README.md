@@ -29,9 +29,10 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 
 - Đọc PGN và phát lại đúng vị trí sau từng lượt.
 - Tải link ván Chess.com đã kết thúc qua dữ liệu công khai.
-- Highlight nước vừa đi, phản đòn và nước tốt nhất do Stockfish đề xuất.
+- Highlight nước vừa đi, phản đòn, best move và phương án tốt thứ hai do Stockfish đề xuất.
 - Phân loại khai cuộc, trung cuộc, tàn cuộc.
-- Stockfish 18 Lite chạy local ở depth 13 để tính evaluation, centipawn loss, biến chính và phân loại Nước tốt, Sai lầm, Blunder.
+- Stockfish 18 Lite chạy local ở depth 13 cho nước đang xem, dùng MultiPV 2 và phân loại Best, Nước tốt, Thiếu chính xác, Sai lầm, Blunder.
+- Phân tích toàn ván ở depth 11 với tiến độ nền, ACPL, tỷ lệ Best/Tốt, thống kê lỗi theo từng bên và danh sách vị trí then chốt có thể mở trực tiếp.
 - OpenAI hoặc Gemini viết lời giải thích tiếng Việt dựa trên dữ liệu Stockfish.
 - Chế độ tự động giải thích Mistake/Blunder hoặc mọi nước đã mở xem.
 - Lời giải thích được lưu trong SQLite cục bộ và tái sử dụng khi mở lại vị trí; API key không được ghi vào cơ sở dữ liệu.

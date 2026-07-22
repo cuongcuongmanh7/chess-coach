@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Chessboard } from "react-chessboard";
 import {
   ArrowRight,
+  BarChart3,
   BookOpen,
   Bot,
   BrainCircuit,
@@ -18,19 +19,24 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Target,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { analyzePgn, type GameAnalysis, type MoveQuality } from "./analysis";
 import { DEMO_PGN } from "./demo";
-import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "./stockfish";
+import { analyzeGameWithStockfish, analyzeMoveWithStockfish, type EngineMoveAnalysis } from "./stockfish";
 
 const QUALITY_LABELS: Record<MoveQuality, string> = {
+  best: "Best move",
   good: "Nước tốt",
+  inaccuracy: "Thiếu chính xác",
   mistake: "Sai lầm",
   blunder: "Blunder",
 };
+
+const QUALITY_ORDER: MoveQuality[] = ["best", "good", "inaccuracy", "mistake", "blunder"];
 
 const OPENAI_MODELS = [
   { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", detail: "Chất lượng cao nhất" },
@@ -46,6 +52,12 @@ const GEMINI_MODELS = [
 type AiProvider = "openai" | "gemini";
 type AutoExplainMode = "off" | "mistakes" | "visited";
 type AiExplanation = { text: string; provider: AiProvider; model: string; cached: boolean };
+type PlayerSummary = {
+  moves: number;
+  acpl: number;
+  bestGoodRate: number;
+  counts: Record<MoveQuality, number>;
+};
 
 const PROVIDER_LABELS: Record<AiProvider, string> = { openai: "OpenAI", gemini: "Gemini" };
 const DEFAULT_MODELS: Record<AiProvider, string> = {
@@ -71,6 +83,8 @@ function App() {
   const [engineCache, setEngineCache] = useState<Record<number, EngineMoveAnalysis>>({});
   const [engineLoading, setEngineLoading] = useState(false);
   const [engineError, setEngineError] = useState("");
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [fullAnalysis, setFullAnalysis] = useState({ running: false, complete: false, completed: 0, total: 0, error: "" });
   const [aiCache, setAiCache] = useState<Record<string, AiExplanation>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -92,6 +106,7 @@ function App() {
   const cacheLookupsRef = useRef(new Set<string>());
   const cacheMissesRef = useRef(new Set<string>());
   const autoAttemptsRef = useRef(new Set<string>());
+  const fullAnalysisAbortRef = useRef<AbortController | null>(null);
 
   const step = analysis.steps[currentIndex];
   const engine = engineCache[step.ply];
@@ -114,6 +129,36 @@ function App() {
     });
     return pairs;
   }, [analysis]);
+
+  const fullGameSummary = useMemo(() => {
+    const buildPlayerSummary = (color: "w" | "b"): PlayerSummary => {
+      const results = analysis.steps
+        .filter((item) => item.color === color)
+        .map((item) => engineCache[item.ply])
+        .filter((item): item is EngineMoveAnalysis => Boolean(item));
+      const counts: Record<MoveQuality, number> = {
+        best: 0,
+        good: 0,
+        inaccuracy: 0,
+        mistake: 0,
+        blunder: 0,
+      };
+      results.forEach((item) => { counts[item.quality] += 1; });
+      const totalLoss = results.reduce((sum, item) => sum + item.centipawnLoss, 0);
+      return {
+        moves: results.length,
+        acpl: results.length ? Math.round(totalLoss / results.length) : 0,
+        bestGoodRate: results.length ? Math.round(((counts.best + counts.good) / results.length) * 100) : 0,
+        counts,
+      };
+    };
+
+    const critical = analysis.steps
+      .map((item, index) => ({ item, index, engine: engineCache[item.ply] }))
+      .filter(({ engine: result }) => result?.quality === "mistake" || result?.quality === "blunder");
+
+    return { white: buildPlayerSummary("w"), black: buildPlayerSummary("b"), critical };
+  }, [analysis.steps, engineCache]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -145,7 +190,7 @@ function App() {
   }, [currentIndex]);
 
   useEffect(() => {
-    if (engineCache[step.ply]) {
+    if (engine?.depth && engine.depth >= 13) {
       setEngineLoading(false);
       setEngineError("");
       return;
@@ -155,7 +200,10 @@ function App() {
     setEngineError("");
 
     analyzeMoveWithStockfish(step.fenBefore, step.fenAfter, step.lan, controller.signal)
-      .then((result) => setEngineCache((cache) => ({ ...cache, [step.ply]: result })))
+      .then((result) => setEngineCache((cache) => {
+        if ((cache[step.ply]?.depth || 0) >= result.depth) return cache;
+        return { ...cache, [step.ply]: result };
+      }))
       .catch((reason) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
         setEngineError(reason instanceof Error ? reason.message : String(reason));
@@ -165,7 +213,9 @@ function App() {
       });
 
     return () => controller.abort();
-  }, [engineCache, step.fenAfter, step.fenBefore, step.lan, step.ply]);
+  }, [engine?.depth, step.fenAfter, step.fenBefore, step.lan, step.ply]);
+
+  useEffect(() => () => fullAnalysisAbortRef.current?.abort(), []);
 
   useEffect(() => {
     setAiError("");
@@ -173,10 +223,14 @@ function App() {
 
   const loadAnalysis = (pgn: string) => {
     const next = analyzePgn(pgn);
+    fullAnalysisAbortRef.current?.abort();
+    fullAnalysisAbortRef.current = null;
     setAnalysis(next);
     setCurrentIndex(0);
     setEngineCache({});
     setAiCache({});
+    setSummaryOpen(false);
+    setFullAnalysis({ running: false, complete: false, completed: 0, total: next.steps.length, error: "" });
     cacheLookupsRef.current.clear();
     cacheMissesRef.current.clear();
     autoAttemptsRef.current.clear();
@@ -199,6 +253,46 @@ function App() {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startFullGameAnalysis = async () => {
+    if (fullAnalysis.running) return;
+    if (fullAnalysis.complete) {
+      setSummaryOpen(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    fullAnalysisAbortRef.current?.abort();
+    fullAnalysisAbortRef.current = controller;
+    setFullAnalysis({ running: true, complete: false, completed: 0, total: analysis.steps.length, error: "" });
+
+    try {
+      await analyzeGameWithStockfish(
+        analysis.steps,
+        (ply, result, completed, total) => {
+          setEngineCache((cache) => {
+            if ((cache[ply]?.depth || 0) >= result.depth) return cache;
+            return { ...cache, [ply]: result };
+          });
+          setFullAnalysis({ running: true, complete: false, completed, total, error: "" });
+        },
+        controller.signal,
+      );
+      if (!controller.signal.aborted) {
+        setFullAnalysis({ running: false, complete: true, completed: analysis.steps.length, total: analysis.steps.length, error: "" });
+        setSummaryOpen(true);
+      }
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setFullAnalysis((value) => ({
+        ...value,
+        running: false,
+        error: reason instanceof Error ? reason.message : String(reason),
+      }));
+    } finally {
+      if (fullAnalysisAbortRef.current === controller) fullAnalysisAbortRef.current = null;
     }
   };
 
@@ -291,7 +385,7 @@ function App() {
 
   useEffect(() => {
     if (!isTauri() || !engine || !aiRequest || aiCache[aiCacheKey]) return;
-    const shouldAutoExplain = autoExplainMode === "visited" || (autoExplainMode === "mistakes" && quality !== "good");
+    const shouldAutoExplain = autoExplainMode === "visited" || (autoExplainMode === "mistakes" && (quality === "mistake" || quality === "blunder"));
     const triggerAutoExplanation = () => {
       if (!shouldAutoExplain || !hasApiKey || aiInFlightRef.current || autoAttemptsRef.current.has(aiCacheKey)) return;
       autoAttemptsRef.current.add(aiCacheKey);
@@ -319,15 +413,16 @@ function App() {
 
   const arrows = useMemo(() => {
     const result = [...step.arrows];
-    if (engine?.bestMoveUci && engine.bestMoveUci !== step.lan) {
+    engine?.variations.slice(0, 2).forEach((variation, index) => {
+      if (!variation.moveUci || variation.moveUci === step.lan) return;
       result.push({
-        startSquare: engine.bestMoveUci.slice(0, 2),
-        endSquare: engine.bestMoveUci.slice(2, 4),
-        color: "#43d9a3",
+        startSquare: variation.moveUci.slice(0, 2),
+        endSquare: variation.moveUci.slice(2, 4),
+        color: index === 0 ? "#43d9a3" : "#67a7ff",
       });
-    }
+    });
     return result;
-  }, [engine, step.arrows, step.lan]);
+  }, [engine?.variations, step.arrows, step.lan]);
 
   const chessboardOptions = {
     id: "analysis-board",
@@ -384,19 +479,23 @@ function App() {
         <section className="game-heading">
           <div className="game-title-wrap">
             <div className="eyebrow">{headers.Event || "Ván cờ đã nhập"}</div>
-            <h1>
-              <span className="player-name"><i className="side-badge white-side">Trắng</i>{headers.White || "Trắng"}</span>
-              <span className="versus">vs</span>
-              <span className="player-name"><i className="side-badge black-side">Đen</i>{headers.Black || "Đen"}</span>
-            </h1>
-          </div>
-          <div className="game-meta">
-            <span>{headers.WhiteElo || "—"}</span>
-            <span className="result">{headers.Result || "*"}</span>
-            <span>{headers.BlackElo || "—"}</span>
-            <span className="meta-divider" />
-            <span>{headers.ECO || "ECO —"}</span>
-            <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
+            <div className="game-title-row">
+              <h1>
+                <span className="player-name">
+                  <i className="side-badge white-side">Trắng</i>
+                  <span className="player-copy">{headers.White || "Trắng"}<small>Elo {headers.WhiteElo || "—"}</small></span>
+                </span>
+                <span className="match-result">{headers.Result || "*"}</span>
+                <span className="player-name">
+                  <i className="side-badge black-side">Đen</i>
+                  <span className="player-copy">{headers.Black || "Đen"}<small>Elo {headers.BlackElo || "—"}</small></span>
+                </span>
+              </h1>
+              <div className="match-context">
+                <span>{headers.ECO || "ECO —"}</span>
+                <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -418,7 +517,8 @@ function App() {
 
             <div className="arrow-legend">
               <span><i className="legend-line gold" /> Nước vừa đi</span>
-              <span><i className="legend-line green" /> Nước Stockfish</span>
+              <span><i className="legend-line green" /> Best move</span>
+              <span><i className="legend-line blue" /> Phương án 2</span>
               <span><i className="legend-line red" /> Phản đòn</span>
               <span className="keyboard-hint">← → chuyển nước</span>
             </div>
@@ -440,20 +540,28 @@ function App() {
 
             <div className="move-hero">
               <div className="move-badges">
-                <div className={`quality-badge ${quality}`}><span className="quality-icon">{quality === "good" ? "✓" : "!"}</span>{QUALITY_LABELS[quality]}</div>
+                <div className={`quality-badge ${quality}`}><span className="quality-icon">{quality === "best" ? "★" : quality === "good" ? "✓" : "!"}</span>{QUALITY_LABELS[quality]}</div>
                 <div className={`turn-badge ${step.color === "w" ? "white-turn" : "black-turn"}`}>
                   {step.color === "w" ? "Trắng" : "Đen"} · {step.color === "w" ? headers.White || "Người chơi" : headers.Black || "Người chơi"}
                 </div>
               </div>
               <div className="san-display">{step.moveNumber}{step.color === "w" ? "." : "…"} {step.san}</div>
-              <h2>{engine ? (quality === "good" ? "Engine đồng ý với nước đi" : `Stockfish chọn ${engine.bestMoveSan}`) : step.title}</h2>
+              <h2>{engine ? (quality === "best" ? "Nước tốt nhất của Stockfish" : quality === "good" ? "Engine đồng ý với nước đi" : `Stockfish chọn ${engine.bestMoveSan}`) : step.title}</h2>
               <p>{engine ? `Nước này mất khoảng ${Math.round(engine.centipawnLoss)} centipawn. Đánh giá sau nước đi: ${engine.evaluation} theo phía Trắng.` : step.comment}</p>
             </div>
 
             {engine && (
               <div className="best-line-card">
-                <div className="best-line-label">BIẾN GỢI Ý</div>
-                <div className="best-line-moves">{engine.bestLineSan.length ? engine.bestLineSan.join("  ") : engine.bestMoveSan}</div>
+                <div className="best-line-label">HAI PHƯƠNG ÁN TỐT NHẤT</div>
+                <div className="variation-list">
+                  {engine.variations.slice(0, 2).map((variation) => (
+                    <div className="variation-row" key={`${variation.rank}-${variation.moveUci}`}>
+                      <span className={`variation-rank rank-${variation.rank}`}>{variation.rank === 1 ? "BEST" : "#2"}</span>
+                      <span className="variation-eval">{variation.evaluation}</span>
+                      <span className="best-line-moves">{variation.lineSan.length ? variation.lineSan.join("  ") : variation.moveSan}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -494,7 +602,19 @@ function App() {
         <section className="timeline-section">
           <div className="timeline-header">
             <div><BookOpen size={17} /><strong>Timeline nước đi</strong><span>{totalMoves} nước · {analysis.steps.length} lượt</span></div>
-            <div className="timeline-key"><span><i className="dot good" /> Tốt</span><span><i className="dot mistake" /> Sai lầm</span><span><i className="dot blunder" /> Blunder</span></div>
+            <div className="timeline-summary-actions">
+              <button className={`summary-button ${fullAnalysis.complete ? "complete" : ""}`} onClick={() => void startFullGameAnalysis()} disabled={fullAnalysis.running} title={fullAnalysis.error || undefined}>
+                {fullAnalysis.running ? <LoaderCircle className="spin" size={13} /> : <BarChart3 size={13} />}
+                {fullAnalysis.running ? `Đang phân tích ${fullAnalysis.completed}/${fullAnalysis.total}` : fullAnalysis.complete ? "Xem tổng kết" : fullAnalysis.error ? "Thử lại phân tích" : "Phân tích toàn ván"}
+              </button>
+              <div className="timeline-key">
+                <span><i className="dot best" /> Best</span>
+                <span><i className="dot good" /> Tốt</span>
+                <span><i className="dot inaccuracy" /> Thiếu CX</span>
+                <span><i className="dot mistake" /> Sai</span>
+                <span><i className="dot blunder" /> Blunder</span>
+              </div>
+            </div>
           </div>
           <div className="timeline-scroller">
             {movePairs.map((pair) => (
@@ -516,6 +636,56 @@ function App() {
           </div>
         </section>
       </main>
+
+      {summaryOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setSummaryOpen(false)}>
+          <section className="modal-card summary-modal" role="dialog" aria-modal="true" aria-labelledby="summary-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSummaryOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            <div className="summary-heading">
+              <div className="modal-icon"><BarChart3 size={24} /></div>
+              <div>
+                <div className="eyebrow">STOCKFISH · DEPTH 11 · TOÀN VÁN</div>
+                <h2 id="summary-title">Tổng kết ván đấu</h2>
+                <p>{headers.Opening || headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
+              </div>
+            </div>
+
+            <div className="summary-players">
+              {([
+                { side: "white", label: "Trắng", name: headers.White || "Trắng", elo: headers.WhiteElo, stats: fullGameSummary.white },
+                { side: "black", label: "Đen", name: headers.Black || "Đen", elo: headers.BlackElo, stats: fullGameSummary.black },
+              ] as const).map((player) => (
+                <article className={`summary-player ${player.side}`} key={player.side}>
+                  <div className="summary-player-name"><i className={`side-badge ${player.side === "white" ? "white-side" : "black-side"}`}>{player.label}</i><strong>{player.name}</strong><span>{player.elo ? `Elo ${player.elo}` : "Elo —"}</span></div>
+                  <div className="summary-metrics">
+                    <div><strong>{player.stats.acpl}</strong><span>ACPL</span></div>
+                    <div><strong>{player.stats.bestGoodRate}%</strong><span>Best / Tốt</span></div>
+                    <div><strong>{player.stats.moves}</strong><span>Nước đã tính</span></div>
+                  </div>
+                  <div className="quality-counts">
+                    {QUALITY_ORDER.map((item) => <span className={item} key={item}><i className={`dot ${item}`} />{QUALITY_LABELS[item]} <strong>{player.stats.counts[item]}</strong></span>)}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="critical-section">
+              <div className="critical-heading"><Target size={16} /><strong>Vị trí then chốt</strong><span>{fullGameSummary.critical.length} Mistake/Blunder</span></div>
+              <div className="critical-list">
+                {fullGameSummary.critical.length ? fullGameSummary.critical.map(({ item, index, engine: result }) => (
+                  <button key={item.ply} onClick={() => { setCurrentIndex(index); setSummaryOpen(false); }}>
+                    <span className={`critical-quality ${result?.quality}`}>{result ? QUALITY_LABELS[result.quality] : "—"}</span>
+                    <strong>{item.moveNumber}{item.color === "w" ? "." : "…"} {item.san}</strong>
+                    <span>{item.color === "w" ? headers.White || "Trắng" : headers.Black || "Đen"}</span>
+                    <span className="critical-loss">−{Math.round(result?.centipawnLoss || 0)} cp</span>
+                    <ChevronRight size={15} />
+                  </button>
+                )) : <div className="empty-critical">Không có Mistake hoặc Blunder trong ván này.</div>}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {importOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setImportOpen(false)}>

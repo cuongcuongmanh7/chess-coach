@@ -1,12 +1,28 @@
 import { Chess } from "chess.js";
-import type { MoveQuality } from "./analysis";
+import type { AnalysisStep, MoveQuality } from "./analysis";
+
+type ScoreType = "cp" | "mate";
+
+type RawVariation = {
+  rank: number;
+  depth: number;
+  scoreType: ScoreType;
+  scoreValue: number;
+  pv: string[];
+};
 
 type RawSearch = {
   depth: number;
-  scoreType: "cp" | "mate";
-  scoreValue: number;
-  pv: string[];
   bestMove: string;
+  variations: RawVariation[];
+};
+
+export type EngineVariation = {
+  rank: number;
+  evaluation: string;
+  moveUci: string;
+  moveSan: string;
+  lineSan: string[];
 };
 
 export type EngineMoveAnalysis = {
@@ -18,31 +34,49 @@ export type EngineMoveAnalysis = {
   bestMoveUci: string;
   bestMoveSan: string;
   bestLineSan: string[];
+  variations: EngineVariation[];
   playedMoveUci: string;
 };
 
 const ENGINE_URL = "/stockfish/stockfish-18-lite-single.js";
-const SEARCH_DEPTH = 13;
+const CURRENT_MOVE_DEPTH = 13;
+const FULL_GAME_DEPTH = 11;
 const MATE_SCORE = 100_000;
+
+function emptyVariation(rank = 1): RawVariation {
+  return { rank, depth: 0, scoreType: "cp", scoreValue: 0, pv: [] };
+}
 
 function parseInfo(line: string, previous: RawSearch): RawSearch {
   if (!line.startsWith("info ") || !line.includes(" score ")) return previous;
 
   const depthMatch = line.match(/\bdepth\s+(\d+)/);
   const scoreMatch = line.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
+  const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
   const pvMatch = line.match(/\bpv\s+(.+)$/);
   if (!scoreMatch) return previous;
 
+  const rank = multipvMatch ? Number(multipvMatch[1]) : 1;
+  const existing = previous.variations.find((item) => item.rank === rank) || emptyVariation(rank);
+  const variation: RawVariation = {
+    rank,
+    depth: depthMatch ? Number(depthMatch[1]) : existing.depth,
+    scoreType: scoreMatch[1] as ScoreType,
+    scoreValue: Number(scoreMatch[2]),
+    pv: pvMatch ? pvMatch[1].trim().split(/\s+/) : existing.pv,
+  };
+  const variations = previous.variations.filter((item) => item.rank !== rank);
+  variations.push(variation);
+  variations.sort((left, right) => left.rank - right.rank);
+
   return {
     ...previous,
-    depth: depthMatch ? Number(depthMatch[1]) : previous.depth,
-    scoreType: scoreMatch[1] as "cp" | "mate",
-    scoreValue: Number(scoreMatch[2]),
-    pv: pvMatch ? pvMatch[1].trim().split(/\s+/) : previous.pv,
+    depth: Math.max(previous.depth, variation.depth),
+    variations,
   };
 }
 
-function scoreAsCp(result: RawSearch) {
+function scoreAsCp(result: RawVariation) {
   if (result.scoreType === "cp") return result.scoreValue;
   const direction = result.scoreValue >= 0 ? 1 : -1;
   return direction * (MATE_SCORE - Math.min(Math.abs(result.scoreValue), 99) * 100);
@@ -68,7 +102,7 @@ function lineToSan(fen: string, line: string[]) {
   return san;
 }
 
-function formatWhiteEvaluation(result: RawSearch, rootColor: "w" | "b") {
+function formatWhiteEvaluation(result: RawVariation, rootColor: "w" | "b") {
   const multiplier = rootColor === "w" ? 1 : -1;
   if (result.scoreType === "mate") {
     const whiteMate = result.scoreValue * multiplier;
@@ -80,9 +114,22 @@ function formatWhiteEvaluation(result: RawSearch, rootColor: "w" | "b") {
 }
 
 function classifyLoss(centipawnLoss: number, playedMove: string, bestMove: string): MoveQuality {
-  if (playedMove === bestMove || centipawnLoss <= 35) return "good";
-  if (centipawnLoss <= 160) return "mistake";
+  if (playedMove === bestMove || centipawnLoss <= 10) return "best";
+  if (centipawnLoss <= 35) return "good";
+  if (centipawnLoss <= 90) return "inaccuracy";
+  if (centipawnLoss <= 180) return "mistake";
   return "blunder";
+}
+
+function terminalSearch(fen: string, depth: number): RawSearch {
+  const position = new Chess(fen);
+  const variation = emptyVariation();
+  variation.depth = depth;
+  if (position.isCheckmate()) {
+    variation.scoreType = "mate";
+    variation.scoreValue = -1;
+  }
+  return { depth, bestMove: "(none)", variations: [variation] };
 }
 
 async function createEngine(signal?: AbortSignal) {
@@ -96,14 +143,12 @@ async function createEngine(signal?: AbortSignal) {
         currentHandler = null;
         reject(new Error("Stockfish phản hồi quá chậm."));
       }, timeoutMs);
-
       const abort = () => {
         window.clearTimeout(timeout);
         currentHandler = null;
         reject(new DOMException("Đã huỷ phân tích", "AbortError"));
       };
       signal?.addEventListener("abort", abort, { once: true });
-
       currentHandler = (line) => {
         if (!line.includes(expected)) return;
         window.clearTimeout(timeout);
@@ -122,21 +167,14 @@ async function createEngine(signal?: AbortSignal) {
     throw error;
   }
 
-  const search = (fen: string) =>
+  const search = (fen: string, depth: number, multiPv: number) =>
     new Promise<RawSearch>((resolve, reject) => {
-      let result: RawSearch = {
-        depth: 0,
-        scoreType: "cp",
-        scoreValue: 0,
-        pv: [],
-        bestMove: "",
-      };
+      let result: RawSearch = { depth: 0, bestMove: "", variations: [] };
       const timeout = window.setTimeout(() => {
         worker.postMessage("stop");
         currentHandler = null;
         reject(new Error("Stockfish không hoàn tất phân tích."));
-      }, 20_000);
-
+      }, 30_000);
       const abort = () => {
         worker.postMessage("stop");
         window.clearTimeout(timeout);
@@ -144,22 +182,70 @@ async function createEngine(signal?: AbortSignal) {
         reject(new DOMException("Đã huỷ phân tích", "AbortError"));
       };
       signal?.addEventListener("abort", abort, { once: true });
-
       currentHandler = (line) => {
         result = parseInfo(line, result);
         if (!line.startsWith("bestmove ")) return;
-        result.bestMove = line.split(/\s+/)[1] || result.pv[0] || "";
+        result.bestMove = line.split(/\s+/)[1] || result.variations[0]?.pv[0] || "";
         window.clearTimeout(timeout);
         signal?.removeEventListener("abort", abort);
         currentHandler = null;
         resolve(result);
       };
 
+      worker.postMessage(`setoption name MultiPV value ${multiPv}`);
       worker.postMessage(`position fen ${fen}`);
-      worker.postMessage(`go depth ${SEARCH_DEPTH}`);
+      worker.postMessage(`go depth ${depth}`);
     });
 
   return { worker, search };
+}
+
+function buildMoveAnalysis(
+  fenBefore: string,
+  fenAfter: string,
+  playedMoveUci: string,
+  before: RawSearch,
+  after: RawSearch,
+): EngineMoveAnalysis {
+  const beforeTurn = new Chess(fenBefore).turn();
+  const afterTurn = new Chess(fenAfter).turn();
+  const beforeTop = before.variations[0] || emptyVariation();
+  const afterTop = after.variations[0] || emptyVariation();
+  const beforeForMover = scoreAsCp(beforeTop);
+  const afterForMover = -scoreAsCp(afterTop);
+  const centipawnLoss = Math.max(0, Math.min(999, beforeForMover - afterForMover));
+  const variations = before.variations.slice(0, 2).map((variation) => {
+    const lineSan = lineToSan(fenBefore, variation.pv);
+    const moveUci = variation.pv[0] || (variation.rank === 1 ? before.bestMove : "");
+    return {
+      rank: variation.rank,
+      evaluation: formatWhiteEvaluation(variation, beforeTurn),
+      moveUci,
+      moveSan: lineSan[0] || moveUci,
+      lineSan,
+    };
+  });
+  const best = variations[0] || {
+    rank: 1,
+    evaluation: formatWhiteEvaluation(beforeTop, beforeTurn),
+    moveUci: before.bestMove,
+    moveSan: before.bestMove,
+    lineSan: [],
+  };
+  const whiteScoreCp = scoreAsCp(afterTop) * (afterTurn === "w" ? 1 : -1);
+
+  return {
+    depth: Math.min(before.depth, after.depth),
+    evaluation: formatWhiteEvaluation(afterTop, afterTurn),
+    whiteScoreCp,
+    centipawnLoss,
+    quality: classifyLoss(centipawnLoss, playedMoveUci, best.moveUci),
+    bestMoveUci: best.moveUci,
+    bestMoveSan: best.moveSan,
+    bestLineSan: best.lineSan,
+    variations,
+    playedMoveUci,
+  };
 }
 
 export async function analyzeMoveWithStockfish(
@@ -170,36 +256,37 @@ export async function analyzeMoveWithStockfish(
 ): Promise<EngineMoveAnalysis> {
   const engine = await createEngine(signal);
   try {
-    const afterTurn = new Chess(fenAfter).turn();
-    const before = await engine.search(fenBefore);
+    const before = await engine.search(fenBefore, CURRENT_MOVE_DEPTH, 2);
     const afterPosition = new Chess(fenAfter);
-    const after: RawSearch = afterPosition.isCheckmate()
-      ? {
-          depth: before.depth,
-          scoreType: "mate",
-          scoreValue: -1,
-          pv: [],
-          bestMove: "(none)",
-        }
-      : await engine.search(fenAfter);
+    const after = afterPosition.isGameOver()
+      ? terminalSearch(fenAfter, before.depth)
+      : await engine.search(fenAfter, CURRENT_MOVE_DEPTH, 1);
+    return buildMoveAnalysis(fenBefore, fenAfter, playedMoveUci, before, after);
+  } finally {
+    engine.worker.terminate();
+  }
+}
 
-    const beforeForMover = scoreAsCp(before);
-    const afterForMover = -scoreAsCp(after);
-    const centipawnLoss = Math.max(0, Math.min(999, beforeForMover - afterForMover));
-    const bestLineSan = lineToSan(fenBefore, before.pv);
-    const whiteScoreCp = scoreAsCp(after) * (afterTurn === "w" ? 1 : -1);
-
-    return {
-      depth: Math.min(before.depth, after.depth),
-      evaluation: formatWhiteEvaluation(after, afterTurn),
-      whiteScoreCp,
-      centipawnLoss,
-      quality: classifyLoss(centipawnLoss, playedMoveUci, before.bestMove),
-      bestMoveUci: before.bestMove,
-      bestMoveSan: bestLineSan[0] || before.bestMove,
-      bestLineSan,
-      playedMoveUci,
-    };
+export async function analyzeGameWithStockfish(
+  steps: AnalysisStep[],
+  onProgress: (ply: number, result: EngineMoveAnalysis, completed: number, total: number) => void,
+  signal?: AbortSignal,
+) {
+  if (!steps.length) return;
+  const engine = await createEngine(signal);
+  try {
+    let before = await engine.search(steps[0].fenBefore, FULL_GAME_DEPTH, 2);
+    for (let index = 0; index < steps.length; index += 1) {
+      if (signal?.aborted) throw new DOMException("Đã huỷ phân tích", "AbortError");
+      const step = steps[index];
+      const afterPosition = new Chess(step.fenAfter);
+      const after = afterPosition.isGameOver()
+        ? terminalSearch(step.fenAfter, before.depth)
+        : await engine.search(step.fenAfter, FULL_GAME_DEPTH, 2);
+      const result = buildMoveAnalysis(step.fenBefore, step.fenAfter, step.lan, before, after);
+      onProgress(step.ply, result, index + 1, steps.length);
+      before = after;
+    }
   } finally {
     engine.worker.terminate();
   }

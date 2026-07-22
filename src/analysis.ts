@@ -1,7 +1,7 @@
 import { Chess, type Color, type Move, type Square } from "chess.js";
 
 export type Phase = "Khai cuộc" | "Trung cuộc" | "Tàn cuộc";
-export type MoveQuality = "good" | "mistake" | "blunder";
+export type MoveQuality = "best" | "good" | "inaccuracy" | "mistake" | "blunder";
 
 export type AnalysisArrow = {
   startSquare: string;
