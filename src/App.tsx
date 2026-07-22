@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Chessboard } from "react-chessboard";
 import {
@@ -38,6 +38,21 @@ const OPENAI_MODELS = [
   { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", detail: "Nhanh và tiết kiệm" },
 ];
 
+const GEMINI_MODELS = [
+  { value: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite", detail: "Nhanh và tiết kiệm" },
+  { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash", detail: "Lý giải sâu hơn" },
+];
+
+type AiProvider = "openai" | "gemini";
+type AutoExplainMode = "off" | "mistakes" | "visited";
+type AiExplanation = { text: string; provider: AiProvider; model: string; cached: boolean };
+
+const PROVIDER_LABELS: Record<AiProvider, string> = { openai: "OpenAI", gemini: "Gemini" };
+const DEFAULT_MODELS: Record<AiProvider, string> = {
+  openai: "gpt-5.6-sol",
+  gemini: "gemini-3.5-flash-lite",
+};
+
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 function isChessComLink(value: string) {
@@ -56,20 +71,38 @@ function App() {
   const [engineCache, setEngineCache] = useState<Record<number, EngineMoveAnalysis>>({});
   const [engineLoading, setEngineLoading] = useState(false);
   const [engineError, setEngineError] = useState("");
-  const [aiCache, setAiCache] = useState<Record<number, string>>({});
+  const [aiCache, setAiCache] = useState<Record<string, AiExplanation>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [hasApiKeys, setHasApiKeys] = useState<Record<AiProvider, boolean>>({ openai: false, gemini: false });
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsError, setSettingsError] = useState("");
-  const [model, setModel] = useState(() => localStorage.getItem("kypho-openai-model") || "gpt-5.6-sol");
+  const [provider, setProvider] = useState<AiProvider>(() =>
+    localStorage.getItem("kypho-ai-provider") === "openai" ? "openai" : "gemini",
+  );
+  const [model, setModel] = useState(() => {
+    const savedProvider = localStorage.getItem("kypho-ai-provider") === "openai" ? "openai" : "gemini";
+    return localStorage.getItem(`kypho-ai-model-${savedProvider}`) || DEFAULT_MODELS[savedProvider];
+  });
+  const [autoExplainMode, setAutoExplainMode] = useState<AutoExplainMode>(() => {
+    const saved = localStorage.getItem("kypho-ai-auto-mode");
+    return saved === "off" || saved === "visited" ? saved : "mistakes";
+  });
+  const aiInFlightRef = useRef(false);
+  const cacheLookupsRef = useRef(new Set<string>());
+  const cacheMissesRef = useRef(new Set<string>());
+  const autoAttemptsRef = useRef(new Set<string>());
 
   const step = analysis.steps[currentIndex];
   const engine = engineCache[step.ply];
-  const aiExplanation = aiCache[step.ply];
+  const aiCacheKey = `${provider}:${model}:${step.fenAfter}`;
+  const aiExplanation = aiCache[aiCacheKey];
   const quality = engine?.quality || step.quality;
   const headers = analysis.headers;
   const totalMoves = Math.ceil(analysis.steps.length / 2);
+  const hasApiKey = hasApiKeys[provider];
+  const providerLabel = PROVIDER_LABELS[provider];
+  const models = provider === "gemini" ? GEMINI_MODELS : OPENAI_MODELS;
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -84,7 +117,12 @@ function App() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    invoke<boolean>("has_openai_api_key").then(setHasApiKey).catch(() => setHasApiKey(false));
+    Promise.all([
+      invoke<boolean>("has_api_key", { provider: "openai" }),
+      invoke<boolean>("has_api_key", { provider: "gemini" }),
+    ])
+      .then(([openai, gemini]) => setHasApiKeys({ openai, gemini }))
+      .catch(() => setHasApiKeys({ openai: false, gemini: false }));
   }, []);
 
   useEffect(() => {
@@ -139,6 +177,9 @@ function App() {
     setCurrentIndex(0);
     setEngineCache({});
     setAiCache({});
+    cacheLookupsRef.current.clear();
+    cacheMissesRef.current.clear();
+    autoAttemptsRef.current.clear();
     setImportOpen(false);
     setInput("");
     setError("");
@@ -164,15 +205,17 @@ function App() {
   const saveApiSettings = async () => {
     setSettingsError("");
     try {
-      if (!isTauri()) throw new Error("Cấu hình OpenAI API cần mở app Tauri.");
+      if (!isTauri()) throw new Error("Cấu hình API cần mở app Tauri.");
       if (apiKeyInput.trim()) {
-        await invoke("set_openai_api_key", { apiKey: apiKeyInput.trim() });
-        setHasApiKey(true);
+        await invoke("set_api_key", { provider, apiKey: apiKeyInput.trim() });
+        setHasApiKeys((values) => ({ ...values, [provider]: true }));
         setApiKeyInput("");
       } else if (!hasApiKey) {
-        throw new Error("Hãy nhập OpenAI API key.");
+        throw new Error(`Hãy nhập ${providerLabel} API key.`);
       }
-      localStorage.setItem("kypho-openai-model", model);
+      localStorage.setItem("kypho-ai-provider", provider);
+      localStorage.setItem(`kypho-ai-model-${provider}`, model);
+      localStorage.setItem("kypho-ai-auto-mode", autoExplainMode);
       setSettingsOpen(false);
     } catch (reason) {
       setSettingsError(reason instanceof Error ? reason.message : String(reason));
@@ -181,43 +224,98 @@ function App() {
 
   const clearApiKey = async () => {
     if (!isTauri()) return;
-    await invoke("clear_openai_api_key");
-    setHasApiKey(await invoke<boolean>("has_openai_api_key"));
+    await invoke("clear_api_key", { provider });
+    const available = await invoke<boolean>("has_api_key", { provider });
+    setHasApiKeys((values) => ({ ...values, [provider]: available }));
     setApiKeyInput("");
   };
 
-  const explainWithAi = async () => {
-    if (!engine) return;
+  const clearSavedExplanations = async () => {
+    if (!isTauri()) return;
+    await invoke("clear_ai_cache");
+    setAiCache({});
+    cacheLookupsRef.current.clear();
+    cacheMissesRef.current.clear();
+    autoAttemptsRef.current.clear();
+  };
+
+  const changeProvider = (nextProvider: AiProvider) => {
+    setProvider(nextProvider);
+    setModel(localStorage.getItem(`kypho-ai-model-${nextProvider}`) || DEFAULT_MODELS[nextProvider]);
+    setApiKeyInput("");
+    setSettingsError("");
+  };
+
+  const aiRequest = useMemo(() => {
+    if (!engine) return null;
+    const playerElo = step.color === "w" ? headers.WhiteElo : headers.BlackElo;
+    return {
+      player_elo: playerElo || null,
+      phase: step.phase,
+      move_number: step.moveNumber,
+      played_move: step.san,
+      fen_before: step.fenBefore,
+      fen_after: step.fenAfter,
+      evaluation: engine.evaluation,
+      centipawn_loss: Math.round(engine.centipawnLoss),
+      best_move: engine.bestMoveSan,
+      best_line: engine.bestLineSan,
+    };
+  }, [engine, headers.BlackElo, headers.WhiteElo, step]);
+
+  const explainWithAi = useCallback(async (forceRefresh = false) => {
+    if (!engine || !aiRequest || aiInFlightRef.current) return;
     if (!hasApiKey) {
       setSettingsOpen(true);
       return;
     }
+    aiInFlightRef.current = true;
     setAiLoading(true);
     setAiError("");
     try {
-      const playerElo = step.color === "w" ? headers.WhiteElo : headers.BlackElo;
-      const response = await invoke<string>("explain_move", {
+      const response = await invoke<AiExplanation>("explain_move", {
+        provider,
         model,
-        request: {
-          player_elo: playerElo || null,
-          phase: step.phase,
-          move_number: step.moveNumber,
-          played_move: step.san,
-          fen_before: step.fenBefore,
-          fen_after: step.fenAfter,
-          evaluation: engine.evaluation,
-          centipawn_loss: Math.round(engine.centipawnLoss),
-          best_move: engine.bestMoveSan,
-          best_line: engine.bestLineSan,
-        },
+        request: aiRequest,
+        forceRefresh,
       });
-      setAiCache((cache) => ({ ...cache, [step.ply]: response }));
+      setAiCache((cache) => ({ ...cache, [aiCacheKey]: response }));
+      cacheMissesRef.current.delete(aiCacheKey);
     } catch (reason) {
       setAiError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      aiInFlightRef.current = false;
       setAiLoading(false);
     }
-  };
+  }, [aiCacheKey, aiRequest, engine, hasApiKey, model, provider]);
+
+  useEffect(() => {
+    if (!isTauri() || !engine || !aiRequest || aiCache[aiCacheKey]) return;
+    const shouldAutoExplain = autoExplainMode === "visited" || (autoExplainMode === "mistakes" && quality !== "good");
+    const triggerAutoExplanation = () => {
+      if (!shouldAutoExplain || !hasApiKey || aiInFlightRef.current || autoAttemptsRef.current.has(aiCacheKey)) return;
+      autoAttemptsRef.current.add(aiCacheKey);
+      void explainWithAi(false);
+    };
+
+    if (cacheMissesRef.current.has(aiCacheKey)) {
+      triggerAutoExplanation();
+      return;
+    }
+    if (cacheLookupsRef.current.has(aiCacheKey)) return;
+    cacheLookupsRef.current.add(aiCacheKey);
+
+    invoke<AiExplanation | null>("get_cached_explanation", { provider, model, request: aiRequest })
+      .then((saved) => {
+        if (saved) {
+          setAiCache((cache) => ({ ...cache, [aiCacheKey]: saved }));
+          return;
+        }
+        cacheMissesRef.current.add(aiCacheKey);
+        triggerAutoExplanation();
+      })
+      .catch((reason) => setAiError(reason instanceof Error ? reason.message : String(reason)));
+  }, [aiCache, aiCacheKey, aiLoading, aiRequest, autoExplainMode, engine, explainWithAi, hasApiKey, model, provider, quality]);
 
   const arrows = useMemo(() => {
     const result = [...step.arrows];
@@ -261,8 +359,8 @@ function App() {
         <div className="brand">
           <div className="brand-mark">K</div>
           <div>
-            <div className="brand-name">Kỳ Phổ</div>
-            <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + OPENAI</div>
+            <div className="brand-name">Kỳ Phổ <span className="version-badge">v0.2.0</span></div>
+            <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
 
@@ -271,7 +369,7 @@ function App() {
             <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
           </div>
           <div className={`service-pill ${hasApiKey ? "online" : ""}`}>
-            <Bot size={14} /> {hasApiKey ? "OpenAI sẵn sàng" : "Chưa có API key"}
+            <Bot size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}
           </div>
           <button className="icon-button top-icon" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt">
             <Settings size={17} />
@@ -286,7 +384,11 @@ function App() {
         <section className="game-heading">
           <div className="game-title-wrap">
             <div className="eyebrow">{headers.Event || "Ván cờ đã nhập"}</div>
-            <h1><span>{headers.White || "Trắng"}</span><span className="versus">vs</span><span>{headers.Black || "Đen"}</span></h1>
+            <h1>
+              <span className="player-name"><i className="side-badge white-side">Trắng</i>{headers.White || "Trắng"}</span>
+              <span className="versus">vs</span>
+              <span className="player-name"><i className="side-badge black-side">Đen</i>{headers.Black || "Đen"}</span>
+            </h1>
           </div>
           <div className="game-meta">
             <span>{headers.WhiteElo || "—"}</span>
@@ -337,7 +439,12 @@ function App() {
             </div>
 
             <div className="move-hero">
-              <div className={`quality-badge ${quality}`}><span className="quality-icon">{quality === "good" ? "✓" : "!"}</span>{QUALITY_LABELS[quality]}</div>
+              <div className="move-badges">
+                <div className={`quality-badge ${quality}`}><span className="quality-icon">{quality === "good" ? "✓" : "!"}</span>{QUALITY_LABELS[quality]}</div>
+                <div className={`turn-badge ${step.color === "w" ? "white-turn" : "black-turn"}`}>
+                  {step.color === "w" ? "Trắng" : "Đen"} · {step.color === "w" ? headers.White || "Người chơi" : headers.Black || "Người chơi"}
+                </div>
+              </div>
               <div className="san-display">{step.moveNumber}{step.color === "w" ? "." : "…"} {step.san}</div>
               <h2>{engine ? (quality === "good" ? "Engine đồng ý với nước đi" : `Stockfish chọn ${engine.bestMoveSan}`) : step.title}</h2>
               <p>{engine ? `Nước này mất khoảng ${Math.round(engine.centipawnLoss)} centipawn. Đánh giá sau nước đi: ${engine.evaluation} theo phía Trắng.` : step.comment}</p>
@@ -351,13 +458,21 @@ function App() {
             )}
 
             <div className={`insight-card ${aiExplanation ? "ai-ready" : ""}`}>
-              <div className="insight-title"><BrainCircuit size={17} /> {aiExplanation ? `${model} giải thích` : "Góc nhìn HLV"}</div>
-              <p>{aiExplanation || step.insight}</p>
+              <div className="insight-title">
+                <BrainCircuit size={17} /> {aiExplanation ? `${providerLabel} · ${model}` : "Góc nhìn HLV"}
+                {aiExplanation?.cached && <span className="saved-badge">Đã lưu</span>}
+              </div>
+              <p>{aiExplanation?.text || step.insight}</p>
               {aiError && <div className="inline-error">{aiError}</div>}
               {!aiExplanation && (
-                <button className="ai-button" onClick={explainWithAi} disabled={!engine || aiLoading}>
+                <button className="ai-button" onClick={() => void explainWithAi(false)} disabled={!engine || aiLoading}>
                   {aiLoading ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />}
-                  {aiLoading ? "OpenAI đang giải thích…" : "Giải thích bằng OpenAI"}
+                  {aiLoading ? `${providerLabel} đang giải thích…` : `Giải thích bằng ${providerLabel}`}
+                </button>
+              )}
+              {aiExplanation && (
+                <button className="refresh-ai-button" onClick={() => void explainWithAi(true)} disabled={aiLoading}>
+                  {aiLoading ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />} Phân tích lại
                 </button>
               )}
             </div>
@@ -427,25 +542,45 @@ function App() {
           <section className="modal-card settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={() => setSettingsOpen(false)} aria-label="Đóng"><X size={20} /></button>
             <div className="modal-icon"><Settings size={24} /></div>
-            <div className="eyebrow">OPENAI API</div>
+            <div className="eyebrow">OPENAI · GEMINI · CACHE CỤC BỘ</div>
             <h2 id="settings-title">Cấu hình HLV AI</h2>
-            <p>OpenAI chỉ nhận dữ liệu của nước hiện tại khi bạn chủ động yêu cầu giải thích.</p>
+            <p>Chọn dịch vụ AI và cách app tự giải thích. Kết quả được lưu trên máy để lần sau hiện ngay, không gọi API lại.</p>
+
+            <label className="field-label">Nhà cung cấp</label>
+            <div className="provider-switch" role="group" aria-label="Nhà cung cấp AI">
+              {(["gemini", "openai"] as AiProvider[]).map((item) => (
+                <button key={item} className={provider === item ? "active" : ""} onClick={() => changeProvider(item)}>
+                  <Bot size={15} /> {PROVIDER_LABELS[item]}
+                  {hasApiKeys[item] && <span className="provider-ready">Sẵn sàng</span>}
+                </button>
+              ))}
+            </div>
 
             <label className="field-label" htmlFor="model">Model</label>
             <select id="model" value={model} onChange={(event) => setModel(event.target.value)}>
-              {OPENAI_MODELS.map((item) => <option value={item.value} key={item.value}>{item.label} — {item.detail}</option>)}
+              {models.map((item) => <option value={item.value} key={item.value}>{item.label} — {item.detail}</option>)}
             </select>
 
-            <label className="field-label" htmlFor="api-key">OpenAI API key</label>
+            <label className="field-label" htmlFor="auto-mode">Tự động giải thích</label>
+            <select id="auto-mode" value={autoExplainMode} onChange={(event) => setAutoExplainMode(event.target.value as AutoExplainMode)}>
+              <option value="mistakes">Chỉ Sai lầm + Blunder — khuyên dùng</option>
+              <option value="visited">Mọi nước được mở xem</option>
+              <option value="off">Tắt — chỉ phân tích khi bấm nút</option>
+            </select>
+
+            <label className="field-label" htmlFor="api-key">{providerLabel} API key</label>
             <div className="key-field">
               <KeyRound size={17} />
-              <input id="api-key" type="password" autoComplete="off" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={hasApiKey ? "API key đã được cấu hình trong phiên này" : "sk-…"} />
+              <input id="api-key" type="password" autoComplete="off" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={hasApiKey ? `${providerLabel} key đã được cấu hình trong phiên này` : provider === "gemini" ? "AIza…" : "sk-…"} />
             </div>
-            <div className="security-note"><ShieldCheck size={15} /> Key chỉ nằm trong bộ nhớ Rust và bị xoá khi đóng app. Bạn cũng có thể dùng biến môi trường OPENAI_API_KEY.</div>
+            <div className="security-note"><ShieldCheck size={15} /> Key chỉ nằm trong bộ nhớ Rust và bị xoá khi đóng app. Có thể dùng biến môi trường {provider === "gemini" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"}. Lời giải thích được lưu riêng trong SQLite, không kèm API key.</div>
             {settingsError && <div className="error-message">{settingsError}</div>}
 
             <div className="modal-actions settings-actions">
-              {hasApiKey ? <button className="danger-ghost" onClick={clearApiKey}><Trash2 size={15} /> Xoá key</button> : <span />}
+              <div className="settings-secondary-actions">
+                {hasApiKey && <button className="danger-ghost" onClick={clearApiKey}><Trash2 size={15} /> Xoá key</button>}
+                <button className="ghost-button" onClick={clearSavedExplanations}><Trash2 size={15} /> Xoá dữ liệu AI</button>
+              </div>
               <button className="primary-button large" onClick={saveApiSettings}>Lưu cài đặt <ArrowRight size={17} /></button>
             </div>
           </section>
@@ -453,8 +588,8 @@ function App() {
       )}
 
       <footer>
-        <span>Kỳ Phổ · Stockfish 18 Lite · GPT-5.6</span>
-        <span><ShieldCheck size={13} /> PGN ở lại trên máy · AI chỉ chạy khi bạn yêu cầu</span>
+        <span>Kỳ Phổ v0.2.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
+        <span><ShieldCheck size={13} /> PGN ở lại trên máy · Lời giải thích AI được lưu cục bộ</span>
       </footer>
     </div>
   );

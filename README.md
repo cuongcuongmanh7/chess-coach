@@ -1,6 +1,8 @@
 # Kỳ Phổ — prototype phân tích cờ vua
 
-Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite và OpenAI Responses API.
+Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
+
+Phiên bản hiện tại: **0.2.0**.
 
 ## Chạy trên Windows
 
@@ -30,15 +32,21 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Highlight nước vừa đi, phản đòn và nước tốt nhất do Stockfish đề xuất.
 - Phân loại khai cuộc, trung cuộc, tàn cuộc.
 - Stockfish 18 Lite chạy local ở depth 13 để tính evaluation, centipawn loss, biến chính và phân loại Nước tốt, Sai lầm, Blunder.
-- OpenAI viết lời giải thích tiếng Việt dựa trên dữ liệu Stockfish khi người dùng chủ động yêu cầu.
+- OpenAI hoặc Gemini viết lời giải thích tiếng Việt dựa trên dữ liệu Stockfish.
+- Chế độ tự động giải thích Mistake/Blunder hoặc mọi nước đã mở xem.
+- Lời giải thích được lưu trong SQLite cục bộ và tái sử dụng khi mở lại vị trí; API key không được ghi vào cơ sở dữ liệu.
+- Badge chỉ rõ người cầm Trắng, người cầm Đen và bên vừa đi ở mỗi bước.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
 
-## Cấu hình OpenAI
+## Cấu hình AI
 
-Mở biểu tượng bánh răng trong app, chọn model và nhập OpenAI API key. Key chỉ được giữ trong bộ nhớ Rust của phiên chạy và bị xoá khi đóng app. Có thể đặt biến môi trường `OPENAI_API_KEY` trước khi mở app để không cần nhập lại.
+Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn model và nhập API key. Key chỉ được giữ trong bộ nhớ Rust của phiên chạy và bị xoá khi đóng app.
 
-App mặc định dùng `gpt-5.6-sol`; có thể chọn `gpt-5.6-terra` hoặc `gpt-5.6-luna` để cân bằng chi phí và tốc độ. OpenAI chỉ nhận FEN, nước đi và kết quả engine của bước hiện tại sau khi người dùng bấm **Giải thích bằng OpenAI**.
+- Gemini mặc định dùng `gemini-3.5-flash-lite`; có thể chọn `gemini-3.6-flash`.
+- OpenAI hỗ trợ `gpt-5.6-sol`, `gpt-5.6-terra` và `gpt-5.6-luna`.
+- Có thể dùng biến môi trường `GEMINI_API_KEY`, `GOOGLE_API_KEY` hoặc `OPENAI_API_KEY`.
+- Mặc định app tự giải thích các nước được Stockfish phân loại Sai lầm hoặc Blunder. Có thể đổi sang mọi nước đã xem hoặc tắt tự động trong Cài đặt.
 
 ## Thành phần mã nguồn mở
 
