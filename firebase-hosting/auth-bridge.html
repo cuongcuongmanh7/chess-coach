@@ -31,19 +31,29 @@
       import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
       import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyDJeOVDPpBYiszq1wrThCC88jyKAHx9oLw",
-        authDomain: "chess-coach-4b50e.firebaseapp.com",
-        projectId: "chess-coach-4b50e",
-        storageBucket: "chess-coach-4b50e.firebasestorage.app",
-        messagingSenderId: "418794085597",
-        appId: "1:418794085597:web:14ec7d2fa8aa45ad5a0f34",
-      };
       const params = new URLSearchParams(location.search);
       const callbackValue = params.get("callback") || sessionStorage.getItem("chessCoachCallback");
       const state = params.get("state") || sessionStorage.getItem("chessCoachState");
       const button = document.querySelector("#login");
       const status = document.querySelector("#status");
+      let authPromise;
+
+      async function firebaseAuth() {
+        if (!authPromise) {
+          authPromise = fetch("/__/firebase/init.json", { cache: "no-store" })
+            .then((response) => {
+              if (!response.ok) throw new Error("Không thể tải cấu hình Firebase.");
+              return response.json();
+            })
+            .then((config) => {
+              if (!config?.apiKey || !config?.authDomain || !config?.projectId) {
+                throw new Error("Cấu hình Firebase không hợp lệ.");
+              }
+              return getAuth(initializeApp(config));
+            });
+        }
+        return authPromise;
+      }
 
       function validRequest() {
         if (!callbackValue || !state || !/^[a-f0-9]{64}$/.test(state)) return false;
@@ -74,7 +84,6 @@
       } else {
         sessionStorage.setItem("chessCoachCallback", callbackValue);
         sessionStorage.setItem("chessCoachState", state);
-        const auth = getAuth(initializeApp(firebaseConfig));
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: "select_account" });
 
@@ -83,6 +92,7 @@
           status.className = "";
           status.textContent = "Đang mở Google…";
           try {
+            const auth = await firebaseAuth();
             const result = await signInWithPopup(auth, provider);
             const credential = GoogleAuthProvider.credentialFromResult(result);
             if (!credential?.accessToken) throw new Error("Google không trả access token.");
