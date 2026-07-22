@@ -34,6 +34,9 @@ export type EngineMoveAnalysis = {
   bestMoveUci: string;
   bestMoveSan: string;
   bestLineSan: string[];
+  bestReplyUci: string;
+  bestReplySan: string;
+  replyLineSan: string[];
   variations: EngineVariation[];
   playedMoveUci: string;
 };
@@ -232,6 +235,9 @@ function buildMoveAnalysis(
     moveSan: before.bestMove,
     lineSan: [],
   };
+  const bestReplyUci = afterTop.pv[0] || (after.bestMove === "(none)" ? "" : after.bestMove);
+  const replyLineUci = afterTop.pv.length ? afterTop.pv : bestReplyUci ? [bestReplyUci] : [];
+  const replyLineSan = lineToSan(fenAfter, replyLineUci);
   const whiteScoreCp = scoreAsCp(afterTop) * (afterTurn === "w" ? 1 : -1);
 
   return {
@@ -243,6 +249,9 @@ function buildMoveAnalysis(
     bestMoveUci: best.moveUci,
     bestMoveSan: best.moveSan,
     bestLineSan: best.lineSan,
+    bestReplyUci,
+    bestReplySan: replyLineSan[0] || bestReplyUci,
+    replyLineSan,
     variations,
     playedMoveUci,
   };

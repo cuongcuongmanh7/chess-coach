@@ -1,8 +1,8 @@
-# Kỳ Phổ — prototype phân tích cờ vua
+# Chess Coach — phân tích cờ vua trực quan
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.2.0**.
+Phiên bản hiện tại: **0.4.0**.
 
 ## Chạy trên Windows
 
@@ -29,6 +29,7 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 
 - Đọc PGN và phát lại đúng vị trí sau từng lượt.
 - Tải link ván Chess.com đã kết thúc qua dữ liệu công khai.
+- Tự động lưu các ván đã nạp vào Kho ván SQLite cục bộ để mở lại hoặc xoá khi cần.
 - Highlight nước vừa đi, phản đòn, best move và phương án tốt thứ hai do Stockfish đề xuất.
 - Phân loại khai cuộc, trung cuộc, tàn cuộc.
 - Stockfish 18 Lite chạy local ở depth 13 cho nước đang xem, dùng MultiPV 2 và phân loại Best, Nước tốt, Thiếu chính xác, Sai lầm, Blunder.

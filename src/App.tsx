@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Chessboard } from "react-chessboard";
+import { Chess, type PieceSymbol, type Square } from "chess.js";
 import {
   ArrowRight,
   BarChart3,
@@ -13,18 +14,20 @@ import {
   ClipboardPaste,
   Cpu,
   KeyRound,
+  Library,
   Link2,
   LoaderCircle,
   RotateCcw,
   Settings,
   ShieldCheck,
   Sparkles,
+  Star,
   Target,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { analyzePgn, type GameAnalysis, type MoveQuality } from "./analysis";
+import { analyzePgn, type AnalysisStep, type GameAnalysis, type MoveQuality } from "./analysis";
 import { DEMO_PGN } from "./demo";
 import { analyzeGameWithStockfish, analyzeMoveWithStockfish, type EngineMoveAnalysis } from "./stockfish";
 
@@ -37,6 +40,25 @@ const QUALITY_LABELS: Record<MoveQuality, string> = {
 };
 
 const QUALITY_ORDER: MoveQuality[] = ["best", "good", "inaccuracy", "mistake", "blunder"];
+
+type BoardMoveBadge = Exclude<MoveQuality, "good"> | "brilliant";
+
+const BOARD_MOVE_BADGES: Record<BoardMoveBadge, { symbol: string; label: string }> = {
+  brilliant: { symbol: "!!", label: "Brilliant" },
+  best: { symbol: "★", label: "Best move" },
+  inaccuracy: { symbol: "?!", label: "Thiếu chính xác" },
+  mistake: { symbol: "?", label: "Sai lầm" },
+  blunder: { symbol: "??", label: "Blunder" },
+};
+
+const BOARD_PIECE_VALUES: Record<PieceSymbol, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 0,
+};
 
 const OPENAI_MODELS = [
   { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", detail: "Chất lượng cao nhất" },
@@ -58,6 +80,22 @@ type PlayerSummary = {
   bestGoodRate: number;
   counts: Record<MoveQuality, number>;
 };
+type SavedGameSummary = {
+  id: string;
+  white: string;
+  black: string;
+  white_elo: string | null;
+  black_elo: string | null;
+  result: string | null;
+  event: string | null;
+  date: string | null;
+  eco: string | null;
+  time_control: string | null;
+  source_url: string | null;
+  created_at: string;
+  last_opened_at: string;
+};
+type SavedGameDetail = { id: string; pgn: string };
 
 const PROVIDER_LABELS: Record<AiProvider, string> = { openai: "OpenAI", gemini: "Gemini" };
 const DEFAULT_MODELS: Record<AiProvider, string> = {
@@ -66,6 +104,125 @@ const DEFAULT_MODELS: Record<AiProvider, string> = {
 };
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
+const COACH_LINE_LABELS = ["ĐÁNH GIÁ", "Ý TƯỞNG", "SO SÁNH", "KẾ HOẠCH"];
+const COACH_TOKEN_PATTERN = /((?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[+-]\d+(?:\.\d+)?))/g;
+const COACH_MOVE_PATTERN = /^(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)$/;
+const COACH_EVAL_PATTERN = /^[+-]\d+(?:\.\d+)?$/;
+
+function evaluationToWhitePercent(whiteScoreCp?: number) {
+  if (whiteScoreCp === undefined) return 50;
+  const clampedScore = Math.max(-2000, Math.min(2000, whiteScoreCp));
+  const probability = 100 / (1 + Math.exp(-0.00368208 * clampedScore));
+  return Math.max(3, Math.min(97, probability));
+}
+
+function formatSavedTimestamp(value: string) {
+  const parsed = new Date(`${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(parsed);
+}
+
+function isBrilliantMove(step: AnalysisStep, engine: EngineMoveAnalysis) {
+  if (engine.quality !== "best" || engine.centipawnLoss > 10) return false;
+
+  const before = new Chess(step.fenBefore);
+  const after = new Chess(step.fenAfter);
+  const movedPiece = after.get(step.to as Square);
+  if (!movedPiece || BOARD_PIECE_VALUES[movedPiece.type] < 3) return false;
+
+  const capturedPiece = before.get(step.to as Square);
+  const capturedValue = capturedPiece ? BOARD_PIECE_VALUES[capturedPiece.type] : 0;
+  const movedValue = BOARD_PIECE_VALUES[movedPiece.type];
+  if (capturedValue >= movedValue) return false;
+
+  const canBeCaptured = after.moves({ verbose: true }).some(
+    (reply) => reply.to === step.to && reply.captured === movedPiece.type,
+  );
+  if (!canBeCaptured) return false;
+
+  const moverScoreCp = engine.whiteScoreCp * (step.color === "w" ? 1 : -1);
+  return moverScoreCp >= -100;
+}
+
+function getBoardMoveBadge(step: AnalysisStep, engine?: EngineMoveAnalysis): BoardMoveBadge | null {
+  if (!engine || engine.quality === "good") return null;
+  if (isBrilliantMove(step, engine)) return "brilliant";
+  return engine.quality;
+}
+
+function getBoardBadgePosition(square: string, orientation: "white" | "black") {
+  const fileIndex = square.charCodeAt(0) - 97;
+  const rankIndex = Number(square[1]) - 1;
+  const column = orientation === "white" ? fileIndex : 7 - fileIndex;
+  const row = orientation === "white" ? 7 - rankIndex : rankIndex;
+  return { left: `${column * 12.5}%`, top: `${row * 12.5}%` };
+}
+
+function renderCoachInline(text: string) {
+  return text.split(COACH_TOKEN_PATTERN).filter(Boolean).map((part, index) => {
+    if (COACH_EVAL_PATTERN.test(part)) return <span className="coach-token eval" key={`${part}-${index}`}>{part}</span>;
+    if (COACH_MOVE_PATTERN.test(part)) return <span className="coach-token move" key={`${part}-${index}`}>{part}</span>;
+    return part;
+  });
+}
+
+function CoachExplanation({ text }: { text: string }) {
+  const normalizedText = text.replace(/\*\*/g, "");
+  const explicitLines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = explicitLines.length > 1
+    ? explicitLines
+    : normalizedText.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((line) => line.trim()).filter(Boolean) || [normalizedText];
+
+  return (
+    <div className="coach-explanation">
+      {lines.map((line, index) => {
+        const labeled = line.match(/^(ĐÁNH GIÁ|Ý TƯỞNG|SO SÁNH|KẾ HOẠCH)\s*[:·|]\s*(.*)$/i);
+        const label = labeled?.[1]?.toUpperCase() || COACH_LINE_LABELS[index] || "NHẬN XÉT";
+        const content = labeled?.[2] || line;
+        return (
+          <div className="coach-explanation-row" key={`${label}-${index}`}>
+            <span className="coach-explanation-label">{label}</span>
+            <span className="coach-explanation-copy">{renderCoachInline(content)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GameCoachSummaryView({ text }: { text: string }) {
+  const sections = new Map<string, string>();
+  const fallback: string[] = [];
+  text.replace(/\*\*/g, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+    const match = line.match(/^([^:]+):\s*(.*)$/);
+    if (!match) {
+      fallback.push(line);
+      return;
+    }
+    const label = match[1].toUpperCase().replace(/[—-]/g, "·").replace(/\s+/g, " ").trim();
+    sections.set(label, match[2]);
+  });
+
+  const findSection = (side: "TRẮNG" | "ĐEN", topic: "ĐIỂM MẠNH" | "CẦN CẢI THIỆN" | "ƯU TIÊN") =>
+    [...sections.entries()].find(([label]) => label.includes(side) && label.includes(topic))?.[1] || "Chưa có nhận xét.";
+  const overview = sections.get("TỔNG QUAN") || fallback.join(" ") || "Chưa có tổng quan.";
+
+  return (
+    <div className="game-coach-result">
+      <div className="game-coach-overview"><strong>Tổng quan</strong><p>{renderCoachInline(overview)}</p></div>
+      <div className="game-coach-players">
+        {(["TRẮNG", "ĐEN"] as const).map((side) => (
+          <article className={`game-coach-player ${side === "TRẮNG" ? "white" : "black"}`} key={side}>
+            <div className="game-coach-player-title"><i className={`side-badge ${side === "TRẮNG" ? "white-side" : "black-side"}`}>{side === "TRẮNG" ? "Trắng" : "Đen"}</i><strong>Đánh giá sơ bộ</strong></div>
+            <div className="game-coach-point strength"><span>Điểm mạnh</span><p>{renderCoachInline(findSection(side, "ĐIỂM MẠNH"))}</p></div>
+            <div className="game-coach-point improve"><span>Cần cải thiện</span><p>{renderCoachInline(findSection(side, "CẦN CẢI THIỆN"))}</p></div>
+            <div className="game-coach-point priority"><span>Ưu tiên luyện tập</span><p>{renderCoachInline(findSection(side, "ƯU TIÊN"))}</p></div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function isChessComLink(value: string) {
   return /^https?:\/\/(?:www\.)?chess\.com\/game\/(?:live|daily)\/\d+/i.test(value.trim());
@@ -76,15 +233,22 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(7);
   const [orientation, setOrientation] = useState<"white" | "black">("white");
   const [importOpen, setImportOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [savedGames, setSavedGames] = useState<SavedGameSummary[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState("");
   const [engineCache, setEngineCache] = useState<Record<number, EngineMoveAnalysis>>({});
   const [engineLoading, setEngineLoading] = useState(false);
   const [engineError, setEngineError] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [fullAnalysis, setFullAnalysis] = useState({ running: false, complete: false, completed: 0, total: 0, error: "" });
+  const [gameCoachSummary, setGameCoachSummary] = useState<AiExplanation | null>(null);
+  const [gameCoachLoading, setGameCoachLoading] = useState(false);
+  const [gameCoachError, setGameCoachError] = useState("");
   const [aiCache, setAiCache] = useState<Record<string, AiExplanation>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -118,6 +282,11 @@ function App() {
   const hasApiKey = hasApiKeys[provider];
   const providerLabel = PROVIDER_LABELS[provider];
   const models = provider === "gemini" ? GEMINI_MODELS : OPENAI_MODELS;
+  const whiteEvaluationPercent = evaluationToWhitePercent(engine?.whiteScoreCp);
+  const evaluationLeader = (engine?.whiteScoreCp || 0) >= 0 ? "white" : "black";
+  const evaluationScoreAtTop = evaluationLeader !== orientation;
+  const boardMoveBadge = getBoardMoveBadge(step, engine);
+  const boardMoveBadgePosition = getBoardBadgePosition(step.to, orientation);
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -129,6 +298,19 @@ function App() {
     });
     return pairs;
   }, [analysis]);
+
+  const refreshSavedGames = useCallback(async () => {
+    if (!isTauri()) return;
+    setLibraryLoading(true);
+    setLibraryError("");
+    try {
+      setSavedGames(await invoke<SavedGameSummary[]>("list_saved_games"));
+    } catch (reason) {
+      setLibraryError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
 
   const fullGameSummary = useMemo(() => {
     const buildPlayerSummary = (color: "w" | "b"): PlayerSummary => {
@@ -160,6 +342,42 @@ function App() {
     return { white: buildPlayerSummary("w"), black: buildPlayerSummary("b"), critical };
   }, [analysis.steps, engineCache]);
 
+  const gameSummaryRequest = useMemo(() => {
+    if (!fullAnalysis.complete) return null;
+    const playerData = (side: "white" | "black", stats: PlayerSummary) => ({
+      name: side === "white" ? headers.White || "Trắng" : headers.Black || "Đen",
+      elo: side === "white" ? headers.WhiteElo || null : headers.BlackElo || null,
+      moves: stats.moves,
+      acpl: stats.acpl,
+      best_good_rate: stats.bestGoodRate,
+      counts: stats.counts,
+    });
+    const allCriticalPositions = fullGameSummary.critical
+      .flatMap(({ item, engine: result }) => result ? [{
+        move_number: item.moveNumber,
+        side: item.color === "w" ? "Trắng" : "Đen",
+        played_move: item.san,
+        quality: QUALITY_LABELS[result.quality],
+        centipawn_loss: Math.round(result.centipawnLoss),
+        evaluation: result.evaluation,
+        best_move: result.bestMoveSan,
+      }] : []);
+    const criticalPositions = (["Trắng", "Đen"] as const).flatMap((side) =>
+      allCriticalPositions
+        .filter((position) => position.side === side)
+        .sort((left, right) => right.centipawn_loss - left.centipawn_loss)
+        .slice(0, 4),
+    );
+    return {
+      opening: headers.Opening || headers.ECO || "Không rõ khai cuộc",
+      result: headers.Result || "*",
+      total_plies: analysis.steps.length,
+      white: playerData("white", fullGameSummary.white),
+      black: playerData("black", fullGameSummary.black),
+      critical_positions: criticalPositions,
+    };
+  }, [analysis.steps.length, fullAnalysis.complete, fullGameSummary, headers]);
+
   useEffect(() => {
     if (!isTauri()) return;
     Promise.all([
@@ -169,6 +387,10 @@ function App() {
       .then(([openai, gemini]) => setHasApiKeys({ openai, gemini }))
       .catch(() => setHasApiKeys({ openai: false, gemini: false }));
   }, []);
+
+  useEffect(() => {
+    void refreshSavedGames();
+  }, [refreshSavedGames]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -229,7 +451,11 @@ function App() {
     setCurrentIndex(0);
     setEngineCache({});
     setAiCache({});
+    setGameCoachSummary(null);
+    setGameCoachError("");
+    setGameCoachLoading(false);
     setSummaryOpen(false);
+    setLibraryOpen(false);
     setFullAnalysis({ running: false, complete: false, completed: 0, total: next.steps.length, error: "" });
     cacheLookupsRef.current.clear();
     cacheMissesRef.current.clear();
@@ -237,22 +463,77 @@ function App() {
     setImportOpen(false);
     setInput("");
     setError("");
+    return next;
   };
 
   const handleImport = async () => {
     setError("");
     setLoading(true);
     try {
-      let pgn = input.trim();
-      if (isChessComLink(pgn)) {
+      const importedValue = input.trim();
+      const sourceUrl = isChessComLink(importedValue) ? importedValue : null;
+      let pgn = importedValue;
+      if (sourceUrl) {
         if (!isTauri()) throw new Error("Tải link Chess.com cần mở app Tauri. Bản web chỉ nhận PGN.");
         pgn = await invoke<string>("fetch_chess_com_game", { gameUrl: pgn });
       }
-      loadAnalysis(pgn);
+      const importedAnalysis = loadAnalysis(pgn);
+      if (isTauri()) {
+        try {
+          await invoke<string>("save_game", {
+            request: {
+              pgn: importedAnalysis.rawPgn,
+              white: importedAnalysis.headers.White || "Trắng",
+              black: importedAnalysis.headers.Black || "Đen",
+              white_elo: importedAnalysis.headers.WhiteElo || null,
+              black_elo: importedAnalysis.headers.BlackElo || null,
+              result: importedAnalysis.headers.Result || null,
+              event: importedAnalysis.headers.Event || null,
+              date: importedAnalysis.headers.Date || null,
+              eco: importedAnalysis.headers.ECO || null,
+              time_control: importedAnalysis.headers.TimeControl || null,
+              source_url: sourceUrl,
+            },
+          });
+          await refreshSavedGames();
+        } catch (reason) {
+          setLibraryError(reason instanceof Error ? reason.message : String(reason));
+        }
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openStoredGame = async (id: string) => {
+    if (!isTauri() || libraryLoading) return;
+    setLibraryLoading(true);
+    setLibraryError("");
+    try {
+      const saved = await invoke<SavedGameDetail>("open_saved_game", { id });
+      loadAnalysis(saved.pgn);
+      await refreshSavedGames();
+    } catch (reason) {
+      setLibraryError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
+
+  const removeStoredGame = async (game: SavedGameSummary) => {
+    if (!isTauri() || libraryLoading) return;
+    if (!window.confirm(`Xoá ván ${game.white} — ${game.black} khỏi Kho ván?`)) return;
+    setLibraryLoading(true);
+    setLibraryError("");
+    try {
+      await invoke<boolean>("delete_saved_game", { id: game.id });
+      await refreshSavedGames();
+    } catch (reason) {
+      setLibraryError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setLibraryLoading(false);
     }
   };
 
@@ -328,6 +609,8 @@ function App() {
     if (!isTauri()) return;
     await invoke("clear_ai_cache");
     setAiCache({});
+    setGameCoachSummary(null);
+    setGameCoachError("");
     cacheLookupsRef.current.clear();
     cacheMissesRef.current.clear();
     autoAttemptsRef.current.clear();
@@ -338,6 +621,14 @@ function App() {
     setModel(localStorage.getItem(`kypho-ai-model-${nextProvider}`) || DEFAULT_MODELS[nextProvider]);
     setApiKeyInput("");
     setSettingsError("");
+    setGameCoachSummary(null);
+    setGameCoachError("");
+  };
+
+  const changeModel = (nextModel: string) => {
+    setModel(nextModel);
+    setGameCoachSummary(null);
+    setGameCoachError("");
   };
 
   const aiRequest = useMemo(() => {
@@ -345,6 +636,8 @@ function App() {
     const playerElo = step.color === "w" ? headers.WhiteElo : headers.BlackElo;
     return {
       player_elo: playerElo || null,
+      side_just_moved: step.color === "w" ? "Trắng" : "Đen",
+      side_to_move: step.color === "w" ? "Đen" : "Trắng",
       phase: step.phase,
       move_number: step.moveNumber,
       played_move: step.san,
@@ -354,6 +647,8 @@ function App() {
       centipawn_loss: Math.round(engine.centipawnLoss),
       best_move: engine.bestMoveSan,
       best_line: engine.bestLineSan,
+      best_reply: engine.bestReplySan || null,
+      reply_line: engine.replyLineSan,
     };
   }, [engine, headers.BlackElo, headers.WhiteElo, step]);
 
@@ -382,6 +677,30 @@ function App() {
       setAiLoading(false);
     }
   }, [aiCacheKey, aiRequest, engine, hasApiKey, model, provider]);
+
+  const summarizeGameWithAi = useCallback(async (forceRefresh = false) => {
+    if (!gameSummaryRequest || gameCoachLoading) return;
+    if (!hasApiKey) {
+      setSummaryOpen(false);
+      setSettingsOpen(true);
+      return;
+    }
+    setGameCoachLoading(true);
+    setGameCoachError("");
+    try {
+      const response = await invoke<AiExplanation>("summarize_game", {
+        provider,
+        model,
+        request: gameSummaryRequest,
+        forceRefresh,
+      });
+      setGameCoachSummary(response);
+    } catch (reason) {
+      setGameCoachError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setGameCoachLoading(false);
+    }
+  }, [gameCoachLoading, gameSummaryRequest, hasApiKey, model, provider]);
 
   useEffect(() => {
     if (!isTauri() || !engine || !aiRequest || aiCache[aiCacheKey]) return;
@@ -440,10 +759,11 @@ function App() {
     },
     darkSquareStyle: { backgroundColor: "#315f50" },
     lightSquareStyle: { backgroundColor: "#d9d4c4" },
-    squareStyles: {
-      [step.from]: { boxShadow: "inset 0 0 0 999px rgba(246, 190, 73, 0.25)" },
-      [step.to]: { boxShadow: "inset 0 0 0 999px rgba(246, 190, 73, 0.5)" },
-    },
+    squareRenderer: ({ square, children }: { square: string; children?: React.ReactNode }) => (
+      <div className={`analysis-square-content${square === step.from ? " last-move-from" : ""}${square === step.to ? " last-move-to" : ""}`}>
+        {children}
+      </div>
+    ),
     darkSquareNotationStyle: { color: "#d9d4c4", fontSize: "11px", fontWeight: 700 },
     lightSquareNotationStyle: { color: "#315f50", fontSize: "11px", fontWeight: 700 },
   } as const;
@@ -452,9 +772,9 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">K</div>
+          <div className="brand-mark">CC</div>
           <div>
-            <div className="brand-name">Kỳ Phổ <span className="version-badge">v0.2.0</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.4.0</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
@@ -466,6 +786,9 @@ function App() {
           <div className={`service-pill ${hasApiKey ? "online" : ""}`}>
             <Bot size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}
           </div>
+          <button className="ghost-button library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
+            <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}
+          </button>
           <button className="icon-button top-icon" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt">
             <Settings size={17} />
           </button>
@@ -477,24 +800,22 @@ function App() {
 
       <main className="workspace">
         <section className="game-heading">
-          <div className="game-title-wrap">
-            <div className="eyebrow">{headers.Event || "Ván cờ đã nhập"}</div>
-            <div className="game-title-row">
-              <h1>
-                <span className="player-name">
-                  <i className="side-badge white-side">Trắng</i>
-                  <span className="player-copy">{headers.White || "Trắng"}<small>Elo {headers.WhiteElo || "—"}</small></span>
-                </span>
-                <span className="match-result">{headers.Result || "*"}</span>
-                <span className="player-name">
-                  <i className="side-badge black-side">Đen</i>
-                  <span className="player-copy">{headers.Black || "Đen"}<small>Elo {headers.BlackElo || "—"}</small></span>
-                </span>
-              </h1>
+          <div className="eyebrow game-event">{headers.Event || "Ván cờ đã nhập"}</div>
+          <div className="game-matchup">
+            <div className="matchup-player white-player">
+              <i className="side-badge white-side">Trắng</i>
+              <span className="player-copy"><strong>{headers.White || "Trắng"}</strong><small>Elo {headers.WhiteElo || "—"}</small></span>
+            </div>
+            <div className="matchup-center">
+              <span className="match-result">{headers.Result || "*"}</span>
               <div className="match-context">
                 <span>{headers.ECO || "ECO —"}</span>
                 <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
               </div>
+            </div>
+            <div className="matchup-player black-player">
+              <span className="player-copy"><strong>{headers.Black || "Đen"}</strong><small>Elo {headers.BlackElo || "—"}</small></span>
+              <i className="side-badge black-side">Đen</i>
             </div>
           </div>
         </section>
@@ -513,7 +834,39 @@ function App() {
               </div>
             </div>
 
-            <div className="board-wrap"><Chessboard options={chessboardOptions} /></div>
+            <div className="board-stage">
+              <div
+                className={`evaluation-bar orientation-${orientation}`}
+                role="meter"
+                aria-label={`Đánh giá vị trí: ${engine?.evaluation || "đang tính"}`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(whiteEvaluationPercent)}
+                title={`Trắng ${Math.round(whiteEvaluationPercent)}% · Đen ${Math.round(100 - whiteEvaluationPercent)}%`}
+              >
+                <div className="evaluation-bar-side black" style={{ height: `${100 - whiteEvaluationPercent}%` }} />
+                <div className="evaluation-bar-side white" style={{ height: `${whiteEvaluationPercent}%` }} />
+                <span className={`evaluation-bar-score ${evaluationLeader} ${evaluationScoreAtTop ? "top" : "bottom"}`}>
+                  {engineLoading ? "…" : engine?.evaluation || "0.00"}
+                </span>
+              </div>
+              <div className="board-wrap">
+                <Chessboard options={chessboardOptions} />
+                {boardMoveBadge && (
+                  <div className="board-move-badge-square" style={boardMoveBadgePosition}>
+                    <span
+                      className={`board-move-badge ${boardMoveBadge}`}
+                      aria-label={BOARD_MOVE_BADGES[boardMoveBadge].label}
+                      title={BOARD_MOVE_BADGES[boardMoveBadge].label}
+                    >
+                      {boardMoveBadge === "best"
+                        ? <Star aria-hidden="true" fill="currentColor" strokeWidth={2.2} />
+                        : BOARD_MOVE_BADGES[boardMoveBadge].symbol}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
 
             <div className="arrow-legend">
               <span><i className="legend-line gold" /> Nước vừa đi</span>
@@ -570,7 +923,7 @@ function App() {
                 <BrainCircuit size={17} /> {aiExplanation ? `${providerLabel} · ${model}` : "Góc nhìn HLV"}
                 {aiExplanation?.cached && <span className="saved-badge">Đã lưu</span>}
               </div>
-              <p>{aiExplanation?.text || step.insight}</p>
+              {aiExplanation ? <CoachExplanation text={aiExplanation.text} /> : <p>{step.insight}</p>}
               {aiError && <div className="inline-error">{aiError}</div>}
               {!aiExplanation && (
                 <button className="ai-button" onClick={() => void explainWithAi(false)} disabled={!engine || aiLoading}>
@@ -669,6 +1022,30 @@ function App() {
               ))}
             </div>
 
+            <div className={`game-coach-card ${gameCoachSummary ? "ready" : ""}`}>
+              <div className="game-coach-heading">
+                <div><BrainCircuit size={17} /><strong>Nhận xét của HLV AI</strong></div>
+                {gameCoachSummary && <span>{PROVIDER_LABELS[gameCoachSummary.provider]} · {gameCoachSummary.model}{gameCoachSummary.cached ? " · Đã lưu" : ""}</span>}
+              </div>
+              {gameCoachSummary ? (
+                <>
+                  <GameCoachSummaryView text={gameCoachSummary.text} />
+                  <button className="refresh-ai-button" onClick={() => void summarizeGameWithAi(true)} disabled={gameCoachLoading}>
+                    {gameCoachLoading ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />} Đánh giá lại toàn ván
+                  </button>
+                </>
+              ) : (
+                <div className="game-coach-empty">
+                  <p>Dựa trên ACPL, tỷ lệ nước tốt và các vị trí then chốt để nêu điểm mạnh, điểm cần cải thiện của cả hai bên.</p>
+                  <button className="summary-ai-button" onClick={() => void summarizeGameWithAi(false)} disabled={gameCoachLoading || !gameSummaryRequest}>
+                    {gameCoachLoading ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}
+                    {gameCoachLoading ? `${providerLabel} đang tổng kết…` : hasApiKey ? `HLV ${providerLabel} đánh giá ván đấu` : `Cấu hình ${providerLabel} để đánh giá`}
+                  </button>
+                </div>
+              )}
+              {gameCoachError && <div className="inline-error">{gameCoachError}</div>}
+            </div>
+
             <div className="critical-section">
               <div className="critical-heading"><Target size={16} /><strong>Vị trí then chốt</strong><span>{fullGameSummary.critical.length} Mistake/Blunder</span></div>
               <div className="critical-list">
@@ -682,6 +1059,53 @@ function App() {
                   </button>
                 )) : <div className="empty-critical">Không có Mistake hoặc Blunder trong ván này.</div>}
               </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {libraryOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setLibraryOpen(false)}>
+          <section className="modal-card library-modal" role="dialog" aria-modal="true" aria-labelledby="library-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setLibraryOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            <div className="library-heading">
+              <div className="modal-icon"><Library size={24} /></div>
+              <div>
+                <div className="eyebrow">LƯU CỤC BỘ · KHÔNG ĐỒNG BỘ CLOUD</div>
+                <h2 id="library-title">Kho ván</h2>
+                <p>{savedGames.length ? `${savedGames.length} ván đã nạp · mới mở gần đây trước` : "Các ván bạn nạp sẽ tự động xuất hiện tại đây."}</p>
+              </div>
+            </div>
+            {libraryError && <div className="error-message">{libraryError}</div>}
+            <div className="library-list">
+              {libraryLoading && !savedGames.length ? (
+                <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc kho ván…</div>
+              ) : savedGames.length ? savedGames.map((game) => (
+                <article className="library-game" key={game.id}>
+                  <button className="library-game-open" onClick={() => void openStoredGame(game.id)} disabled={libraryLoading}>
+                    <div className="library-game-players">
+                      <span className="library-player white"><i className="side-badge white-side">Trắng</i><strong>{game.white}</strong><small>{game.white_elo ? `Elo ${game.white_elo}` : "Elo —"}</small></span>
+                      <span className="library-result">{game.result || "*"}</span>
+                      <span className="library-player black"><strong>{game.black}</strong><small>{game.black_elo ? `Elo ${game.black_elo}` : "Elo —"}</small><i className="side-badge black-side">Đen</i></span>
+                    </div>
+                    <div className="library-game-meta">
+                      <span>{game.event || "Ván cờ đã nhập"}</span>
+                      {game.date && <span>{game.date}</span>}
+                      {game.eco && <span>{game.eco}</span>}
+                      {game.time_control && <span>{game.time_control}s</span>}
+                      {game.source_url && <span>Chess.com</span>}
+                      <span className="library-opened">Mở {formatSavedTimestamp(game.last_opened_at)}</span>
+                    </div>
+                  </button>
+                  <button className="library-delete" onClick={() => void removeStoredGame(game)} disabled={libraryLoading} aria-label={`Xoá ván ${game.white} gặp ${game.black}`} title="Xoá khỏi Kho ván"><Trash2 size={16} /></button>
+                </article>
+              )) : (
+                <div className="library-empty"><Library size={28} /><strong>Kho ván đang trống</strong><span>Nạp PGN hoặc link Chess.com để lưu ván đầu tiên.</span></div>
+              )}
+            </div>
+            <div className="modal-actions library-actions">
+              <span>PGN chỉ được lưu trong database trên máy này.</span>
+              <button className="primary-button" onClick={() => { setLibraryOpen(false); setImportOpen(true); }}><Upload size={15} /> Nạp ván mới</button>
             </div>
           </section>
         </div>
@@ -727,7 +1151,7 @@ function App() {
             </div>
 
             <label className="field-label" htmlFor="model">Model</label>
-            <select id="model" value={model} onChange={(event) => setModel(event.target.value)}>
+            <select id="model" value={model} onChange={(event) => changeModel(event.target.value)}>
               {models.map((item) => <option value={item.value} key={item.value}>{item.label} — {item.detail}</option>)}
             </select>
 
@@ -758,7 +1182,7 @@ function App() {
       )}
 
       <footer>
-        <span>Kỳ Phổ v0.2.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
+        <span>Chess Coach v0.4.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
         <span><ShieldCheck size={13} /> PGN ở lại trên máy · Lời giải thích AI được lưu cục bộ</span>
       </footer>
     </div>
