@@ -2,7 +2,7 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.4.1**.
+Phiên bản hiện tại: **0.5.0**.
 
 ## Chạy trên Windows
 
@@ -40,6 +40,16 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Badge chỉ rõ người cầm Trắng, người cầm Đen và bên vừa đi ở mỗi bước.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
+- Chế độ Thử lại cho phép kéo quân, nhận chấm điểm Stockfish và mở dần ba cấp gợi ý.
+- Kết quả Stockfish được lưu theo từng nước trong SQLite; mở lại ván có thể tiếp tục phân tích còn dở.
+- Quản lý nhiều hồ sơ Chess.com/Lichess; hồ sơ mặc định là `Chess.com · Cuongkool` và `Lichess · chinsu1409`.
+- Kho ván và Dashboard được lọc theo hồ sơ đang chọn; một ván có thể liên kết với nhiều hồ sơ nếu các tài khoản gặp nhau.
+- Dashboard tiến bộ của từng hồ sơ tổng hợp ACPL, lỗi theo giai đoạn, màu quân, thể loại và khai cuộc.
+- Đồng bộ 20 ván gần nhất cho hồ sơ đang chọn theo thể loại; ván trùng tự bỏ qua.
+- Hiển thị tên khai cuộc và biến ECO theo vị trí đang xem bằng bộ dữ liệu offline; Kho ván được sắp theo thời điểm thi đấu và dùng ngày giờ Việt Nam.
+- Bấm vào một phương án Stockfish để phát lại biến trực tiếp trên bàn cờ.
+- Đọc `%clk` trong PGN để thống kê thời gian suy nghĩ, lỗi đi quá nhanh và lỗi dưới áp lực thời gian.
+- Nội dung HLV dài cuộn độc lập, giữ cụm nút Trước/Tiếp luôn hiển thị ở cuối khung.
 
 ## Cấu hình AI
 
@@ -53,3 +63,5 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 ## Thành phần mã nguồn mở
 
 Stockfish.js 18 Lite Single Thread được phân phối theo GPLv3. Bản quyền và giấy phép nằm trong `public/stockfish/COPYING.txt`; mã nguồn upstream: <https://github.com/nmrugg/stockfish.js>.
+
+Tên khai cuộc được tạo từ bộ dữ liệu `lichess-org/chess-openings`, phát hành theo CC0: <https://github.com/lichess-org/chess-openings>. Có thể cập nhật bản dữ liệu đóng gói bằng `npm run update-openings`.

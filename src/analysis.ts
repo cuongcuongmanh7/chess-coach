@@ -26,6 +26,10 @@ export type AnalysisStep = {
   insight: string;
   tags: string[];
   arrows: AnalysisArrow[];
+  clockSeconds: number | null;
+  thinkTimeSeconds: number | null;
+  isQuickMove: boolean;
+  isTimePressure: boolean;
 };
 
 export type GameAnalysis = {
@@ -108,7 +112,25 @@ function isPassedPawn(chess: Chess, square: string, color: Color) {
   return true;
 }
 
-function buildStep(move: Move, index: number): AnalysisStep {
+function parseClockSeconds(comment?: string) {
+  const match = comment?.match(/\[%clk\s+(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)\]/i);
+  if (!match) return null;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function parseTimeControl(value?: string) {
+  const match = value?.trim().match(/^(\d+)(?:\+(\d+))?$/);
+  if (!match) return null;
+  return { initial: Number(match[1]), increment: Number(match[2] || 0) };
+}
+
+function buildStep(
+  move: Move,
+  index: number,
+  clockSeconds: number | null,
+  thinkTimeSeconds: number | null,
+  initialSeconds: number | null,
+): AnalysisStep {
   const after = new Chess(move.after);
   const moveNumber = Math.floor(index / 2) + 1;
   const opponentMoves = after.moves({ verbose: true });
@@ -229,6 +251,13 @@ function buildStep(move: Move, index: number): AnalysisStep {
     insight,
     tags,
     arrows,
+    clockSeconds,
+    thinkTimeSeconds,
+    isQuickMove: thinkTimeSeconds !== null && thinkTimeSeconds <= 3,
+    isTimePressure:
+      clockSeconds !== null &&
+      initialSeconds !== null &&
+      clockSeconds <= Math.max(30, initialSeconds * 0.1),
   };
 }
 
@@ -246,9 +275,25 @@ export function analyzePgn(rawPgn: string): GameAnalysis {
   const moves = chess.history({ verbose: true });
   if (!moves.length) throw new Error("Không tìm thấy nước đi nào trong PGN này.");
 
+  const comments = new Map(chess.getComments().map(({ fen, comment }) => [fen, comment]));
+  const timeControl = parseTimeControl(chess.getHeaders().TimeControl);
+  const previousClocks: Record<Color, number | null> = {
+    w: timeControl?.initial ?? null,
+    b: timeControl?.initial ?? null,
+  };
+  const steps = moves.map((move, index) => {
+    const clockSeconds = parseClockSeconds(comments.get(move.after));
+    const previousClock = previousClocks[move.color];
+    const thinkTimeSeconds = clockSeconds !== null && previousClock !== null && timeControl
+      ? Math.max(0, previousClock + timeControl.increment - clockSeconds)
+      : null;
+    if (clockSeconds !== null) previousClocks[move.color] = clockSeconds;
+    return buildStep(move, index, clockSeconds, thinkTimeSeconds, timeControl?.initial ?? null);
+  });
+
   return {
     headers: chess.getHeaders(),
-    steps: moves.map(buildStep),
+    steps,
     rawPgn: cleaned,
   };
 }

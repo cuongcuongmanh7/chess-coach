@@ -92,9 +92,13 @@ struct SaveGameRequest {
     result: Option<String>,
     event: Option<String>,
     date: Option<String>,
+    played_at: Option<String>,
     eco: Option<String>,
+    opening: Option<String>,
     time_control: Option<String>,
+    time_class: Option<String>,
     source_url: Option<String>,
+    source_platform: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -107,9 +111,14 @@ struct SavedGameSummary {
     result: Option<String>,
     event: Option<String>,
     date: Option<String>,
+    played_at: Option<String>,
     eco: Option<String>,
+    opening: Option<String>,
     time_control: Option<String>,
+    time_class: Option<String>,
     source_url: Option<String>,
+    source_platform: Option<String>,
+    analysis_complete: bool,
     created_at: String,
     last_opened_at: String,
 }
@@ -118,6 +127,65 @@ struct SavedGameSummary {
 struct SavedGameDetail {
     id: String,
     pgn: String,
+}
+
+#[derive(Serialize)]
+struct PlayerProfileSummary {
+    id: i64,
+    platform: String,
+    username: String,
+    game_count: u32,
+    last_sync_at: Option<String>,
+    created_at: String,
+}
+
+#[derive(Deserialize)]
+struct SaveEngineAnalysisRequest {
+    game_id: String,
+    ply: u32,
+    depth: u32,
+    result: Value,
+    color: String,
+    phase: String,
+    quality: String,
+    centipawn_loss: f64,
+    think_time_seconds: Option<f64>,
+    is_quick: bool,
+    is_time_pressure: bool,
+    tags: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct StoredEngineAnalysis {
+    ply: u32,
+    depth: u32,
+    result: Value,
+}
+
+#[derive(Serialize)]
+struct DashboardMoveRecord {
+    game_id: String,
+    date: Option<String>,
+    eco: Option<String>,
+    opening: Option<String>,
+    time_control: Option<String>,
+    time_class: Option<String>,
+    player_color: String,
+    phase: String,
+    quality: String,
+    centipawn_loss: f64,
+    think_time_seconds: Option<f64>,
+    is_quick: bool,
+    is_time_pressure: bool,
+    tags: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct FetchRecentGamesRequest {
+    platform: String,
+    username: String,
+    limit: usize,
+    time_class: Option<String>,
 }
 
 const COACH_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode; không được bỏ dấu ở bất kỳ từ tiếng Việt nào. Dữ liệu Stockfish và các trường màu quân là nguồn sự thật. Viết tổng cộng 70–90 từ trên đúng bốn dòng theo mẫu: 'ĐÁNH GIÁ: ...', 'Ý TƯỞNG: ...', 'SO SÁNH: ...', 'KẾ HOẠCH: ...'. Mỗi nhãn và toàn bộ nội dung của nhãn đó bắt buộc nằm trên cùng một dòng. Dòng ĐÁNH GIÁ kết luận thẳng về nước của ben_vua_di. Dòng Ý TƯỞNG giải thích lý do cụ thể. Dòng SO SÁNH đối chiếu ngắn với nuoc_tot_nhat. Dòng KẾ HOẠCH chỉ khuyên ben_toi_luot chơi nuoc_dap_tot_nhat sau vị trí thực tế; nếu không có nước đáp thì nói ván đã kết thúc. Khi nhắc quân đang tấn công, phòng thủ hoặc bị hạn chế, phải gọi đúng màu Trắng hoặc Đen theo ben_vua_di và ben_toi_luot; tuyệt đối không tự đảo màu quân. Bắt đầu ngay bằng nhãn, không chào hỏi, không câu chúc, không khen xã giao và không dùng lời dẫn. Giữ nguyên mọi ký hiệu nước cờ theo SAN như Bf4, e3, dxc4 hoặc O-O; không dịch hay đọc chúng thành chữ. Mọi điểm đánh giá phải giữ dạng có dấu và chữ số thập phân giống dữ liệu đầu vào, ví dụ +0.38 hoặc -1.25; tuyệt đối không viết số hay dấu thành chữ. Dùng Elo chỉ để điều chỉnh độ khó, không nhắc Elo trong câu trả lời. Không đưa lời khuyên chung chung; phải nêu quân, ô hoặc kế hoạch cụ thể. Tuyệt đối không chép hoặc nhắc tên khóa dữ liệu nội bộ như nuoc_tot_nhat, nuoc_dap_tot_nhat, ben_vua_di hay ben_toi_luot; chỉ diễn đạt ý nghĩa và giá trị thật của chúng bằng tiếng Việt tự nhiên. Không dùng Markdown, không nhắc lại FEN và không bịa thêm biến ngoài dữ liệu được cung cấp.";
@@ -162,7 +230,7 @@ async fn fetch_chess_com_game(game_url: String) -> Result<String, String> {
 
     let client = Client::builder()
         .timeout(Duration::from_secs(20))
-        .user_agent("ChessCoachVN/0.4.1 (local desktop app)")
+        .user_agent("ChessCoachVN/0.5.0 (local desktop app)")
         .build()
         .map_err(|_| "Không thể khởi tạo kết nối mạng.".to_string())?;
 
@@ -255,6 +323,25 @@ fn save_game(
     let mut hasher = Sha256::new();
     hasher.update(normalized_pgn.as_bytes());
     let id = format!("{:x}", hasher.finalize());
+    let played_at = request
+        .played_at
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| played_at_from_pgn(&normalized_pgn));
+    let source_platform = normalized_platform(request.source_platform.as_deref())
+        .map(str::to_string)
+        .or_else(|| {
+            request.source_url.as_deref().and_then(|url| {
+                if url.contains("lichess.org") {
+                    Some("lichess".to_string())
+                } else if url.contains("chess.com") {
+                    Some("chesscom".to_string())
+                } else {
+                    None
+                }
+            })
+        });
     let connection = database
         .0
         .lock()
@@ -262,9 +349,9 @@ fn save_game(
     connection
         .execute(
             "INSERT INTO saved_games
-             (id, pgn, white, black, white_elo, black_elo, result, event, game_date, eco,
-              time_control, source_url, created_at, last_opened_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'), datetime('now'))
+             (id, pgn, white, black, white_elo, black_elo, result, event, game_date, played_at,
+              eco, opening, time_control, time_class, source_url, source_platform, created_at, last_opened_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, datetime('now'), datetime('now'))
              ON CONFLICT(id) DO UPDATE SET
                pgn = excluded.pgn,
                white = excluded.white,
@@ -274,9 +361,13 @@ fn save_game(
                result = excluded.result,
                event = excluded.event,
                game_date = excluded.game_date,
+               played_at = COALESCE(excluded.played_at, saved_games.played_at),
                eco = excluded.eco,
+               opening = excluded.opening,
                time_control = excluded.time_control,
+               time_class = excluded.time_class,
                source_url = COALESCE(excluded.source_url, saved_games.source_url),
+               source_platform = COALESCE(excluded.source_platform, saved_games.source_platform),
                last_opened_at = datetime('now')",
             params![
                 &id,
@@ -288,18 +379,35 @@ fn save_game(
                 &request.result,
                 &request.event,
                 &request.date,
+                &played_at,
                 &request.eco,
+                &request.opening,
                 &request.time_control,
+                &request.time_class,
                 &request.source_url,
+                &source_platform,
             ],
         )
         .map_err(|_| "Không thể lưu ván cờ vào máy.".to_string())?;
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+             SELECT ?1, pp.id,
+                    CASE WHEN lower(pp.username) = lower(?2) THEN 'w' ELSE 'b' END,
+                    datetime('now')
+             FROM player_profiles pp
+             WHERE (lower(pp.username) = lower(?2) OR lower(pp.username) = lower(?3))
+               AND (?4 IS NULL OR pp.platform = ?4)",
+            params![&id, &request.white, &request.black, &source_platform],
+        )
+        .map_err(|_| "Không thể liên kết ván với hồ sơ người chơi.".to_string())?;
     Ok(id)
 }
 
 #[tauri::command]
 fn list_saved_games(
     database: tauri::State<'_, DatabaseState>,
+    profile_id: Option<i64>,
 ) -> Result<Vec<SavedGameSummary>, String> {
     let connection = database
         .0
@@ -307,14 +415,19 @@ fn list_saved_games(
         .map_err(|_| "Không thể mở kho ván cờ.".to_string())?;
     let mut statement = connection
         .prepare(
-            "SELECT id, white, black, white_elo, black_elo, result, event, game_date, eco,
-                    time_control, source_url, created_at, last_opened_at
-             FROM saved_games
-             ORDER BY last_opened_at DESC, created_at DESC",
+            "SELECT id, white, black, white_elo, black_elo, result, event, game_date, played_at, eco,
+                    opening, time_control, time_class, source_url, source_platform,
+                    analysis_complete, created_at, last_opened_at
+             FROM saved_games sg
+             WHERE ?1 IS NULL OR EXISTS (
+               SELECT 1 FROM game_profiles gp WHERE gp.game_id = sg.id AND gp.profile_id = ?1
+             )
+             ORDER BY COALESCE(NULLIF(played_at, ''), REPLACE(game_date, '.', '-'), created_at) DESC,
+                      created_at DESC",
         )
         .map_err(|_| "Không thể đọc kho ván cờ.".to_string())?;
     let games = statement
-        .query_map([], |row| {
+        .query_map(params![profile_id], |row| {
             Ok(SavedGameSummary {
                 id: row.get(0)?,
                 white: row.get(1)?,
@@ -324,11 +437,16 @@ fn list_saved_games(
                 result: row.get(5)?,
                 event: row.get(6)?,
                 date: row.get(7)?,
-                eco: row.get(8)?,
-                time_control: row.get(9)?,
-                source_url: row.get(10)?,
-                created_at: row.get(11)?,
-                last_opened_at: row.get(12)?,
+                played_at: row.get(8)?,
+                eco: row.get(9)?,
+                opening: row.get(10)?,
+                time_control: row.get(11)?,
+                time_class: row.get(12)?,
+                source_url: row.get(13)?,
+                source_platform: row.get(14)?,
+                analysis_complete: row.get::<_, i64>(15)? != 0,
+                created_at: row.get(16)?,
+                last_opened_at: row.get(17)?,
             })
         })
         .map_err(|_| "Không thể đọc danh sách ván đã lưu.".to_string())?;
@@ -385,9 +503,568 @@ fn delete_saved_game(
         .lock()
         .map_err(|_| "Không thể mở kho ván cờ.".to_string())?;
     connection
+        .execute(
+            "DELETE FROM engine_analyses WHERE game_id = ?1",
+            params![&id],
+        )
+        .map_err(|_| "Không thể xoá dữ liệu phân tích của ván.".to_string())?;
+    connection
+        .execute("DELETE FROM game_profiles WHERE game_id = ?1", params![&id])
+        .map_err(|_| "Không thể xoá liên kết hồ sơ của ván.".to_string())?;
+    connection
         .execute("DELETE FROM saved_games WHERE id = ?1", params![id])
         .map(|count| count > 0)
         .map_err(|_| "Không thể xoá ván cờ khỏi kho.".to_string())
+}
+
+const ENGINE_VERSION: &str = "stockfish-18-lite";
+
+fn validate_game_id(id: &str) -> Result<(), String> {
+    if id.len() == 64 && id.chars().all(|character| character.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err("Mã ván cờ không hợp lệ.".to_string())
+    }
+}
+
+#[tauri::command]
+fn save_engine_analysis(
+    database: tauri::State<'_, DatabaseState>,
+    request: SaveEngineAnalysisRequest,
+) -> Result<(), String> {
+    validate_game_id(&request.game_id)?;
+    let result_json = serde_json::to_string(&request.result)
+        .map_err(|_| "Không thể mã hoá kết quả Stockfish.".to_string())?;
+    let tags_json = serde_json::to_string(&request.tags)
+        .map_err(|_| "Không thể mã hoá nhãn phân tích.".to_string())?;
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở kho phân tích.".to_string())?;
+    connection
+        .execute(
+            "INSERT INTO engine_analyses
+             (game_id, ply, engine_version, depth, result_json, color, phase, quality,
+              centipawn_loss, think_time_seconds, is_quick, is_time_pressure, tags_json, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, datetime('now'))
+             ON CONFLICT(game_id, ply, engine_version) DO UPDATE SET
+               depth = CASE WHEN excluded.depth >= engine_analyses.depth THEN excluded.depth ELSE engine_analyses.depth END,
+               result_json = CASE WHEN excluded.depth >= engine_analyses.depth THEN excluded.result_json ELSE engine_analyses.result_json END,
+               color = excluded.color,
+               phase = excluded.phase,
+               quality = CASE WHEN excluded.depth >= engine_analyses.depth THEN excluded.quality ELSE engine_analyses.quality END,
+               centipawn_loss = CASE WHEN excluded.depth >= engine_analyses.depth THEN excluded.centipawn_loss ELSE engine_analyses.centipawn_loss END,
+               think_time_seconds = excluded.think_time_seconds,
+               is_quick = excluded.is_quick,
+               is_time_pressure = excluded.is_time_pressure,
+               tags_json = excluded.tags_json,
+               updated_at = datetime('now')",
+            params![
+                &request.game_id,
+                request.ply,
+                ENGINE_VERSION,
+                request.depth,
+                result_json,
+                &request.color,
+                &request.phase,
+                &request.quality,
+                request.centipawn_loss,
+                request.think_time_seconds,
+                request.is_quick,
+                request.is_time_pressure,
+                tags_json,
+            ],
+        )
+        .map_err(|_| "Không thể lưu kết quả Stockfish.".to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn list_engine_analyses(
+    database: tauri::State<'_, DatabaseState>,
+    game_id: String,
+) -> Result<Vec<StoredEngineAnalysis>, String> {
+    validate_game_id(&game_id)?;
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở kho phân tích.".to_string())?;
+    let mut statement = connection
+        .prepare(
+            "SELECT ply, depth, result_json FROM engine_analyses
+             WHERE game_id = ?1 AND engine_version = ?2 ORDER BY ply",
+        )
+        .map_err(|_| "Không thể đọc kết quả Stockfish đã lưu.".to_string())?;
+    let rows = statement
+        .query_map(params![game_id, ENGINE_VERSION], |row| {
+            let raw: String = row.get(2)?;
+            let result = serde_json::from_str(&raw).unwrap_or(Value::Null);
+            Ok(StoredEngineAnalysis {
+                ply: row.get(0)?,
+                depth: row.get(1)?,
+                result,
+            })
+        })
+        .map_err(|_| "Không thể đọc danh sách kết quả Stockfish.".to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu Stockfish đã lưu không hợp lệ.".to_string())
+}
+
+#[tauri::command]
+fn mark_game_analysis_complete(
+    database: tauri::State<'_, DatabaseState>,
+    game_id: String,
+) -> Result<(), String> {
+    validate_game_id(&game_id)?;
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở kho ván cờ.".to_string())?;
+    connection
+        .execute(
+            "UPDATE saved_games SET analysis_complete = 1, analyzed_at = datetime('now') WHERE id = ?1",
+            params![game_id],
+        )
+        .map_err(|_| "Không thể đánh dấu ván đã phân tích.".to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_dashboard_records(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: i64,
+) -> Result<Vec<DashboardMoveRecord>, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở kho thống kê.".to_string())?;
+    let mut statement = connection
+        .prepare(
+            "SELECT ea.game_id, COALESCE(sg.played_at, sg.game_date), sg.eco, sg.opening, sg.time_control, sg.time_class,
+                    ea.color, ea.phase, ea.quality, ea.centipawn_loss, ea.think_time_seconds,
+                    ea.is_quick, ea.is_time_pressure, ea.tags_json
+             FROM engine_analyses ea
+             JOIN saved_games sg ON sg.id = ea.game_id
+             JOIN game_profiles gp ON gp.game_id = sg.id AND gp.profile_id = ?1
+             WHERE sg.analysis_complete = 1
+               AND ea.engine_version = ?2
+               AND ea.color = gp.player_color
+             ORDER BY COALESCE(NULLIF(sg.played_at, ''), REPLACE(sg.game_date, '.', '-'), sg.created_at), ea.ply",
+        )
+        .map_err(|_| "Không thể chuẩn bị dữ liệu tiến bộ.".to_string())?;
+    let rows = statement
+        .query_map(params![profile_id, ENGINE_VERSION], |row| {
+            let tags_json: String = row.get(13)?;
+            Ok(DashboardMoveRecord {
+                game_id: row.get(0)?,
+                date: row.get(1)?,
+                eco: row.get(2)?,
+                opening: row.get(3)?,
+                time_control: row.get(4)?,
+                time_class: row.get(5)?,
+                player_color: row.get(6)?,
+                phase: row.get(7)?,
+                quality: row.get(8)?,
+                centipawn_loss: row.get(9)?,
+                think_time_seconds: row.get(10)?,
+                is_quick: row.get::<_, i64>(11)? != 0,
+                is_time_pressure: row.get::<_, i64>(12)? != 0,
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+            })
+        })
+        .map_err(|_| "Không thể đọc dữ liệu tiến bộ.".to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu tiến bộ không hợp lệ.".to_string())
+}
+
+fn normalized_platform(value: Option<&str>) -> Option<&str> {
+    match value {
+        Some("chesscom") => Some("chesscom"),
+        Some("lichess") => Some("lichess"),
+        _ => None,
+    }
+}
+
+fn pgn_header_value<'a>(pgn: &'a str, tag: &str) -> Option<&'a str> {
+    let prefix = format!("[{tag} \"");
+    pgn.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix(&prefix)
+            .and_then(|value| value.strip_suffix("\"]"))
+    })
+}
+
+fn normalized_pgn_date(value: &str) -> Option<String> {
+    let normalized = value.trim().replace('.', "-");
+    let parts: Vec<&str> = normalized.split('-').collect();
+    if parts.len() == 3
+        && parts[0].len() == 4
+        && parts[1].len() == 2
+        && parts[2].len() == 2
+        && parts
+            .iter()
+            .all(|part| part.chars().all(|character| character.is_ascii_digit()))
+    {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
+fn normalized_pgn_time(value: &str) -> Option<String> {
+    let parts: Vec<&str> = value.trim().split(':').collect();
+    if (2..=3).contains(&parts.len())
+        && parts
+            .iter()
+            .all(|part| part.len() == 2 && part.chars().all(|character| character.is_ascii_digit()))
+    {
+        Some(if parts.len() == 2 {
+            format!("{}:00", value.trim())
+        } else {
+            value.trim().to_string()
+        })
+    } else {
+        None
+    }
+}
+
+fn played_at_from_pgn(pgn: &str) -> Option<String> {
+    let date = ["UTCDate", "EndDate", "Date"]
+        .iter()
+        .find_map(|tag| pgn_header_value(pgn, tag).and_then(normalized_pgn_date))?;
+    let time = ["UTCTime", "EndTime", "StartTime"]
+        .iter()
+        .find_map(|tag| pgn_header_value(pgn, tag).and_then(normalized_pgn_time));
+    Some(time.map_or(date.clone(), |time| format!("{date} {time}")))
+}
+
+fn backfill_played_at(connection: &Connection) -> rusqlite::Result<()> {
+    let missing = {
+        let mut statement = connection
+            .prepare("SELECT id, pgn FROM saved_games WHERE played_at IS NULL OR played_at = ''")?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    for (id, pgn) in missing {
+        if let Some(played_at) = played_at_from_pgn(&pgn) {
+            connection.execute(
+                "UPDATE saved_games SET played_at = ?1 WHERE id = ?2",
+                params![played_at, id],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn list_player_profiles(
+    database: tauri::State<'_, DatabaseState>,
+) -> Result<Vec<PlayerProfileSummary>, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
+    let mut statement = connection
+        .prepare(
+            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at
+             FROM player_profiles pp
+             LEFT JOIN game_profiles gp ON gp.profile_id = pp.id
+             GROUP BY pp.id
+             ORDER BY pp.created_at, pp.id",
+        )
+        .map_err(|_| "Không thể đọc danh sách hồ sơ.".to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(PlayerProfileSummary {
+                id: row.get(0)?,
+                platform: row.get(1)?,
+                username: row.get(2)?,
+                game_count: row.get(3)?,
+                last_sync_at: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|_| "Không thể đọc hồ sơ người chơi.".to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu hồ sơ không hợp lệ.".to_string())
+}
+
+#[tauri::command]
+fn add_player_profile(
+    database: tauri::State<'_, DatabaseState>,
+    platform: String,
+    username: String,
+) -> Result<PlayerProfileSummary, String> {
+    let platform = normalized_platform(Some(platform.as_str()))
+        .ok_or_else(|| "Nền tảng hồ sơ không hợp lệ.".to_string())?;
+    let username = username.trim();
+    if !valid_username(username) {
+        return Err("Username chỉ được chứa chữ, số, gạch ngang hoặc gạch dưới.".to_string());
+    }
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO player_profiles (platform, username, created_at)
+             VALUES (?1, ?2, datetime('now'))",
+            params![platform, username],
+        )
+        .map_err(|_| "Không thể thêm hồ sơ.".to_string())?;
+    let profile_id: i64 = connection
+        .query_row(
+            "SELECT id FROM player_profiles WHERE platform = ?1 AND username = ?2 COLLATE NOCASE",
+            params![platform, username],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Không thể đọc hồ sơ vừa thêm.".to_string())?;
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+             SELECT sg.id, ?1,
+                    CASE WHEN lower(sg.white) = lower(?2) THEN 'w' ELSE 'b' END,
+                    datetime('now')
+             FROM saved_games sg
+             WHERE (lower(sg.white) = lower(?2) OR lower(sg.black) = lower(?2))
+               AND (sg.source_platform IS NULL OR sg.source_platform = ?3)",
+            params![profile_id, username, platform],
+        )
+        .map_err(|_| "Không thể liên kết các ván cũ với hồ sơ.".to_string())?;
+    connection
+        .query_row(
+            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at
+             FROM player_profiles pp LEFT JOIN game_profiles gp ON gp.profile_id = pp.id
+             WHERE pp.id = ?1 GROUP BY pp.id",
+            params![profile_id],
+            |row| {
+                Ok(PlayerProfileSummary {
+                    id: row.get(0)?,
+                    platform: row.get(1)?,
+                    username: row.get(2)?,
+                    game_count: row.get(3)?,
+                    last_sync_at: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            },
+        )
+        .map_err(|_| "Không thể trả về hồ sơ vừa thêm.".to_string())
+}
+
+#[tauri::command]
+fn delete_player_profile(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: i64,
+) -> Result<(), String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
+    let total: i64 = connection
+        .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+        .map_err(|_| "Không thể kiểm tra số hồ sơ.".to_string())?;
+    if total <= 1 {
+        return Err("Cần giữ lại ít nhất một hồ sơ.".to_string());
+    }
+    connection
+        .execute(
+            "DELETE FROM game_profiles WHERE profile_id = ?1",
+            params![profile_id],
+        )
+        .map_err(|_| "Không thể xoá liên kết hồ sơ.".to_string())?;
+    connection
+        .execute(
+            "DELETE FROM player_profiles WHERE id = ?1",
+            params![profile_id],
+        )
+        .map_err(|_| "Không thể xoá hồ sơ.".to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn mark_profile_synced(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: i64,
+) -> Result<(), String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
+    connection
+        .execute(
+            "UPDATE player_profiles SET last_sync_at = datetime('now') WHERE id = ?1",
+            params![profile_id],
+        )
+        .map_err(|_| "Không thể cập nhật thời gian đồng bộ.".to_string())?;
+    Ok(())
+}
+
+fn valid_username(username: &str) -> bool {
+    !username.is_empty()
+        && username.len() <= 40
+        && username
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "_-".contains(character))
+}
+
+fn normalized_time_class(value: Option<&str>) -> Option<&str> {
+    match value {
+        Some("bullet") => Some("bullet"),
+        Some("blitz") => Some("blitz"),
+        Some("rapid") => Some("rapid"),
+        Some("classical") => Some("classical"),
+        _ => None,
+    }
+}
+
+fn split_multi_pgn(raw: &str) -> Vec<String> {
+    let normalized = raw.replace("\r\n", "\n");
+    normalized
+        .split("\n\n[Event ")
+        .enumerate()
+        .filter_map(|(index, part)| {
+            let trimmed = part.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            Some(if index == 0 {
+                trimmed.to_string()
+            } else {
+                format!("[Event {trimmed}")
+            })
+        })
+        .collect()
+}
+
+async fn fetch_recent_chess_com_games(
+    client: &Client,
+    username: &str,
+    limit: usize,
+    time_class: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let archives_url = format!("https://api.chess.com/pub/player/{username}/games/archives");
+    let response = client
+        .get(archives_url)
+        .send()
+        .await
+        .map_err(|_| "Không kết nối được với Chess.com.".to_string())?;
+    if response.status().as_u16() == 404 {
+        return Err("Không tìm thấy tài khoản Chess.com này.".to_string());
+    }
+    if !response.status().is_success() {
+        return Err("Chess.com chưa trả về kho ván. Hãy thử lại sau.".to_string());
+    }
+    let archives: Value = response
+        .json()
+        .await
+        .map_err(|_| "Danh sách kho ván Chess.com không hợp lệ.".to_string())?;
+    let archive_urls = archives
+        .get("archives")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Tài khoản chưa có kho ván công khai.".to_string())?;
+    let mut games: Vec<(i64, String)> = Vec::new();
+    for archive in archive_urls.iter().rev() {
+        let Some(url) = archive.as_str() else {
+            continue;
+        };
+        let response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|_| "Không tải được một tháng ván Chess.com.".to_string())?;
+        if !response.status().is_success() {
+            continue;
+        }
+        let month: Value = response
+            .json()
+            .await
+            .map_err(|_| "Dữ liệu tháng Chess.com không hợp lệ.".to_string())?;
+        if let Some(items) = month.get("games").and_then(Value::as_array) {
+            for game in items {
+                if text_field(game, "rules").unwrap_or("chess") != "chess" {
+                    continue;
+                }
+                if let Some(filter) = time_class {
+                    if text_field(game, "time_class") != Some(filter) {
+                        continue;
+                    }
+                }
+                if let Some(pgn) = text_field(game, "pgn") {
+                    games.push((
+                        game.get("end_time").and_then(Value::as_i64).unwrap_or(0),
+                        pgn.to_string(),
+                    ));
+                }
+            }
+        }
+        if games.len() >= limit {
+            break;
+        }
+    }
+    games.sort_by(|left, right| right.0.cmp(&left.0));
+    Ok(games.into_iter().take(limit).map(|(_, pgn)| pgn).collect())
+}
+
+async fn fetch_recent_lichess_games(
+    client: &Client,
+    username: &str,
+    limit: usize,
+    time_class: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let mut url = Url::parse(&format!("https://lichess.org/api/games/user/{username}"))
+        .map_err(|_| "Không thể tạo đường dẫn Lichess.".to_string())?;
+    {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("max", &limit.to_string());
+        query.append_pair("moves", "true");
+        query.append_pair("clocks", "true");
+        query.append_pair("opening", "true");
+        query.append_pair("sort", "dateDesc");
+        if let Some(filter) = time_class {
+            query.append_pair("perfType", filter);
+        }
+    }
+    let response = client
+        .get(url)
+        .header(reqwest::header::ACCEPT, "application/x-chess-pgn")
+        .send()
+        .await
+        .map_err(|_| "Không kết nối được với Lichess.".to_string())?;
+    if response.status().as_u16() == 404 {
+        return Err("Không tìm thấy tài khoản Lichess này.".to_string());
+    }
+    if !response.status().is_success() {
+        return Err("Lichess chưa trả về danh sách ván. Hãy thử lại sau.".to_string());
+    }
+    let text = response
+        .text()
+        .await
+        .map_err(|_| "Không đọc được PGN từ Lichess.".to_string())?;
+    Ok(split_multi_pgn(&text).into_iter().take(limit).collect())
+}
+
+#[tauri::command]
+async fn fetch_recent_games(request: FetchRecentGamesRequest) -> Result<Vec<String>, String> {
+    let username = request.username.trim().to_ascii_lowercase();
+    if !valid_username(&username) {
+        return Err("Username chỉ được chứa chữ, số, gạch ngang hoặc gạch dưới.".to_string());
+    }
+    let limit = request.limit.clamp(1, 100);
+    let time_class = normalized_time_class(request.time_class.as_deref());
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent("ChessCoachVN/0.5.0 (local desktop app)")
+        .build()
+        .map_err(|_| "Không thể khởi tạo kết nối mạng.".to_string())?;
+    match request.platform.as_str() {
+        "chesscom" => fetch_recent_chess_com_games(&client, &username, limit, time_class).await,
+        "lichess" => fetch_recent_lichess_games(&client, &username, limit, time_class).await,
+        _ => Err("Nền tảng đồng bộ không hợp lệ.".to_string()),
+    }
 }
 
 fn normalized_provider(provider: &str) -> Result<&str, String> {
@@ -999,6 +1676,39 @@ async fn summarize_game(
 mod tests {
     use super::*;
 
+    #[test]
+    fn splits_lichess_multi_pgn_without_losing_event_headers() {
+        let games = split_multi_pgn(
+            "[Event \"Game 1\"]\n[Result \"1-0\"]\n\n1. e4 e5 1-0\n\n[Event \"Game 2\"]\n[Result \"0-1\"]\n\n1. d4 d5 0-1",
+        );
+        assert_eq!(games.len(), 2);
+        assert!(games[0].starts_with("[Event \"Game 1\"]"));
+        assert!(games[1].starts_with("[Event \"Game 2\"]"));
+    }
+
+    #[test]
+    fn validates_public_chess_usernames_and_filters() {
+        assert!(valid_username("Cuongkool"));
+        assert!(valid_username("player-name_2"));
+        assert!(!valid_username("player/name"));
+        assert_eq!(normalized_time_class(Some("rapid")), Some("rapid"));
+        assert_eq!(normalized_time_class(Some("unknown")), None);
+    }
+
+    #[test]
+    fn extracts_played_timestamp_from_pgn_headers() {
+        let pgn =
+            "[Event \"Live Chess\"]\n[UTCDate \"2026.07.22\"]\n[UTCTime \"09:08:07\"]\n\n1. e4 e5";
+        assert_eq!(
+            played_at_from_pgn(pgn),
+            Some("2026-07-22 09:08:07".to_string())
+        );
+        assert_eq!(
+            played_at_from_pgn("[Date \"2026.07.21\"]\n\n1. d4 d5"),
+            Some("2026-07-21".to_string())
+        );
+    }
+
     fn coach_request() -> ExplainMoveRequest {
         ExplainMoveRequest {
             player_elo: Some("1200".to_string()),
@@ -1079,14 +1789,110 @@ pub fn run() {
                     result TEXT,
                     event TEXT,
                     game_date TEXT,
+                    played_at TEXT,
                     eco TEXT,
+                    opening TEXT,
                     time_control TEXT,
+                    time_class TEXT,
                     source_url TEXT,
+                    source_platform TEXT,
+                    analysis_complete INTEGER NOT NULL DEFAULT 0,
+                    analyzed_at TEXT,
                     created_at TEXT NOT NULL,
                     last_opened_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_saved_games_last_opened
-                ON saved_games(last_opened_at DESC);",
+                ON saved_games(last_opened_at DESC);
+                CREATE TABLE IF NOT EXISTS engine_analyses (
+                    game_id TEXT NOT NULL,
+                    ply INTEGER NOT NULL,
+                    engine_version TEXT NOT NULL,
+                    depth INTEGER NOT NULL,
+                    result_json TEXT NOT NULL,
+                    color TEXT NOT NULL,
+                    phase TEXT NOT NULL,
+                    quality TEXT NOT NULL,
+                    centipawn_loss REAL NOT NULL,
+                    think_time_seconds REAL,
+                    is_quick INTEGER NOT NULL DEFAULT 0,
+                    is_time_pressure INTEGER NOT NULL DEFAULT 0,
+                    tags_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(game_id, ply, engine_version)
+                );
+                CREATE INDEX IF NOT EXISTS idx_engine_analyses_game
+                ON engine_analyses(game_id, engine_version, ply);
+                CREATE TABLE IF NOT EXISTS player_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    platform TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    last_sync_at TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_player_profiles_identity
+                ON player_profiles(platform, username COLLATE NOCASE);
+                CREATE TABLE IF NOT EXISTS game_profiles (
+                    game_id TEXT NOT NULL,
+                    profile_id INTEGER NOT NULL,
+                    player_color TEXT NOT NULL,
+                    linked_at TEXT NOT NULL,
+                    PRIMARY KEY(game_id, profile_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_game_profiles_profile
+                ON game_profiles(profile_id, game_id);",
+            )?;
+            for migration in [
+                "ALTER TABLE saved_games ADD COLUMN opening TEXT",
+                "ALTER TABLE saved_games ADD COLUMN time_class TEXT",
+                "ALTER TABLE saved_games ADD COLUMN analysis_complete INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE saved_games ADD COLUMN analyzed_at TEXT",
+                "ALTER TABLE saved_games ADD COLUMN source_platform TEXT",
+                "ALTER TABLE saved_games ADD COLUMN played_at TEXT",
+            ] {
+                let _ = connection.execute(migration, []);
+            }
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_saved_games_played_at ON saved_games(played_at DESC)",
+                [],
+            )?;
+            backfill_played_at(&connection)?;
+            connection.execute(
+                "UPDATE saved_games
+                 SET source_platform = CASE
+                   WHEN source_url LIKE '%lichess.org%' THEN 'lichess'
+                   WHEN source_url LIKE '%chess.com%' THEN 'chesscom'
+                   ELSE source_platform
+                 END
+                 WHERE source_platform IS NULL",
+                [],
+            )?;
+            let profile_count: i64 = connection.query_row(
+                "SELECT COUNT(*) FROM player_profiles",
+                [],
+                |row| row.get(0),
+            )?;
+            if profile_count == 0 {
+                connection.execute(
+                    "INSERT INTO player_profiles (platform, username, created_at)
+                     VALUES ('chesscom', 'Cuongkool', datetime('now'))",
+                    [],
+                )?;
+                connection.execute(
+                    "INSERT INTO player_profiles (platform, username, created_at)
+                     VALUES ('lichess', 'chinsu1409', datetime('now'))",
+                    [],
+                )?;
+            }
+            connection.execute(
+                "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+                 SELECT sg.id, pp.id,
+                        CASE WHEN lower(sg.white) = lower(pp.username) THEN 'w' ELSE 'b' END,
+                        datetime('now')
+                 FROM saved_games sg
+                 JOIN player_profiles pp
+                   ON lower(sg.white) = lower(pp.username) OR lower(sg.black) = lower(pp.username)
+                 WHERE sg.source_platform IS NULL OR sg.source_platform = pp.platform",
+                [],
             )?;
             app.manage(DatabaseState(Mutex::new(connection)));
             Ok(())
@@ -1097,6 +1903,15 @@ pub fn run() {
             list_saved_games,
             open_saved_game,
             delete_saved_game,
+            fetch_recent_games,
+            save_engine_analysis,
+            list_engine_analyses,
+            mark_game_analysis_complete,
+            get_dashboard_records,
+            list_player_profiles,
+            add_player_profile,
+            delete_player_profile,
+            mark_profile_synced,
             set_api_key,
             clear_api_key,
             has_api_key,

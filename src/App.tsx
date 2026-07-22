@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Chessboard } from "react-chessboard";
 import { Chess, type PieceSymbol, type Square } from "chess.js";
@@ -8,28 +8,41 @@ import {
   BookOpen,
   Bot,
   BrainCircuit,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
   ClipboardPaste,
+  Clock,
+  Database,
+  Download,
+  Dumbbell,
   Cpu,
+  Eye,
+  Lightbulb,
   KeyRound,
   Library,
   Link2,
   LoaderCircle,
   RotateCcw,
+  Play,
   Settings,
   ShieldCheck,
   Sparkles,
   Star,
   Target,
+  TriangleAlert,
   Trash2,
   Upload,
+  UserPlus,
+  UserRound,
   X,
 } from "lucide-react";
 import { analyzePgn, type AnalysisStep, type GameAnalysis, type MoveQuality } from "./analysis";
 import { DEMO_PGN } from "./demo";
 import { analyzeGameWithStockfish, analyzeMoveWithStockfish, type EngineMoveAnalysis } from "./stockfish";
+import { buildDashboardStats, type DashboardMoveRecord } from "./dashboard";
+import { lastKnownOpening, openingTimeline, type OpeningInfo } from "./openings";
 
 const QUALITY_LABELS: Record<MoveQuality, string> = {
   best: "Best move",
@@ -89,13 +102,45 @@ type SavedGameSummary = {
   result: string | null;
   event: string | null;
   date: string | null;
+  played_at: string | null;
   eco: string | null;
+  opening: string | null;
   time_control: string | null;
+  time_class: string | null;
   source_url: string | null;
+  source_platform: SyncPlatform | null;
+  analysis_complete: boolean;
   created_at: string;
   last_opened_at: string;
 };
 type SavedGameDetail = { id: string; pgn: string };
+type StoredEngineAnalysis = { ply: number; depth: number; result: EngineMoveAnalysis };
+type SyncPlatform = "chesscom" | "lichess";
+type PlayerProfile = {
+  id: number;
+  platform: SyncPlatform;
+  username: string;
+  game_count: number;
+  last_sync_at: string | null;
+  created_at: string;
+};
+type RetryState = {
+  fen: string;
+  attempts: number;
+  hintLevel: number;
+  loading: boolean;
+  feedback: { quality: MoveQuality; moveSan: string; bestMoveSan: string; loss: number } | null;
+};
+type VariationState = {
+  rank: number;
+  title: string;
+  moves: string[];
+  positions: string[];
+  moveSquares: Array<{ from: string; to: string }>;
+  index: number;
+};
+type SyncNotice = { type: "success" | "info" | "error"; message: string };
+type SyncProgress = { phase: "fetching" | "saving"; completed: number; total: number };
 
 const PROVIDER_LABELS: Record<AiProvider, string> = { openai: "OpenAI", gemini: "Gemini" };
 const DEFAULT_MODELS: Record<AiProvider, string> = {
@@ -116,10 +161,91 @@ function evaluationToWhitePercent(whiteScoreCp?: number) {
   return Math.max(3, Math.min(97, probability));
 }
 
-function formatSavedTimestamp(value: string) {
-  const parsed = new Date(`${value.replace(" ", "T")}Z`);
+function formatVietnamDate(value?: string | null, includeTime = Boolean(value?.includes(":"))) {
+  if (!value) return "—";
+  const dateOnly = value.trim().match(/^(\d{4})[.-](\d{2})[.-](\d{2})$/);
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim());
+  const normalized = value.trim().replace(" ", "T") + (hasTimezone ? "" : "Z");
+  const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(parsed);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(parsed).map((part) => [part.type, part.value]));
+  return `${parts.day}/${parts.month}/${parts.year}${includeTime ? ` ${parts.hour}:${parts.minute}` : ""}`;
+}
+
+function getPgnPlayedAt(headers: Record<string, string>) {
+  const rawDate = headers.UTCDate || headers.EndDate || headers.Date;
+  const dateMatch = rawDate?.match(/^(\d{4})[.-](\d{2})[.-](\d{2})$/);
+  if (!dateMatch) return null;
+  const date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+  const rawTime = headers.UTCTime || headers.EndTime || headers.StartTime;
+  const timeMatch = rawTime?.match(/^(\d{2}):(\d{2})(?::(\d{2}))?/);
+  return timeMatch ? `${date} ${timeMatch[1]}:${timeMatch[2]}:${timeMatch[3] || "00"}` : date;
+}
+
+function openingFromHeaders(headers: Record<string, string>): OpeningInfo | null {
+  const name = headers.Opening;
+  if (!name) return null;
+  const separator = name.indexOf(":");
+  return {
+    eco: headers.ECO || "ECO —",
+    name,
+    family: separator < 0 ? name : name.slice(0, separator),
+    variation: separator < 0 ? null : name.slice(separator + 1).trim(),
+  };
+}
+
+function formatSeconds(value: number | null) {
+  if (value === null) return "—";
+  if (value < 60) return `${Math.round(value)} giây`;
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.round(value % 60);
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function inferTimeClass(timeControl?: string) {
+  const match = timeControl?.match(/^(\d+)(?:\+(\d+))?$/);
+  if (!match) return null;
+  const estimated = Number(match[1]) + Number(match[2] || 0) * 40;
+  if (estimated < 180) return "bullet";
+  if (estimated < 600) return "blitz";
+  if (estimated < 1800) return "rapid";
+  return "classical";
+}
+
+function inferSourcePlatform(value?: string | null): SyncPlatform | null {
+  if (!value) return null;
+  if (/lichess\.org/i.test(value)) return "lichess";
+  if (/chess\.com/i.test(value)) return "chesscom";
+  return null;
+}
+
+function buildVariation(fen: string, lineSan: string[], rank: number, title: string): VariationState | null {
+  const chess = new Chess(fen);
+  const positions = [chess.fen()];
+  const moves: string[] = [];
+  const moveSquares: Array<{ from: string; to: string }> = [];
+  for (const san of lineSan) {
+    try {
+      const move = chess.move(san);
+      if (!move) break;
+      moves.push(move.san);
+      moveSquares.push({ from: move.from, to: move.to });
+      positions.push(chess.fen());
+    } catch {
+      break;
+    }
+  }
+  return moves.length ? { rank, title, moves, positions, moveSquares, index: 0 } : null;
 }
 
 function isBrilliantMove(step: AnalysisStep, engine: EngineMoveAnalysis) {
@@ -249,16 +375,37 @@ function App() {
   const [orientation, setOrientation] = useState<"white" | "black">("white");
   const [importOpen, setImportOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [savedGames, setSavedGames] = useState<SavedGameSummary[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState("");
+  const [dashboardRecords, setDashboardRecords] = useState<DashboardMoveRecord[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
+  const [profiles, setProfiles] = useState<PlayerProfile[]>([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profilesError, setProfilesError] = useState("");
+  const [activeProfileId, setActiveProfileId] = useState<number | null>(null);
+  const [newProfilePlatform, setNewProfilePlatform] = useState<SyncPlatform>("chesscom");
+  const [newProfileUsername, setNewProfileUsername] = useState("");
+  const [importMode, setImportMode] = useState<"single" | "sync">("single");
+  const [syncTimeClass, setSyncTimeClass] = useState("all");
+  const [syncStatus, setSyncStatus] = useState("");
+  const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [engineCache, setEngineCache] = useState<Record<number, EngineMoveAnalysis>>({});
   const [engineLoading, setEngineLoading] = useState(false);
   const [engineError, setEngineError] = useState("");
+  const [retryState, setRetryState] = useState<RetryState | null>(null);
+  const [promotionPending, setPromotionPending] = useState<{ from: string; to: string } | null>(null);
+  const [variationState, setVariationState] = useState<VariationState | null>(null);
+  const [variationPlaying, setVariationPlaying] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [fullAnalysis, setFullAnalysis] = useState({ running: false, complete: false, completed: 0, total: 0, error: "" });
   const [gameCoachSummary, setGameCoachSummary] = useState<AiExplanation | null>(null);
@@ -286,6 +433,8 @@ function App() {
   const cacheMissesRef = useRef(new Set<string>());
   const autoAttemptsRef = useRef(new Set<string>());
   const fullAnalysisAbortRef = useRef<AbortController | null>(null);
+  const timelineScrollerRef = useRef<HTMLDivElement | null>(null);
+  const coachScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const step = analysis.steps[currentIndex];
   const engine = engineCache[step.ply];
@@ -293,6 +442,9 @@ function App() {
   const aiExplanation = aiCache[aiCacheKey];
   const quality = engine?.quality || step.quality;
   const headers = analysis.headers;
+  const openingsByPly = useMemo(() => openingTimeline(analysis.steps), [analysis.steps]);
+  const currentOpening = openingsByPly[currentIndex] || openingFromHeaders(headers);
+  const gameOpening = openingsByPly[openingsByPly.length - 1] || openingFromHeaders(headers);
   const totalMoves = Math.ceil(analysis.steps.length / 2);
   const hasApiKey = hasApiKeys[provider];
   const providerLabel = PROVIDER_LABELS[provider];
@@ -302,6 +454,16 @@ function App() {
   const evaluationScoreAtTop = evaluationLeader !== orientation;
   const boardMoveBadge = getBoardMoveBadge(step, engine);
   const boardMoveBadgePosition = getBoardBadgePosition(step.to, orientation);
+  const dashboardStats = useMemo(() => buildDashboardStats(dashboardRecords), [dashboardRecords]);
+  const boardPosition = retryState?.fen || (variationState ? variationState.positions[variationState.index] : step.fenAfter);
+  const boardInteractionMode = retryState ? "retry" : variationState ? "variation" : "main";
+  const variationMoveSquares = variationState && variationState.index > 0
+    ? variationState.moveSquares[variationState.index - 1]
+    : null;
+  const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || null;
+  const activeProfileLabel = activeProfile
+    ? `${activeProfile.platform === "chesscom" ? "Chess.com" : "Lichess"} · ${activeProfile.username}`
+    : "Chưa chọn hồ sơ";
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -314,18 +476,145 @@ function App() {
     return pairs;
   }, [analysis]);
 
+  const refreshProfiles = useCallback(async (preferredId?: number) => {
+    if (!isTauri()) return;
+    setProfilesLoading(true);
+    setProfilesError("");
+    try {
+      const nextProfiles = await invoke<PlayerProfile[]>("list_player_profiles");
+      setProfiles(nextProfiles);
+      setActiveProfileId((current) => {
+        const savedId = Number(localStorage.getItem("kypho-active-profile-id"));
+        const candidate = preferredId || current || savedId;
+        const nextId = nextProfiles.some((profile) => profile.id === candidate)
+          ? candidate
+          : nextProfiles[0]?.id || null;
+        if (nextId) localStorage.setItem("kypho-active-profile-id", String(nextId));
+        return nextId;
+      });
+    } catch (reason) {
+      setProfilesError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
+
   const refreshSavedGames = useCallback(async () => {
     if (!isTauri()) return;
     setLibraryLoading(true);
     setLibraryError("");
     try {
-      setSavedGames(await invoke<SavedGameSummary[]>("list_saved_games"));
+      setSavedGames(await invoke<SavedGameSummary[]>("list_saved_games", { profileId: activeProfileId }));
     } catch (reason) {
       setLibraryError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setLibraryLoading(false);
     }
+  }, [activeProfileId]);
+
+  const persistEngineResult = useCallback(async (
+    gameId: string,
+    item: AnalysisStep,
+    result: EngineMoveAnalysis,
+  ) => {
+    if (!isTauri()) return;
+    await invoke("save_engine_analysis", {
+      request: {
+        game_id: gameId,
+        ply: item.ply,
+        depth: result.depth,
+        result,
+        color: item.color,
+        phase: item.phase,
+        quality: result.quality,
+        centipawn_loss: result.centipawnLoss,
+        think_time_seconds: item.thinkTimeSeconds,
+        is_quick: item.isQuickMove,
+        is_time_pressure: item.isTimePressure,
+        tags: item.tags,
+      },
+    });
   }, []);
+
+  const hydrateEngineCache = useCallback(async (gameId: string, next: GameAnalysis) => {
+    if (!isTauri()) return;
+    try {
+      const stored = await invoke<StoredEngineAnalysis[]>("list_engine_analyses", { gameId });
+      const cache = stored.reduce<Record<number, EngineMoveAnalysis>>((values, item) => {
+        if (item.result && item.result.depth >= item.depth) values[item.ply] = item.result;
+        return values;
+      }, {});
+      setEngineCache(cache);
+      const complete = next.steps.length > 0 && next.steps.every((item) => Boolean(cache[item.ply]));
+      if (complete) void invoke("mark_game_analysis_complete", { gameId }).catch(() => undefined);
+      setFullAnalysis({
+        running: false,
+        complete,
+        completed: Object.keys(cache).length,
+        total: next.steps.length,
+        error: "",
+      });
+    } catch (reason) {
+      setEngineError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, []);
+
+  const openDashboard = useCallback(async () => {
+    setDashboardOpen(true);
+    setDashboardLoading(true);
+    setDashboardError("");
+    try {
+      if (!isTauri()) throw new Error("Dashboard cần mở trong ứng dụng desktop.");
+      if (!activeProfileId) throw new Error("Hãy chọn một hồ sơ người chơi.");
+      setDashboardRecords(await invoke<DashboardMoveRecord[]>("get_dashboard_records", { profileId: activeProfileId }));
+    } catch (reason) {
+      setDashboardError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [activeProfileId]);
+
+  const changeActiveProfile = (profileId: number) => {
+    setActiveProfileId(profileId);
+    localStorage.setItem("kypho-active-profile-id", String(profileId));
+    setDashboardRecords([]);
+    setDashboardError("");
+    setSyncStatus("");
+  };
+
+  const addPlayerProfile = async () => {
+    if (!isTauri() || profilesLoading) return;
+    setProfilesLoading(true);
+    setProfilesError("");
+    try {
+      const created = await invoke<PlayerProfile>("add_player_profile", {
+        platform: newProfilePlatform,
+        username: newProfileUsername.trim(),
+      });
+      setNewProfileUsername("");
+      await refreshProfiles(created.id);
+    } catch (reason) {
+      setProfilesError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
+
+  const removePlayerProfile = async (profile: PlayerProfile) => {
+    if (!isTauri() || profilesLoading) return;
+    const platform = profile.platform === "chesscom" ? "Chess.com" : "Lichess";
+    if (!window.confirm(`Xoá hồ sơ ${platform} · ${profile.username}? Các ván đã tải vẫn được giữ trên máy.`)) return;
+    setProfilesLoading(true);
+    setProfilesError("");
+    try {
+      await invoke("delete_player_profile", { profileId: profile.id });
+      await refreshProfiles();
+    } catch (reason) {
+      setProfilesError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
 
   const fullGameSummary = useMemo(() => {
     const buildPlayerSummary = (color: "w" | "b"): PlayerSummary => {
@@ -354,7 +643,25 @@ function App() {
       .map((item, index) => ({ item, index, engine: engineCache[item.ply] }))
       .filter(({ engine: result }) => result?.quality === "mistake" || result?.quality === "blunder");
 
-    return { white: buildPlayerSummary("w"), black: buildPlayerSummary("b"), critical };
+    const timed = analysis.steps.filter((item) => item.thinkTimeSeconds !== null);
+    const timedErrors = timed.filter((item) => {
+      const result = engineCache[item.ply];
+      return result?.quality === "mistake" || result?.quality === "blunder";
+    });
+
+    return {
+      white: buildPlayerSummary("w"),
+      black: buildPlayerSummary("b"),
+      critical,
+      time: {
+        available: timed.length > 0,
+        average: timed.length
+          ? Math.round(timed.reduce((sum, item) => sum + (item.thinkTimeSeconds || 0), 0) / timed.length)
+          : 0,
+        quickErrors: timedErrors.filter((item) => item.isQuickMove).length,
+        pressureErrors: timedErrors.filter((item) => item.isTimePressure).length,
+      },
+    };
   }, [analysis.steps, engineCache]);
 
   const gameSummaryRequest = useMemo(() => {
@@ -384,14 +691,14 @@ function App() {
         .slice(0, 4),
     );
     return {
-      opening: headers.Opening || headers.ECO || "Không rõ khai cuộc",
+      opening: gameOpening ? `${gameOpening.eco} · ${gameOpening.name}` : headers.ECO || "Không rõ khai cuộc",
       result: headers.Result || "*",
       total_plies: analysis.steps.length,
       white: playerData("white", fullGameSummary.white),
       black: playerData("black", fullGameSummary.black),
       critical_positions: criticalPositions,
     };
-  }, [analysis.steps.length, fullAnalysis.complete, fullGameSummary, headers]);
+  }, [analysis.steps.length, fullAnalysis.complete, fullGameSummary, gameOpening, headers]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -404,13 +711,37 @@ function App() {
   }, []);
 
   useEffect(() => {
-    void refreshSavedGames();
-  }, [refreshSavedGames]);
+    if (!syncNotice) return;
+    const timeout = window.setTimeout(() => setSyncNotice(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [syncNotice]);
+
+  useEffect(() => {
+    void refreshProfiles();
+  }, [refreshProfiles]);
+
+  useEffect(() => {
+    if (activeProfileId) void refreshSavedGames();
+  }, [activeProfileId, refreshSavedGames]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("textarea, input, select")) return;
+      if (variationState) {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          setVariationPlaying(false);
+          setVariationState((value) => value ? {
+            ...value,
+            index: event.key === "ArrowLeft"
+              ? Math.max(0, value.index - 1)
+              : Math.min(value.positions.length - 1, value.index + 1),
+          } : value);
+        }
+        return;
+      }
+      if (retryState) return;
       if (event.key === "ArrowLeft") setCurrentIndex((value) => Math.max(0, value - 1));
       if (event.key === "ArrowRight") {
         setCurrentIndex((value) => Math.min(analysis.steps.length - 1, value + 1));
@@ -418,13 +749,19 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [analysis.steps.length]);
+  }, [analysis.steps.length, retryState, variationState]);
 
   useEffect(() => {
-    document
-      .querySelector(`[data-step-index="${currentIndex}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    const scroller = timelineScrollerRef.current;
+    const target = scroller?.querySelector<HTMLElement>(`[data-step-index="${currentIndex}"]`);
+    if (!scroller || !target) return;
+    const centeredLeft = target.offsetLeft - scroller.clientWidth / 2 + target.clientWidth / 2;
+    scroller.scrollTo({ left: Math.max(0, centeredLeft), behavior: "smooth" });
   }, [currentIndex]);
+
+  useLayoutEffect(() => {
+    if (coachScrollerRef.current) coachScrollerRef.current.scrollTop = 0;
+  }, [step.ply]);
 
   useEffect(() => {
     if (engine?.depth && engine.depth >= 13) {
@@ -437,10 +774,15 @@ function App() {
     setEngineError("");
 
     analyzeMoveWithStockfish(step.fenBefore, step.fenAfter, step.lan, controller.signal)
-      .then((result) => setEngineCache((cache) => {
-        if ((cache[step.ply]?.depth || 0) >= result.depth) return cache;
-        return { ...cache, [step.ply]: result };
-      }))
+      .then((result) => {
+        setEngineCache((cache) => {
+          if ((cache[step.ply]?.depth || 0) >= result.depth) return cache;
+          return { ...cache, [step.ply]: result };
+        });
+        if (currentGameId) {
+          void persistEngineResult(currentGameId, step, result).catch(() => undefined);
+        }
+      })
       .catch((reason) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
         setEngineError(reason instanceof Error ? reason.message : String(reason));
@@ -450,25 +792,48 @@ function App() {
       });
 
     return () => controller.abort();
-  }, [engine?.depth, step.fenAfter, step.fenBefore, step.lan, step.ply]);
+  }, [currentGameId, engine?.depth, persistEngineResult, step]);
 
   useEffect(() => () => fullAnalysisAbortRef.current?.abort(), []);
 
   useEffect(() => {
     setAiError("");
+    setRetryState(null);
+    setPromotionPending(null);
+    setVariationState(null);
+    setVariationPlaying(false);
   }, [step.ply]);
 
-  const loadAnalysis = (pgn: string) => {
+  useEffect(() => {
+    if (!variationPlaying || !variationState) return;
+    if (variationState.index >= variationState.positions.length - 1) {
+      setVariationPlaying(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setVariationState((value) => value
+        ? { ...value, index: Math.min(value.positions.length - 1, value.index + 1) }
+        : value);
+    }, 850);
+    return () => window.clearTimeout(timeout);
+  }, [variationPlaying, variationState]);
+
+  const loadAnalysis = (pgn: string, gameId: string | null = null) => {
     const next = analyzePgn(pgn);
     fullAnalysisAbortRef.current?.abort();
     fullAnalysisAbortRef.current = null;
     setAnalysis(next);
+    setCurrentGameId(gameId);
     setCurrentIndex(0);
     setEngineCache({});
     setAiCache({});
     setGameCoachSummary(null);
     setGameCoachError("");
     setGameCoachLoading(false);
+    setRetryState(null);
+    setPromotionPending(null);
+    setVariationState(null);
+    setVariationPlaying(false);
     setSummaryOpen(false);
     setLibraryOpen(false);
     setFullAnalysis({ running: false, complete: false, completed: 0, total: next.steps.length, error: "" });
@@ -478,6 +843,7 @@ function App() {
     setImportOpen(false);
     setInput("");
     setError("");
+    if (gameId) void hydrateEngineCache(gameId, next);
     return next;
   };
 
@@ -492,10 +858,11 @@ function App() {
         if (!isTauri()) throw new Error("Tải link Chess.com cần mở app Tauri. Bản web chỉ nhận PGN.");
         pgn = await invoke<string>("fetch_chess_com_game", { gameUrl: pgn });
       }
-      const importedAnalysis = loadAnalysis(pgn);
+      const importedAnalysis = analyzePgn(pgn);
+      const inferredOpening = lastKnownOpening(importedAnalysis.steps);
       if (isTauri()) {
         try {
-          await invoke<string>("save_game", {
+          const gameId = await invoke<string>("save_game", {
             request: {
               pgn: importedAnalysis.rawPgn,
               white: importedAnalysis.headers.White || "Trắng",
@@ -504,20 +871,107 @@ function App() {
               black_elo: importedAnalysis.headers.BlackElo || null,
               result: importedAnalysis.headers.Result || null,
               event: importedAnalysis.headers.Event || null,
-              date: importedAnalysis.headers.Date || null,
-              eco: importedAnalysis.headers.ECO || null,
+              date: importedAnalysis.headers.UTCDate || importedAnalysis.headers.Date || null,
+              played_at: getPgnPlayedAt(importedAnalysis.headers),
+              eco: inferredOpening?.eco || importedAnalysis.headers.ECO || null,
+              opening: inferredOpening?.name || importedAnalysis.headers.Opening || null,
               time_control: importedAnalysis.headers.TimeControl || null,
+              time_class: inferTimeClass(importedAnalysis.headers.TimeControl) || null,
               source_url: sourceUrl,
+              source_platform: inferSourcePlatform(sourceUrl || importedAnalysis.headers.Link || importedAnalysis.headers.Site),
             },
           });
+          loadAnalysis(pgn, gameId);
           await refreshSavedGames();
         } catch (reason) {
           setLibraryError(reason instanceof Error ? reason.message : String(reason));
+          loadAnalysis(pgn);
         }
+      } else {
+        loadAnalysis(pgn);
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncRecentGames = async () => {
+    if (!isTauri() || loading) return;
+    setError("");
+    setSyncStatus("");
+    setSyncNotice(null);
+    setSyncProgress({ phase: "fetching", completed: 0, total: 20 });
+    setLoading(true);
+    try {
+      if (!activeProfile) throw new Error("Hãy chọn một hồ sơ người chơi.");
+      const username = activeProfile.username;
+      const pgns = await invoke<string[]>("fetch_recent_games", {
+        request: {
+          platform: activeProfile.platform,
+          username,
+          limit: 20,
+          time_class: syncTimeClass === "all" ? null : syncTimeClass,
+        },
+      });
+      if (!pgns.length) throw new Error("Không tìm thấy ván phù hợp với bộ lọc.");
+      setSyncProgress({ phase: "saving", completed: 0, total: pgns.length });
+
+      const knownIds = new Set(savedGames.map((game) => game.id));
+      let imported = 0;
+      let skipped = 0;
+      for (const [index, pgn] of pgns.entries()) {
+        try {
+          const parsed = analyzePgn(pgn);
+          const inferredOpening = lastKnownOpening(parsed.steps);
+          const sourceUrl = parsed.headers.Link || parsed.headers.Site || null;
+          const id = await invoke<string>("save_game", {
+            request: {
+              pgn: parsed.rawPgn,
+              white: parsed.headers.White || "Trắng",
+              black: parsed.headers.Black || "Đen",
+              white_elo: parsed.headers.WhiteElo || null,
+              black_elo: parsed.headers.BlackElo || null,
+              result: parsed.headers.Result || null,
+              event: parsed.headers.Event || null,
+              date: parsed.headers.UTCDate || parsed.headers.Date || null,
+              played_at: getPgnPlayedAt(parsed.headers),
+              eco: inferredOpening?.eco || parsed.headers.ECO || null,
+              opening: inferredOpening?.name || parsed.headers.Opening || null,
+              time_control: parsed.headers.TimeControl || null,
+              time_class: syncTimeClass === "all"
+                ? inferTimeClass(parsed.headers.TimeControl)
+                : syncTimeClass,
+              source_url: sourceUrl,
+              source_platform: activeProfile.platform,
+            },
+          });
+          if (knownIds.has(id)) skipped += 1;
+          else {
+            knownIds.add(id);
+            imported += 1;
+          }
+        } catch {
+          skipped += 1;
+        } finally {
+          setSyncProgress({ phase: "saving", completed: index + 1, total: pgns.length });
+        }
+      }
+      await invoke("mark_profile_synced", { profileId: activeProfile.id });
+      await refreshProfiles(activeProfile.id);
+      await refreshSavedGames();
+      const message = imported > 0
+        ? `Đồng bộ hoàn tất: đã thêm ${imported} ván mới${skipped ? `, bỏ qua ${skipped} ván đã có hoặc không hợp lệ` : ""}.`
+        : `Đồng bộ hoàn tất: không có ván mới${skipped ? `; ${skipped} ván đã có hoặc không hợp lệ` : ""}.`;
+      setSyncStatus(message);
+      setSyncNotice({ type: imported > 0 ? "success" : "info", message });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setError(message);
+      setSyncNotice({ type: "error", message: `Đồng bộ thất bại: ${message}` });
+    } finally {
+      setSyncProgress(null);
       setLoading(false);
     }
   };
@@ -528,7 +982,7 @@ function App() {
     setLibraryError("");
     try {
       const saved = await invoke<SavedGameDetail>("open_saved_game", { id });
-      loadAnalysis(saved.pgn);
+      loadAnalysis(saved.pgn, saved.id);
       await refreshSavedGames();
     } catch (reason) {
       setLibraryError(reason instanceof Error ? reason.message : String(reason));
@@ -563,6 +1017,7 @@ function App() {
     fullAnalysisAbortRef.current?.abort();
     fullAnalysisAbortRef.current = controller;
     setFullAnalysis({ running: true, complete: false, completed: 0, total: analysis.steps.length, error: "" });
+    const persistenceTasks: Promise<void>[] = [];
 
     try {
       await analyzeGameWithStockfish(
@@ -572,11 +1027,20 @@ function App() {
             if ((cache[ply]?.depth || 0) >= result.depth) return cache;
             return { ...cache, [ply]: result };
           });
+          const analyzedStep = analysis.steps[ply - 1];
+          if (currentGameId && analyzedStep) {
+            persistenceTasks.push(persistEngineResult(currentGameId, analyzedStep, result));
+          }
           setFullAnalysis({ running: true, complete: false, completed, total, error: "" });
         },
         controller.signal,
       );
       if (!controller.signal.aborted) {
+        if (persistenceTasks.length) await Promise.allSettled(persistenceTasks);
+        if (currentGameId && isTauri()) {
+          await invoke("mark_game_analysis_complete", { gameId: currentGameId });
+          void refreshSavedGames();
+        }
         setFullAnalysis({ running: false, complete: true, completed: analysis.steps.length, total: analysis.steps.length, error: "" });
         setSummaryOpen(true);
       }
@@ -758,15 +1222,93 @@ function App() {
     return result;
   }, [engine?.variations, step.arrows, step.lan]);
 
+  const beginRetry = () => {
+    if (!engine) return;
+    setVariationState(null);
+    setVariationPlaying(false);
+    setOrientation(step.color === "w" ? "white" : "black");
+    setRetryState({
+      fen: step.fenBefore,
+      attempts: 0,
+      hintLevel: 0,
+      loading: false,
+      feedback: null,
+    });
+  };
+
+  const evaluateRetryMove = (from: string, to: string, promotion?: string) => {
+    if (!retryState || retryState.loading || retryState.feedback) return false;
+    const chess = new Chess(step.fenBefore);
+    try {
+      const move = chess.move({ from, to, promotion: promotion || undefined });
+      if (!move) return false;
+      const nextFen = chess.fen();
+      setPromotionPending(null);
+      setRetryState((value) => value ? {
+        ...value,
+        fen: nextFen,
+        attempts: value.attempts + 1,
+        loading: true,
+        feedback: null,
+      } : value);
+      analyzeMoveWithStockfish(step.fenBefore, nextFen, move.lan)
+        .then((result) => setRetryState((value) => value ? {
+          ...value,
+          loading: false,
+          feedback: {
+            quality: result.quality,
+            moveSan: move.san,
+            bestMoveSan: result.bestMoveSan,
+            loss: Math.round(result.centipawnLoss),
+          },
+        } : value))
+        .catch((reason) => {
+          setEngineError(reason instanceof Error ? reason.message : String(reason));
+          setRetryState((value) => value ? { ...value, fen: step.fenBefore, loading: false } : value);
+        });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleRetryDrop = ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
+    if (!targetSquare || !retryState || retryState.loading || retryState.feedback) return false;
+    const chess = new Chess(step.fenBefore);
+    const piece = chess.get(sourceSquare as Square);
+    const promotes = piece?.type === "p" && (targetSquare.endsWith("8") || targetSquare.endsWith("1"));
+    if (promotes) {
+      setPromotionPending({ from: sourceSquare, to: targetSquare });
+      return false;
+    }
+    return evaluateRetryMove(sourceSquare, targetSquare);
+  };
+
+  const openVariation = (rank: number, lineSan: string[]) => {
+    const next = buildVariation(step.fenBefore, lineSan, rank, rank === 1 ? "Phương án tốt nhất" : "Phương án số 2");
+    if (!next) return;
+    setRetryState(null);
+    setVariationPlaying(false);
+    setVariationState(next);
+  };
+
+  const retryBestPiece = useMemo(() => {
+    if (!engine?.bestMoveUci) return "quân phù hợp";
+    const chess = new Chess(step.fenBefore);
+    const piece = chess.get(engine.bestMoveUci.slice(0, 2) as Square);
+    return piece ? ({ p: "tốt", n: "mã", b: "tượng", r: "xe", q: "hậu", k: "vua" } as const)[piece.type] : "quân phù hợp";
+  }, [engine?.bestMoveUci, step.fenBefore]);
+
   const chessboardOptions = {
     id: "analysis-board",
-    position: step.fenAfter,
+    position: boardPosition,
     boardOrientation: orientation,
-    allowDragging: false,
+    allowDragging: Boolean(retryState && !retryState.loading && !retryState.feedback),
+    onPieceDrop: handleRetryDrop,
     allowDrawingArrows: false,
     showAnimations: true,
     animationDurationInMs: 220,
-    arrows,
+    arrows: boardInteractionMode === "main" ? arrows : [],
     boardStyle: {
       borderRadius: "10px",
       boxShadow: "0 30px 80px rgba(0, 0, 0, 0.42)",
@@ -775,32 +1317,61 @@ function App() {
     darkSquareStyle: { backgroundColor: "#315f50" },
     lightSquareStyle: { backgroundColor: "#d9d4c4" },
     squareRenderer: ({ square, children }: { square: string; children?: React.ReactNode }) => (
-      <div className={`analysis-square-content${square === step.from ? " last-move-from" : ""}${square === step.to ? " last-move-to" : ""}`}>
+      <div className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}`}>
         {children}
       </div>
     ),
     darkSquareNotationStyle: { color: "#d9d4c4", fontSize: "11px", fontWeight: 700 },
     lightSquareNotationStyle: { color: "#315f50", fontSize: "11px", fontWeight: 700 },
+    alphaNotationStyle: { zIndex: 50, right: "3px", bottom: "2px", fontSize: "11px", fontWeight: 900, lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,.95), 0 0 2px rgba(255,255,255,.38)", pointerEvents: "none" },
+    numericNotationStyle: { zIndex: 50, top: "3px", left: "3px", fontSize: "11px", fontWeight: 900, lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,.95), 0 0 2px rgba(255,255,255,.38)", pointerEvents: "none" },
   } as const;
 
   return (
     <div className="app-shell">
+      {syncNotice && (
+        <div className={`sync-toast ${syncNotice.type}`} role={syncNotice.type === "error" ? "alert" : "status"} aria-live="polite">
+          {syncNotice.type === "error" ? <TriangleAlert size={19} /> : <CheckCircle2 size={19} />}
+          <div><strong>{syncNotice.type === "error" ? "Không thể đồng bộ" : syncNotice.type === "success" ? "Đồng bộ thành công" : "Đồng bộ hoàn tất"}</strong><span>{syncNotice.message}</span></div>
+          <button onClick={() => setSyncNotice(null)} aria-label="Đóng thông báo"><X size={16} /></button>
+        </div>
+      )}
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">CC</div>
           <div>
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.4.1</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.5.0</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
 
         <div className="top-actions">
+          <div className="profile-switcher">
+            <UserRound size={15} />
+            <select
+              aria-label="Hồ sơ đang dùng"
+              value={activeProfileId || ""}
+              onChange={(event) => changeActiveProfile(Number(event.target.value))}
+              disabled={profilesLoading || !profiles.length}
+            >
+              {!profiles.length && <option value="">Đang tải hồ sơ…</option>}
+              {profiles.map((profile) => (
+                <option value={profile.id} key={profile.id}>
+                  {profile.platform === "chesscom" ? "Chess.com" : "Lichess"} · {profile.username}
+                </option>
+              ))}
+            </select>
+            <button onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ" title="Quản lý hồ sơ"><UserPlus size={15} /></button>
+          </div>
           <div className={`service-pill ${engine ? "online" : "working"}`}>
             <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
           </div>
           <div className={`service-pill ${hasApiKey ? "online" : ""}`}>
             <Bot size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}
           </div>
+          <button className="ghost-button dashboard-button" onClick={() => void openDashboard()}>
+            <BarChart3 size={16} /> Tiến bộ
+          </button>
           <button className="ghost-button library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
             <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}
           </button>
@@ -824,7 +1395,7 @@ function App() {
             <div className="matchup-center">
               <span className="match-result">{headers.Result || "*"}</span>
               <div className="match-context">
-                <span>{headers.ECO || "ECO —"}</span>
+                <span className="match-opening" title={currentOpening?.name}>{currentOpening ? `${currentOpening.eco} · ${currentOpening.name}` : headers.ECO || "ECO —"}</span>
                 <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
               </div>
             </div>
@@ -838,7 +1409,7 @@ function App() {
         <section className="analysis-grid">
           <div className="board-column">
             <div className="board-toolbar">
-              <div><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span></div>
+              <div className="board-status"><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span>{currentOpening && <span className="opening-live" title={`${currentOpening.eco} · ${currentOpening.name}`}><BookOpen size={12} /><b>{currentOpening.family}</b>{currentOpening.variation && <em>: {currentOpening.variation}</em>}</span>}</div>
               <div className="board-tools">
                 <div className="evaluation-chip" title="Đánh giá theo phía Trắng">
                   <CircleGauge size={15} /> {engineLoading ? "…" : engine?.evaluation || "—"}
@@ -866,8 +1437,13 @@ function App() {
                 </span>
               </div>
               <div className="board-wrap">
+                {boardInteractionMode !== "main" && (
+                  <div className={`board-mode-badge ${boardInteractionMode}`}>
+                    {boardInteractionMode === "retry" ? <><Dumbbell size={13} /> Chế độ thử lại</> : <><Eye size={13} /> {variationState?.title}</>}
+                  </div>
+                )}
                 <Chessboard options={chessboardOptions} />
-                {boardMoveBadge && (
+                {boardInteractionMode === "main" && boardMoveBadge && (
                   <div className="board-move-badge-square" style={boardMoveBadgePosition}>
                     <span
                       className={`board-move-badge ${boardMoveBadge}`}
@@ -880,8 +1456,57 @@ function App() {
                     </span>
                   </div>
                 )}
+                {promotionPending && (
+                  <div className="promotion-picker">
+                    <span>Phong cấp thành</span>
+                    <div>{(["q", "r", "b", "n"] as const).map((piece) => (
+                      <button key={piece} onClick={() => evaluateRetryMove(promotionPending.from, promotionPending.to, piece)}>
+                        {{ q: "Hậu", r: "Xe", b: "Tượng", n: "Mã" }[piece]}
+                      </button>
+                    ))}</div>
+                    <button className="promotion-cancel" onClick={() => setPromotionPending(null)}>Huỷ</button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {variationState && (
+              <div className="variation-player">
+                <button onClick={() => setVariationState((value) => value ? { ...value, index: Math.max(0, value.index - 1) } : value)} disabled={variationState.index === 0}><ChevronLeft size={15} /></button>
+                <button onClick={() => setVariationPlaying((value) => !value)}>{variationPlaying ? <RotateCcw size={14} /> : <Play size={14} />}{variationPlaying ? "Dừng" : "Tự chạy"}</button>
+                <span>{variationState.index === 0 ? "Vị trí ban đầu" : `${variationState.index}. ${variationState.moves[variationState.index - 1]}`}</span>
+                <button onClick={() => setVariationState((value) => value ? { ...value, index: Math.min(value.positions.length - 1, value.index + 1) } : value)} disabled={variationState.index === variationState.positions.length - 1}><ChevronRight size={15} /></button>
+                <button className="variation-exit" onClick={() => { setVariationState(null); setVariationPlaying(false); }}>Quay lại ván chính</button>
+              </div>
+            )}
+
+            {retryState && (
+              <div className={`retry-panel ${retryState.feedback?.quality || ""}`}>
+                <div className="retry-heading"><Dumbbell size={15} /><strong>Tìm nước tốt hơn</strong><span>Lần thử {retryState.attempts}</span></div>
+                {retryState.loading && <p><LoaderCircle className="spin" size={14} /> Stockfish đang chấm nước của bạn…</p>}
+                {!retryState.loading && retryState.feedback && (
+                  <div className="retry-feedback">
+                    <strong>{QUALITY_LABELS[retryState.feedback.quality]} · {retryState.feedback.moveSan}</strong>
+                    <span>{retryState.feedback.quality === "best" ? "Bạn đã tìm được nước tốt nhất." : `Mất ${retryState.feedback.loss} cp · Stockfish chọn ${retryState.feedback.bestMoveSan}.`}</span>
+                  </div>
+                )}
+                {!retryState.loading && !retryState.feedback && <p>Kéo quân trên bàn cờ để thử nước của bạn.</p>}
+                {retryState.hintLevel > 0 && (
+                  <div className="retry-hint"><Lightbulb size={13} />{
+                    retryState.hintLevel === 1
+                      ? `Tập trung vào ý tưởng: ${step.tags[0] || step.phase}.`
+                      : retryState.hintLevel === 2
+                        ? `Hãy cân nhắc di chuyển ${retryBestPiece}.`
+                        : `Nước tốt nhất là ${engine?.bestMoveSan || "—"}.`
+                  }</div>
+                )}
+                <div className="retry-actions">
+                  {retryState.feedback && retryState.feedback.quality !== "best" && <button onClick={() => setRetryState((value) => value ? { ...value, fen: step.fenBefore, feedback: null } : value)}>Thử lại lần nữa</button>}
+                  {retryState.hintLevel < 3 && <button onClick={() => setRetryState((value) => value ? { ...value, hintLevel: value.hintLevel + 1 } : value)}><Lightbulb size={13} /> Gợi ý {retryState.hintLevel + 1}</button>}
+                  <button onClick={() => { setRetryState(null); setPromotionPending(null); }}>Thoát luyện tập</button>
+                </div>
+              </div>
+            )}
 
             <div className="arrow-legend">
               <span><i className="legend-line gold" /> Nước vừa đi</span>
@@ -893,18 +1518,17 @@ function App() {
           </div>
 
           <aside className="coach-panel">
+            <div className="coach-scroll-content" ref={coachScrollerRef}>
             <div className="coach-progress">
               <span>PHÂN TÍCH NƯỚC ĐI</span>
+              <span className={`coach-engine-inline ${engineLoading ? "working" : ""}`} title={engineError || `Stockfish 18 Lite${engine ? ` · depth ${engine.depth} · CPL ${Math.round(engine.centipawnLoss)}` : " đang tính"}`}>
+                <Cpu size={13} /> STOCKFISH 18 LITE
+                {engineLoading && <LoaderCircle size={12} />}
+                {engine && <i>CPL {Math.round(engine.centipawnLoss)}</i>}
+              </span>
               <span>{currentIndex + 1} / {analysis.steps.length}</span>
             </div>
             <div className="progress-track"><div style={{ width: `${((currentIndex + 1) / analysis.steps.length) * 100}%` }} /></div>
-
-            <div className="engine-strip">
-              <div className="engine-name"><Cpu size={15} /><span>STOCKFISH 18 LITE</span></div>
-              {engineLoading && <span className="engine-loading"><LoaderCircle size={14} /> đang tính depth 13</span>}
-              {engine && <span className="engine-depth">CPL {Math.round(engine.centipawnLoss)}</span>}
-              {engineError && <span className="engine-error">{engineError}</span>}
-            </div>
 
             <div className="move-hero">
               <div className="move-badges">
@@ -914,22 +1538,66 @@ function App() {
                 </div>
               </div>
               <div className="san-display">{step.moveNumber}{step.color === "w" ? "." : "…"} {step.san}</div>
-              <h2>{engine ? (quality === "best" ? "Nước tốt nhất của Stockfish" : quality === "good" ? "Engine đồng ý với nước đi" : `Stockfish chọn ${engine.bestMoveSan}`) : step.title}</h2>
-              <p>{engine ? `Nước này mất khoảng ${Math.round(engine.centipawnLoss)} centipawn. Đánh giá sau nước đi: ${engine.evaluation} theo phía Trắng.` : step.comment}</p>
+              <h2>{step.title}</h2>
+              <p>{step.comment}</p>
+              <div className={`engine-verdict ${engine ? quality : "loading"}`} aria-live="polite">
+                {engine ? (
+                  <>
+                    <Cpu size={13} />
+                    <strong>Stockfish:</strong>
+                    <span>{quality === "best"
+                      ? "nước tốt nhất"
+                      : quality === "good"
+                        ? `nước tốt · mất ${Math.round(engine.centipawnLoss)} cp`
+                        : `mất ${Math.round(engine.centipawnLoss)} cp · tốt nhất ${engine.bestMoveSan}`}</span>
+                    <i>{engine.evaluation}</i>
+                    {engineLoading && <LoaderCircle className="spin" size={12} />}
+                  </>
+                ) : engineError ? (
+                  <><TriangleAlert size={13} /><span>{engineError}</span></>
+                ) : (
+                  <><LoaderCircle className="spin" size={13} /><span>Stockfish đang chấm nước đi…</span></>
+                )}
+              </div>
+              {step.clockSeconds !== null && (
+                <div className="move-time-strip">
+                  <span><Clock size={13} /> Còn {formatSeconds(step.clockSeconds)}</span>
+                  <span>Suy nghĩ {formatSeconds(step.thinkTimeSeconds)}</span>
+                  {step.isQuickMove && <i>Đi nhanh</i>}
+                  {step.isTimePressure && <i>Áp lực thời gian</i>}
+                </div>
+              )}
             </div>
 
-            {engine && (
+            <button className={`training-start-button ${quality === "mistake" || quality === "blunder" ? "recommended" : ""}`} onClick={beginRetry} disabled={!engine || engineLoading}>
+              <Dumbbell size={15} /> Thử tìm nước tốt hơn
+            </button>
+
+            {engine ? (
               <div className="best-line-card">
                 <div className="best-line-label">HAI PHƯƠNG ÁN TỐT NHẤT</div>
                 <div className="variation-list">
                   {engine.variations.slice(0, 2).map((variation) => (
-                    <div className="variation-row" key={`${variation.rank}-${variation.moveUci}`}>
+                    <button className="variation-row" key={`${variation.rank}-${variation.moveUci}`} onClick={() => openVariation(variation.rank, variation.lineSan)}>
                       <span className={`variation-rank rank-${variation.rank}`}>{variation.rank === 1 ? "BEST" : "#2"}</span>
                       <span className="variation-eval">{variation.evaluation}</span>
-                      <span className="best-line-moves">{variation.lineSan.length ? variation.lineSan.join("  ") : variation.moveSan}</span>
-                    </div>
+                      <span className="best-line-moves">
+                        {variation.lineSan.length ? variation.lineSan.map((move, moveIndex) => (
+                          <span
+                            className={`variation-move-token${variationState?.rank === variation.rank && variationState.index === moveIndex + 1 ? " active" : ""}`}
+                            key={`${variation.rank}-${moveIndex}-${move}`}
+                          >{move}</span>
+                        )) : <span className="variation-move-token">{variation.moveSan}</span>}
+                      </span>
+                      <Eye size={13} />
+                    </button>
                   ))}
                 </div>
+              </div>
+            ) : (
+              <div className="best-line-card best-line-loading" aria-label="Stockfish đang tìm phương án">
+                <div className="best-line-label">HAI PHƯƠNG ÁN TỐT NHẤT</div>
+                <div className="best-line-skeleton"><span /><span /></div>
               </div>
             )}
 
@@ -958,6 +1626,7 @@ function App() {
               {engine && <span className="engine-tag">Stockfish xác thực</span>}
             </div>
             <div className="coach-spacer" />
+            </div>
 
             <div className="step-controls">
               <button onClick={() => setCurrentIndex((value) => Math.max(0, value - 1))} disabled={currentIndex === 0}><ChevronLeft size={19} /> Trước</button>
@@ -984,7 +1653,7 @@ function App() {
               </div>
             </div>
           </div>
-          <div className="timeline-scroller">
+          <div className="timeline-scroller" ref={timelineScrollerRef}>
             {movePairs.map((pair) => (
               <div className="move-pair" key={pair.number}>
                 <span className="move-number">{pair.number}.</span>
@@ -1014,7 +1683,7 @@ function App() {
               <div>
                 <div className="eyebrow">STOCKFISH · DEPTH 11 · TOÀN VÁN</div>
                 <h2 id="summary-title">Tổng kết ván đấu</h2>
-                <p>{headers.Opening || headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
+                <p>{gameOpening ? `${gameOpening.eco} · ${gameOpening.name}` : headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
               </div>
             </div>
 
@@ -1036,6 +1705,15 @@ function App() {
                 </article>
               ))}
             </div>
+
+            {fullGameSummary.time.available && (
+              <div className="time-summary-card">
+                <div><Clock size={17} /><strong>Quản lý thời gian</strong></div>
+                <span><strong>{fullGameSummary.time.average}s</strong> trung bình mỗi nước</span>
+                <span><strong>{fullGameSummary.time.quickErrors}</strong> lỗi khi đi ≤ 3 giây</span>
+                <span><strong>{fullGameSummary.time.pressureErrors}</strong> lỗi dưới áp lực thời gian</span>
+              </div>
+            )}
 
             <div className={`game-coach-card ${gameCoachSummary ? "ready" : ""}`}>
               <div className="game-coach-heading">
@@ -1079,6 +1757,85 @@ function App() {
         </div>
       )}
 
+      {dashboardOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setDashboardOpen(false)}>
+          <section className="modal-card dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="dashboard-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setDashboardOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            <div className="summary-heading">
+              <div className="modal-icon"><BarChart3 size={24} /></div>
+              <div>
+                <div className="eyebrow">HỒ SƠ NGƯỜI HỌC · {activeProfileLabel}</div>
+                <h2 id="dashboard-title">Tiến bộ của bạn</h2>
+                <p>Chỉ dùng các ván đã hoàn tất phân tích Stockfish.</p>
+              </div>
+            </div>
+            {dashboardError && <div className="error-message">{dashboardError}</div>}
+            {dashboardLoading ? (
+              <div className="dashboard-empty"><LoaderCircle className="spin" size={24} /> Đang tổng hợp dữ liệu…</div>
+            ) : dashboardStats.games === 0 ? (
+              <div className="dashboard-empty">
+                <Database size={30} />
+                <strong>Chưa có ván đã phân tích cho {activeProfile?.username || "hồ sơ này"}</strong>
+                <span>Đồng bộ ván, mở từng ván và chọn “Phân tích toàn ván” để xây dựng dashboard.</span>
+                <button className="primary-button" onClick={() => { setDashboardOpen(false); setImportMode("sync"); setImportOpen(true); }}><Download size={15} /> Đồng bộ 20 ván</button>
+              </div>
+            ) : (
+              <div className="dashboard-content">
+                <div className="dashboard-metrics">
+                  <div><strong>{dashboardStats.games}</strong><span>Ván đã phân tích</span></div>
+                  <div><strong>{dashboardStats.acpl}</strong><span>ACPL cá nhân</span></div>
+                  <div><strong>{dashboardStats.bestGoodRate}%</strong><span>Best / Tốt</span></div>
+                  <div><strong>{dashboardStats.errors}</strong><span>Sai lầm / Blunder</span></div>
+                </div>
+
+                <section className="dashboard-section">
+                  <h3>ACPL theo 20 ván gần nhất</h3>
+                  <div className="acpl-chart">
+                    {dashboardStats.timeline.map((item) => {
+                      const max = Math.max(1, ...dashboardStats.timeline.map((point) => point.acpl));
+                      return <div className="acpl-column" key={item.id} title={`${formatVietnamDate(item.date)} · ACPL ${item.acpl}`}><span>{item.acpl}</span><i style={{ height: `${Math.max(8, (item.acpl / max) * 100)}%` }} /></div>;
+                    })}
+                  </div>
+                </section>
+
+                <div className="dashboard-grid">
+                  {[
+                    { title: "Theo giai đoạn", items: dashboardStats.phases },
+                    { title: "Theo màu quân", items: dashboardStats.colors },
+                    { title: "Theo thể loại", items: dashboardStats.timeClasses },
+                    { title: "Khai cuộc thường gặp", items: dashboardStats.openings },
+                  ].map((group) => (
+                    <section className="dashboard-breakdown" key={group.title}>
+                      <h3>{group.title}</h3>
+                      {group.items.map((item) => (
+                        <div key={item.label}><span title={item.label}>{item.label}</span><strong>{item.acpl} ACPL</strong><i>{item.errors} lỗi / {item.moves} nước</i></div>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+
+                <div className="dashboard-grid bottom">
+                  <section className="dashboard-breakdown">
+                    <h3>Chủ đề cần ưu tiên</h3>
+                    {dashboardStats.weaknesses.length ? dashboardStats.weaknesses.map((item) => (
+                      <div key={item.label}><span>{item.label}</span><strong>{item.count} lần</strong></div>
+                    )) : <p>Chưa có nhóm lỗi lặp lại.</p>}
+                  </section>
+                  {dashboardStats.timedMoves > 0 && (
+                    <section className="dashboard-breakdown time-dashboard">
+                      <h3><Clock size={14} /> Quản lý thời gian</h3>
+                      <div><span>Thời gian nghĩ trung bình</span><strong>{dashboardStats.averageThinkTime}s</strong></div>
+                      <div><span>Lỗi khi đi ≤ 3 giây</span><strong>{dashboardStats.quickErrors}</strong></div>
+                      <div><span>Lỗi dưới áp lực</span><strong>{dashboardStats.pressureErrors}</strong></div>
+                    </section>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
       {libraryOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setLibraryOpen(false)}>
           <section className="modal-card library-modal" role="dialog" aria-modal="true" aria-labelledby="library-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -1088,7 +1845,7 @@ function App() {
               <div>
                 <div className="eyebrow">LƯU CỤC BỘ · KHÔNG ĐỒNG BỘ CLOUD</div>
                 <h2 id="library-title">Kho ván</h2>
-                <p>{savedGames.length ? `${savedGames.length} ván đã nạp · mới mở gần đây trước` : "Các ván bạn nạp sẽ tự động xuất hiện tại đây."}</p>
+                <p>{savedGames.length ? `${savedGames.length} ván của ${activeProfileLabel} · mới thi đấu gần đây trước` : `Chưa có ván cho ${activeProfileLabel}.`}</p>
               </div>
             </div>
             {libraryError && <div className="error-message">{libraryError}</div>}
@@ -1105,11 +1862,13 @@ function App() {
                     </div>
                     <div className="library-game-meta">
                       <span>{game.event || "Ván cờ đã nhập"}</span>
-                      {game.date && <span>{game.date}</span>}
+                      {(game.played_at || game.date) && <span>{formatVietnamDate(game.played_at || game.date)}</span>}
                       {game.eco && <span>{game.eco}</span>}
+                      {game.opening && <span className="library-opening" title={game.opening}>{game.opening}</span>}
                       {game.time_control && <span>{game.time_control}s</span>}
-                      {game.source_url && <span>Chess.com</span>}
-                      <span className="library-opened">Mở {formatSavedTimestamp(game.last_opened_at)}</span>
+                      {game.source_platform && <span>{game.source_platform === "lichess" ? "Lichess" : "Chess.com"}</span>}
+                      {game.analysis_complete && <span className="analyzed-game">Đã phân tích</span>}
+                      <span className="library-opened">Mở {formatVietnamDate(game.last_opened_at, true)}</span>
                     </div>
                   </button>
                   <button className="library-delete" onClick={() => void removeStoredGame(game)} disabled={libraryLoading} aria-label={`Xoá ván ${game.white} gặp ${game.black}`} title="Xoá khỏi Kho ván"><Trash2 size={16} /></button>
@@ -1126,21 +1885,112 @@ function App() {
         </div>
       )}
 
+      {profilesOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setProfilesOpen(false)}>
+          <section className="modal-card profiles-modal" role="dialog" aria-modal="true" aria-labelledby="profiles-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setProfilesOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            <div className="library-heading">
+              <div className="modal-icon"><UserRound size={24} /></div>
+              <div>
+                <div className="eyebrow">CHESS.COM · LICHESS</div>
+                <h2 id="profiles-title">Hồ sơ ván đấu</h2>
+                <p>Chọn hồ sơ để lọc Kho ván, Dashboard và đồng bộ 20 ván gần nhất.</p>
+              </div>
+            </div>
+
+            {profilesError && <div className="error-message">{profilesError}</div>}
+            <div className="profile-list">
+              {profiles.map((profile) => {
+                const selected = profile.id === activeProfileId;
+                return (
+                  <article className={`profile-item ${selected ? "active" : ""}`} key={profile.id}>
+                    <button className="profile-select" onClick={() => changeActiveProfile(profile.id)}>
+                      <span className={`profile-platform ${profile.platform}`}>{profile.platform === "chesscom" ? "Chess.com" : "Lichess"}</span>
+                      <strong>{profile.username}</strong>
+                      <small>{profile.game_count} ván{profile.last_sync_at ? ` · Đồng bộ ${formatVietnamDate(profile.last_sync_at, true)}` : " · Chưa đồng bộ"}</small>
+                      {selected && <span className="profile-active-label">Đang dùng</span>}
+                    </button>
+                    <button className="profile-delete" onClick={() => void removePlayerProfile(profile)} disabled={profilesLoading || profiles.length <= 1} aria-label={`Xoá hồ sơ ${profile.username}`} title={profiles.length <= 1 ? "Cần giữ lại ít nhất một hồ sơ" : "Xoá hồ sơ"}><Trash2 size={15} /></button>
+                  </article>
+                );
+              })}
+              {profilesLoading && !profiles.length && <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc hồ sơ…</div>}
+            </div>
+
+            <div className="profile-add-form">
+              <h3>Thêm hồ sơ</h3>
+              <div className="provider-switch" role="group" aria-label="Nền tảng hồ sơ mới">
+                <button className={newProfilePlatform === "chesscom" ? "active" : ""} onClick={() => setNewProfilePlatform("chesscom")}>Chess.com</button>
+                <button className={newProfilePlatform === "lichess" ? "active" : ""} onClick={() => setNewProfilePlatform("lichess")}>Lichess</button>
+              </div>
+              <div className="profile-add-row">
+                <input value={newProfileUsername} onChange={(event) => setNewProfileUsername(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void addPlayerProfile(); }} placeholder="Nhập username" aria-label="Username hồ sơ mới" />
+                <button className="primary-button" onClick={() => void addPlayerProfile()} disabled={profilesLoading || !newProfileUsername.trim()}><UserPlus size={15} /> Thêm</button>
+              </div>
+            </div>
+            <div className="modal-note">Xoá hồ sơ chỉ bỏ liên kết với tài khoản; các ván đã tải vẫn được giữ trên máy.</div>
+          </section>
+        </div>
+      )}
+
       {importOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setImportOpen(false)}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="import-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={() => setImportOpen(false)} aria-label="Đóng"><X size={20} /></button>
-            <div className="modal-icon"><ClipboardPaste size={24} /></div>
+            <div className="modal-icon">{importMode === "single" ? <ClipboardPaste size={24} /> : <Download size={24} />}</div>
             <div className="eyebrow">BẮT ĐẦU PHÂN TÍCH</div>
-            <h2 id="import-title">Nạp một ván cờ</h2>
-            <p>Dán toàn bộ PGN hoặc link ván đấu đã kết thúc trên Chess.com.</p>
-            <div className="input-labels"><span><ClipboardPaste size={14} /> PGN</span><span><Link2 size={14} /> Chess.com</span></div>
-            <textarea autoFocus value={input} onChange={(event) => setInput(event.target.value)} placeholder={'[Event "Live Chess"]\n[White "Tên người chơi"]\n\n1. e4 e5 2. Nf3...\n\nhoặc https://www.chess.com/game/live/...'} />
+            <h2 id="import-title">Nạp ván cờ</h2>
+            <div className="import-tabs" role="tablist" aria-label="Cách nạp ván">
+              <button className={importMode === "single" ? "active" : ""} onClick={() => { setImportMode("single"); setError(""); }}><ClipboardPaste size={14} /> Một ván</button>
+              <button className={importMode === "sync" ? "active" : ""} onClick={() => { setImportMode("sync"); setError(""); }}><Download size={14} /> Đồng bộ gần đây</button>
+            </div>
+
+            {importMode === "single" ? (
+              <>
+                <p>Dán toàn bộ PGN hoặc link ván đấu đã kết thúc trên Chess.com.</p>
+                <div className="input-labels"><span><ClipboardPaste size={14} /> PGN</span><span><Link2 size={14} /> Chess.com</span></div>
+                <textarea autoFocus value={input} onChange={(event) => setInput(event.target.value)} placeholder={'[Event "Live Chess"]\n[White "Tên người chơi"]\n\n1. e4 e5 2. Nf3...\n\nhoặc https://www.chess.com/game/live/...'} />
+              </>
+            ) : (
+              <div className="sync-form">
+                <p>Tải 20 ván cờ tiêu chuẩn gần nhất từ hồ sơ công khai. Ván trùng sẽ tự động được bỏ qua.</p>
+                <label className="field-label" htmlFor="sync-profile">Hồ sơ cần đồng bộ</label>
+                <div className="sync-profile-row">
+                  <select id="sync-profile" value={activeProfileId || ""} onChange={(event) => changeActiveProfile(Number(event.target.value))}>
+                    {profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.platform === "chesscom" ? "Chess.com" : "Lichess"} · {profile.username}</option>)}
+                  </select>
+                  <button className="ghost-button" onClick={() => { setImportOpen(false); setProfilesOpen(true); }}><UserPlus size={14} /> Quản lý</button>
+                </div>
+                <label className="field-label" htmlFor="sync-time-class">Thể loại</label>
+                <select id="sync-time-class" value={syncTimeClass} onChange={(event) => setSyncTimeClass(event.target.value)}>
+                  <option value="all">Tất cả thể loại</option>
+                  <option value="bullet">Bullet</option>
+                  <option value="blitz">Blitz</option>
+                  <option value="rapid">Rapid</option>
+                  <option value="classical">Classical</option>
+                </select>
+                {syncProgress && (
+                  <div className="sync-progress" role="status" aria-live="polite">
+                    <div className="sync-progress-icon"><LoaderCircle size={20} /></div>
+                    <div className="sync-progress-copy">
+                      <strong>{syncProgress.phase === "fetching" ? "Đang tải danh sách ván…" : `Đang lưu ${syncProgress.completed}/${syncProgress.total} ván`}</strong>
+                      <span>{syncProgress.phase === "fetching" ? `Đang tìm tối đa ${syncProgress.total} ván mới nhất` : "Đang nhận diện khai cuộc và sắp xếp theo thời gian thi đấu"}</span>
+                      <i><b style={{ width: `${syncProgress.phase === "fetching" ? 12 : (syncProgress.completed / Math.max(1, syncProgress.total)) * 100}%` }} /></i>
+                    </div>
+                  </div>
+                )}
+                {syncStatus && <div className="sync-success">{syncStatus}</div>}
+              </div>
+            )}
             {error && <div className="error-message">{error}</div>}
-            <div className="modal-note">PGN được xử lý local. Stockfish chạy ngay trên máy và không cần Internet.</div>
+            <div className="modal-note">PGN và kết quả Stockfish được lưu cục bộ trên máy.</div>
             <div className="modal-actions">
               <button className="ghost-button" onClick={() => loadAnalysis(DEMO_PGN)}>Mở ván demo</button>
-              <button className="primary-button large" onClick={handleImport} disabled={loading || !input.trim()}>{loading ? "Đang tải ván…" : "Phân tích ngay"} <ArrowRight size={17} /></button>
+              {importMode === "single" ? (
+                <button className="primary-button large" onClick={handleImport} disabled={loading || !input.trim()}>{loading ? "Đang tải ván…" : "Phân tích ngay"} <ArrowRight size={17} /></button>
+              ) : (
+                <button className="primary-button large" onClick={() => void syncRecentGames()} disabled={loading || !activeProfile}>{syncProgress?.phase === "saving" ? `Đang lưu ${syncProgress.completed}/${syncProgress.total}` : loading ? "Đang đồng bộ…" : "Đồng bộ 20 ván"} {loading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button>
+              )}
             </div>
           </section>
         </div>
@@ -1197,7 +2047,7 @@ function App() {
       )}
 
       <footer>
-        <span>Chess Coach v0.4.1 · Stockfish 18 Lite · OpenAI + Gemini</span>
+        <span>Chess Coach v0.5.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
         <span><ShieldCheck size={13} /> PGN ở lại trên máy · Lời giải thích AI được lưu cục bộ</span>
       </footer>
     </div>
