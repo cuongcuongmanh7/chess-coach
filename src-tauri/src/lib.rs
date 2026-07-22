@@ -120,8 +120,8 @@ struct SavedGameDetail {
     pgn: String,
 }
 
-const COACH_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode; không được bỏ dấu ở bất kỳ từ tiếng Việt nào. Dữ liệu Stockfish và các trường màu quân là nguồn sự thật. Viết tổng cộng 70–90 từ trên đúng bốn dòng theo mẫu: 'ĐÁNH GIÁ: ...', 'Ý TƯỞNG: ...', 'SO SÁNH: ...', 'KẾ HOẠCH: ...'. Dòng ĐÁNH GIÁ kết luận thẳng về nước của ben_vua_di. Dòng Ý TƯỞNG giải thích lý do cụ thể. Dòng SO SÁNH đối chiếu ngắn với nuoc_tot_nhat. Dòng KẾ HOẠCH chỉ khuyên ben_toi_luot chơi nuoc_dap_tot_nhat sau vị trí thực tế; nếu không có nước đáp thì nói ván đã kết thúc. Khi nhắc quân đang tấn công, phòng thủ hoặc bị hạn chế, phải gọi đúng màu Trắng hoặc Đen theo ben_vua_di và ben_toi_luot; tuyệt đối không tự đảo màu quân. Bắt đầu ngay bằng nhãn, không chào hỏi, không câu chúc, không khen xã giao và không dùng lời dẫn. Giữ nguyên mọi ký hiệu nước cờ theo SAN như Bf4, e3, dxc4 hoặc O-O; không dịch hay đọc chúng thành chữ. Mọi điểm đánh giá phải giữ dạng có dấu và chữ số thập phân giống dữ liệu đầu vào, ví dụ +0.38 hoặc -1.25; tuyệt đối không viết số hay dấu thành chữ. Dùng Elo chỉ để điều chỉnh độ khó, không nhắc Elo trong câu trả lời. Không đưa lời khuyên chung chung; phải nêu quân, ô hoặc kế hoạch cụ thể. Không dùng Markdown, không nhắc lại FEN và không bịa thêm biến ngoài dữ liệu được cung cấp.";
-const PROMPT_VERSION: &str = "coach-v6";
+const COACH_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode; không được bỏ dấu ở bất kỳ từ tiếng Việt nào. Dữ liệu Stockfish và các trường màu quân là nguồn sự thật. Viết tổng cộng 70–90 từ trên đúng bốn dòng theo mẫu: 'ĐÁNH GIÁ: ...', 'Ý TƯỞNG: ...', 'SO SÁNH: ...', 'KẾ HOẠCH: ...'. Mỗi nhãn và toàn bộ nội dung của nhãn đó bắt buộc nằm trên cùng một dòng. Dòng ĐÁNH GIÁ kết luận thẳng về nước của ben_vua_di. Dòng Ý TƯỞNG giải thích lý do cụ thể. Dòng SO SÁNH đối chiếu ngắn với nuoc_tot_nhat. Dòng KẾ HOẠCH chỉ khuyên ben_toi_luot chơi nuoc_dap_tot_nhat sau vị trí thực tế; nếu không có nước đáp thì nói ván đã kết thúc. Khi nhắc quân đang tấn công, phòng thủ hoặc bị hạn chế, phải gọi đúng màu Trắng hoặc Đen theo ben_vua_di và ben_toi_luot; tuyệt đối không tự đảo màu quân. Bắt đầu ngay bằng nhãn, không chào hỏi, không câu chúc, không khen xã giao và không dùng lời dẫn. Giữ nguyên mọi ký hiệu nước cờ theo SAN như Bf4, e3, dxc4 hoặc O-O; không dịch hay đọc chúng thành chữ. Mọi điểm đánh giá phải giữ dạng có dấu và chữ số thập phân giống dữ liệu đầu vào, ví dụ +0.38 hoặc -1.25; tuyệt đối không viết số hay dấu thành chữ. Dùng Elo chỉ để điều chỉnh độ khó, không nhắc Elo trong câu trả lời. Không đưa lời khuyên chung chung; phải nêu quân, ô hoặc kế hoạch cụ thể. Tuyệt đối không chép hoặc nhắc tên khóa dữ liệu nội bộ như nuoc_tot_nhat, nuoc_dap_tot_nhat, ben_vua_di hay ben_toi_luot; chỉ diễn đạt ý nghĩa và giá trị thật của chúng bằng tiếng Việt tự nhiên. Không dùng Markdown, không nhắc lại FEN và không bịa thêm biến ngoài dữ liệu được cung cấp.";
+const PROMPT_VERSION: &str = "coach-v7";
 const GAME_SUMMARY_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Hãy đưa ra nhận xét sơ bộ về toàn ván chỉ từ thống kê Stockfish và các vị trí then chốt được cung cấp. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode. Viết 150–220 từ trên đúng bảy dòng theo mẫu: 'TỔNG QUAN: ...', 'TRẮNG · ĐIỂM MẠNH: ...', 'TRẮNG · CẦN CẢI THIỆN: ...', 'TRẮNG · ƯU TIÊN: ...', 'ĐEN · ĐIỂM MẠNH: ...', 'ĐEN · CẦN CẢI THIỆN: ...', 'ĐEN · ƯU TIÊN: ...'. So sánh hai bên bằng ACPL, tỷ lệ Best/Tốt và số lỗi; chỉ nhắc nước cờ có trong critical_positions. Mỗi mục ưu tiên phải là đúng một chủ đề luyện tập cụ thể. Đây là đánh giá sơ bộ, không khẳng định phong cách hay tâm lý người chơi. Không chào hỏi, không câu chúc, không Markdown, không bịa chiến thuật, không nhắc FEN và không đọc ký hiệu nước cờ hay số thành chữ.";
 const GAME_SUMMARY_PROMPT_VERSION: &str = "game-summary-v1";
 const VIETNAMESE_DIACRITICS: &str = "ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵĂÂĐÊÔƠƯÁÀẢÃẠẤẦẨẪẬẮẰẲẴẶÉÈẺẼẸẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌỐỒỔỖỘỚỜỞỠỢÚÙỦŨỤỨỪỬỮỰÝỲỶỸỴ";
@@ -162,7 +162,7 @@ async fn fetch_chess_com_game(game_url: String) -> Result<String, String> {
 
     let client = Client::builder()
         .timeout(Duration::from_secs(20))
-        .user_agent("ChessCoachVN/0.4 (local desktop app)")
+        .user_agent("ChessCoachVN/0.4.1 (local desktop app)")
         .build()
         .map_err(|_| "Không thể khởi tạo kết nối mạng.".to_string())?;
 
@@ -645,6 +645,134 @@ fn move_input(request: &ExplainMoveRequest) -> Value {
     })
 }
 
+const COACH_SECTION_LABELS: [&str; 4] = ["ĐÁNH GIÁ", "Ý TƯỞNG", "SO SÁNH", "KẾ HOẠCH"];
+
+fn replace_internal_coach_fields(text: &str, request: &ExplainMoveRequest) -> String {
+    let best_move_phrase = format!("nước tốt nhất {}", request.best_move);
+    let best_reply_phrase = request
+        .best_reply
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| format!("nước đáp tốt nhất {value}"))
+        .unwrap_or_else(|| "nước đáp tốt nhất".to_string());
+    let moved_side_phrase = format!("bên {} vừa đi", request.side_just_moved);
+    let next_side_phrase = format!("bên {} tới lượt", request.side_to_move);
+
+    [
+        ("nước nuoc_tot_nhat", best_move_phrase.as_str()),
+        ("nuoc_tot_nhat", best_move_phrase.as_str()),
+        ("nước nuoc_dap_tot_nhat", best_reply_phrase.as_str()),
+        ("nuoc_dap_tot_nhat", best_reply_phrase.as_str()),
+        ("bên ben_vua_di", moved_side_phrase.as_str()),
+        ("ben_vua_di", moved_side_phrase.as_str()),
+        ("bên ben_toi_luot", next_side_phrase.as_str()),
+        ("ben_toi_luot", next_side_phrase.as_str()),
+    ]
+    .into_iter()
+    .fold(text.to_string(), |result, (field, phrase)| {
+        result.replace(field, phrase)
+    })
+}
+
+fn coach_section_fallbacks(request: &ExplainMoveRequest) -> [String; 4] {
+    let main_line = if request.best_line.is_empty() {
+        request.best_move.clone()
+    } else {
+        request.best_line.join(" ")
+    };
+    let plan = request
+        .best_reply
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            format!(
+                "Bên {} nên ưu tiên nước đáp tốt nhất {value}.",
+                request.side_to_move
+            )
+        })
+        .unwrap_or_else(|| "Ván đấu đã kết thúc, không còn nước đáp hợp lệ.".to_string());
+
+    [
+        format!(
+            "Nước {} có đánh giá {} và mất {} centipawn.",
+            request.played_move, request.evaluation, request.centipawn_loss
+        ),
+        format!("Biến chính {main_line} cho thấy kế hoạch cụ thể cần ưu tiên trong vị trí này."),
+        format!(
+            "Stockfish chọn nước tốt nhất {} thay cho nước đã đi.",
+            request.best_move
+        ),
+        plan,
+    ]
+}
+
+fn normalize_coach_explanation(text: &str, request: &ExplainMoveRequest) -> String {
+    let without_markdown = text.replace("**", "").replace("__", "").replace('`', "");
+    let expanded_fields = replace_internal_coach_fields(&without_markdown, request);
+    let expanded_labels = COACH_SECTION_LABELS
+        .iter()
+        .fold(expanded_fields, |result, label| {
+            result.replace(label, &format!("\n{label}"))
+        });
+    let mut sections = [String::new(), String::new(), String::new(), String::new()];
+    let mut current_section: Option<usize> = None;
+    let mut unassigned = Vec::new();
+
+    for raw_line in expanded_labels.lines() {
+        let line = raw_line.trim().trim_matches(|character: char| {
+            character.is_whitespace() || matches!(character, '*' | '_' | '#' | '`')
+        });
+        if line.is_empty() {
+            continue;
+        }
+
+        let labeled = COACH_SECTION_LABELS
+            .iter()
+            .enumerate()
+            .find(|(_, label)| line.starts_with(**label));
+        if let Some((index, label)) = labeled {
+            current_section = Some(index);
+            let content = line[label.len()..].trim_start_matches(|character: char| {
+                character.is_whitespace() || matches!(character, ':' | '·' | '|' | '-')
+            });
+            if !content.is_empty() {
+                sections[index].push_str(content);
+            }
+            continue;
+        }
+
+        if let Some(index) = current_section {
+            if !sections[index].is_empty() {
+                sections[index].push(' ');
+            }
+            sections[index].push_str(line);
+        } else {
+            unassigned.push(line.to_string());
+        }
+    }
+
+    for content in unassigned {
+        if let Some(section) = sections.iter_mut().find(|section| section.is_empty()) {
+            *section = content;
+        }
+    }
+
+    let fallbacks = coach_section_fallbacks(request);
+    COACH_SECTION_LABELS
+        .iter()
+        .enumerate()
+        .map(|(index, label)| {
+            let content = if sections[index].trim().is_empty() {
+                &fallbacks[index]
+            } else {
+                sections[index].trim()
+            };
+            format!("{label}: {content}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 async fn request_openai(
     client: &Client,
     key: &str,
@@ -794,11 +922,12 @@ async fn explain_move(
         .build()
         .map_err(|_| "Không thể khởi tạo kết nối AI.".to_string())?;
     let input = move_input(&request);
-    let text = if provider == "gemini" {
+    let raw_text = if provider == "gemini" {
         request_gemini(&client, &key, &model, COACH_PROMPT, &input, 250).await?
     } else {
         request_openai(&client, &key, &model, COACH_PROMPT, &input, 250).await?
     };
+    let text = normalize_coach_explanation(&raw_text, &request);
     write_cached_explanation(
         &database,
         &cache_key,
@@ -864,6 +993,61 @@ async fn summarize_game(
         model,
         cached: false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn coach_request() -> ExplainMoveRequest {
+        ExplainMoveRequest {
+            player_elo: Some("1200".to_string()),
+            side_just_moved: "Trắng".to_string(),
+            side_to_move: "Đen".to_string(),
+            phase: "Khai cuộc".to_string(),
+            move_number: 6,
+            played_move: "Bd7".to_string(),
+            fen_before: "before".to_string(),
+            fen_after: "after".to_string(),
+            evaluation: "+1.34".to_string(),
+            centipawn_loss: 54,
+            best_move: "e6".to_string(),
+            best_line: vec!["e6".to_string(), "h3".to_string()],
+            best_reply: Some("h3".to_string()),
+            reply_line: vec!["h3".to_string()],
+        }
+    }
+
+    #[test]
+    fn normalizes_standalone_markdown_labels_and_internal_fields() {
+        let normalized = normalize_coach_explanation(
+            "**SO SÁNH**\nNước này trùng khớp hoàn toàn với nuoc_tot_nhat.",
+            &coach_request(),
+        );
+
+        assert_eq!(normalized.lines().count(), 4);
+        assert!(normalized.contains("SO SÁNH: Nước này trùng khớp hoàn toàn với nước tốt nhất e6."));
+        assert!(!normalized.contains("nuoc_tot_nhat"));
+        assert!(!normalized.contains("**"));
+    }
+
+    #[test]
+    fn keeps_each_section_on_one_canonical_line() {
+        let normalized = normalize_coach_explanation(
+            "**ĐÁNH GIÁ**\nBd7 mất 54 centipawn.\n**Ý TƯỞNG**\nTượng phát triển.\n**SO SÁNH**\ne6 linh hoạt hơn.\n**KẾ HOẠCH**\nben_toi_luot nên chơi nuoc_dap_tot_nhat.",
+            &coach_request(),
+        );
+        let lines = normalized.lines().collect::<Vec<_>>();
+
+        assert_eq!(lines.len(), 4);
+        assert_eq!(lines[0], "ĐÁNH GIÁ: Bd7 mất 54 centipawn.");
+        assert_eq!(lines[1], "Ý TƯỞNG: Tượng phát triển.");
+        assert_eq!(lines[2], "SO SÁNH: e6 linh hoạt hơn.");
+        assert_eq!(
+            lines[3],
+            "KẾ HOẠCH: bên Đen tới lượt nên chơi nước đáp tốt nhất h3."
+        );
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

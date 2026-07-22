@@ -169,8 +169,23 @@ function renderCoachInline(text: string) {
 function CoachExplanation({ text }: { text: string }) {
   const normalizedText = text.replace(/\*\*/g, "");
   const explicitLines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const lines = explicitLines.length > 1
-    ? explicitLines
+  const groupedLines: string[] = [];
+  let currentSection = -1;
+  explicitLines.forEach((line) => {
+    const labeled = line.match(/^(ĐÁNH GIÁ|Ý TƯỞNG|SO SÁNH|KẾ HOẠCH)\s*(?::|·|\||$)\s*(.*)$/i);
+    if (labeled) {
+      groupedLines.push(`${labeled[1].toUpperCase()}: ${labeled[2]}`.trim());
+      currentSection = groupedLines.length - 1;
+      return;
+    }
+    if (currentSection >= 0) {
+      groupedLines[currentSection] = `${groupedLines[currentSection]} ${line}`.trim();
+    } else {
+      groupedLines.push(line);
+    }
+  });
+  const lines = groupedLines.length > 1
+    ? groupedLines
     : normalizedText.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((line) => line.trim()).filter(Boolean) || [normalizedText];
 
   return (
@@ -774,7 +789,7 @@ function App() {
         <div className="brand">
           <div className="brand-mark">CC</div>
           <div>
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.4.0</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.4.1</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
@@ -1182,7 +1197,7 @@ function App() {
       )}
 
       <footer>
-        <span>Chess Coach v0.4.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
+        <span>Chess Coach v0.4.1 · Stockfish 18 Lite · OpenAI + Gemini</span>
         <span><ShieldCheck size={13} /> PGN ở lại trên máy · Lời giải thích AI được lưu cục bộ</span>
       </footer>
     </div>
