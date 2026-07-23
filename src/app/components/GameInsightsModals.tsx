@@ -43,9 +43,9 @@ import {
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
 import {
+  COACH_LABELS,
   GEMINI_MODELS,
   OPENAI_MODELS,
-  PROVIDER_LABELS,
   QUALITY_LABELS,
   QUALITY_ORDER,
 } from "../constants";
@@ -87,7 +87,6 @@ export function GameInsightsModals() {
     gameCoachLoading,
     gameCoachError,
     provider,
-    model,
     engine,
     engineCache,
     quality,
@@ -174,7 +173,7 @@ export function GameInsightsModals() {
             <div className={`game-coach-card ${gameCoachSummary ? "ready" : ""}`}>
               <div className="game-coach-heading">
                 <div><BrandIcon brand={gameCoachSummary?.provider || provider} size={17} /><strong>Nhận xét của HLV AI</strong></div>
-                {gameCoachSummary && <span>{PROVIDER_LABELS[gameCoachSummary.provider]} · {gameCoachSummary.model}{gameCoachSummary.cached ? " · Đã lưu" : ""}</span>}
+                {gameCoachSummary && <span>{COACH_LABELS[gameCoachSummary.provider]}{gameCoachSummary.cached ? " · Đã lưu" : ""}</span>}
               </div>
               {gameCoachSummary ? (
                 <>
@@ -188,7 +187,7 @@ export function GameInsightsModals() {
                   <p>Dựa trên ACPL, tỷ lệ nước tốt và các vị trí then chốt để nêu điểm mạnh, điểm cần cải thiện của cả hai bên.</p>
                   <button className="summary-ai-button" onClick={() => void summarizeGameWithAi(false)} disabled={gameCoachLoading || !gameSummaryRequest}>
                     {gameCoachLoading ? <LoaderCircle className="spin" size={15} /> : <BrandIcon brand={provider} size={15} />}
-                    {gameCoachLoading ? `${providerLabel} đang tổng kết…` : hasApiKey ? `HLV ${providerLabel} đánh giá ván đấu` : `Cấu hình ${providerLabel} để đánh giá`}
+                    {gameCoachLoading ? `${COACH_LABELS[provider]} đang tổng kết…` : hasApiKey ? `${COACH_LABELS[provider]} đánh giá ván đấu` : `Cấu hình ${providerLabel} để đánh giá`}
                   </button>
                 </div>
               )}

@@ -18,6 +18,7 @@ import {
 import { useAppControllerContext } from "../../../app/AppControllerContext";
 import type { TrainingCard, TrainingFilters, TrainingQueue } from "../types";
 import { uniqueTrainingValues } from "../utils";
+import { tacticLabel } from "../../tactics/presentation.ts";
 import { TrainingBoard } from "./TrainingBoard";
 import { TrainingTimeline } from "./TrainingTimeline";
 
@@ -33,7 +34,7 @@ const QUEUES: Array<{ id: TrainingQueue; label: string }> = [
 function hintText(card: TrainingCard, level: number) {
   if (level === 1) {
     return card.tags[0]
-      ? `Ý tưởng cần tìm: ${card.tags[0]}.`
+      ? `Ý tưởng cần tìm: ${tacticLabel(card.tags[0])}.`
       : `Hãy tìm một nước cải thiện thế ${card.phase.toLowerCase()}.`;
   }
   if (level === 2) {
@@ -60,7 +61,7 @@ function FilterSelect({
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Tất cả</option>
-        {values.map((item) => <option value={item} key={item}>{item}</option>)}
+        {values.map((item) => <option value={item} key={item}>{tacticLabel(item)}</option>)}
       </select>
     </label>
   );

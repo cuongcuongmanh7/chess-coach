@@ -107,7 +107,7 @@
   .library-game { grid-template-columns: minmax(0,1fr) 37px; }
   .library-game-open { padding: 11px 9px; }
   .sidebar-library .library-game-layout { grid-template-columns: minmax(0,1fr); }
-  .sidebar-library .game-position-thumbnail { display: none; }
+  .sidebar-library .library-thumbnail-status { display: none; }
   .library-game-players { gap: 7px; }
   .library-player { gap: 4px; }
   .library-player strong { font-size: 10px; }

@@ -176,6 +176,21 @@ pub(crate) async fn explain_move(
     })
 }
 
+async fn request_game_summary(
+    client: &Client,
+    key: &str,
+    provider: &str,
+    model: &str,
+    instructions: &str,
+    input: &Value,
+) -> Result<String, String> {
+    if provider == "gemini" {
+        request_gemini(client, key, model, instructions, input, 700).await
+    } else {
+        request_openai(client, key, model, instructions, input, 700).await
+    }
+}
+
 pub(crate) async fn summarize_game(
     state: tauri::State<'_, ApiKeyState>,
     database: tauri::State<'_, DatabaseState>,
@@ -210,11 +225,37 @@ pub(crate) async fn summarize_game(
         .map_err(|_| "Không thể khởi tạo kết nối AI.".to_string())?;
     let input = serde_json::to_value(&request)
         .map_err(|_| "Không thể chuẩn bị dữ liệu tổng kết ván đấu.".to_string())?;
-    let text = if provider == "gemini" {
-        request_gemini(&client, &key, &model, GAME_SUMMARY_PROMPT, &input, 700).await?
+    let raw_text = request_game_summary(
+        &client,
+        &key,
+        provider,
+        &model,
+        GAME_SUMMARY_PROMPT,
+        &input,
+    )
+    .await?;
+    let candidate = if game_summary_is_valid(&raw_text, &request) {
+        raw_text
     } else {
-        request_openai(&client, &key, &model, GAME_SUMMARY_PROMPT, &input, 700).await?
+        let retry_prompt = format!(
+            "{GAME_SUMMARY_PROMPT} Phản hồi trước không đạt vì viết số thành chữ, thiếu số liệu gốc hoặc sai cấu trúc. Hãy sửa đúng bảy dòng và chép mọi số liệu bằng chữ số."
+        );
+        let retry_input = serde_json::json!({
+            "du_lieu_goc": &request,
+            "phan_hoi_can_sua": raw_text,
+        });
+        request_game_summary(
+            &client,
+            &key,
+            provider,
+            &model,
+            &retry_prompt,
+            &retry_input,
+        )
+        .await
+        .unwrap_or_default()
     };
+    let text = normalize_game_summary(&candidate, &request);
     write_cached_explanation(
         &database,
         database_generation,

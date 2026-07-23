@@ -113,6 +113,30 @@ pub(crate) fn generate_training_cards_connection(
         transaction
             .execute(
                 "UPDATE training_cards SET
+                   best_move = ?2,
+                   best_line_json = ?3,
+                   quality = ?4,
+                   centipawn_loss = ?5,
+                   phase = ?6,
+                   opening = ?7,
+                   tags_json = ?8,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                 WHERE id = ?1",
+                params![
+                    &id,
+                    &seed.best_move,
+                    &best_line_json,
+                    &seed.quality,
+                    seed.centipawn_loss,
+                    &seed.phase,
+                    &opening,
+                    &tags_json,
+                ],
+            )
+            .map_err(|_| "Không thể cập nhật nhãn bài tập.".to_string())?;
+        transaction
+            .execute(
+                "UPDATE training_cards SET
                    status = (SELECT status FROM training_progress_inbox WHERE card_id = ?1),
                    due_at = (SELECT due_at FROM training_progress_inbox WHERE card_id = ?1),
                    interval_days = (SELECT interval_days FROM training_progress_inbox WHERE card_id = ?1),
@@ -221,7 +245,7 @@ mod tests {
                 params![&game_id, ENGINE_VERSION],
             )
             .unwrap();
-        let request = || GenerateTrainingCardsRequest {
+        let request = |tag: &str| GenerateTrainingCardsRequest {
             game_id: game_id.clone(),
             profile_id: 1,
             include_inaccuracies: false,
@@ -235,17 +259,20 @@ mod tests {
                 quality: "mistake".to_string(),
                 centipawn_loss: 120.0,
                 phase: "Khai cuộc".to_string(),
-                tags: vec!["Trung tâm".to_string()],
+                tags: vec![tag.to_string()],
             }],
         };
 
-        let first = generate_training_cards_connection(&mut connection, request()).unwrap();
-        let second = generate_training_cards_connection(&mut connection, request()).unwrap();
-        let count: i64 = connection
-            .query_row("SELECT COUNT(*) FROM training_cards", [], |row| row.get(0))
+        let first = generate_training_cards_connection(&mut connection, request("Trung tâm")).unwrap();
+        let second = generate_training_cards_connection(&mut connection, request("fork")).unwrap();
+        let (count, tags): (i64, String) = connection
+            .query_row("SELECT COUNT(*), MAX(tags_json) FROM training_cards", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
             .unwrap();
         assert_eq!((first.created, first.eligible), (1, 1));
         assert_eq!((second.created, second.eligible), (0, 1));
         assert_eq!(count, 1);
+        assert_eq!(tags, r#"["fork"]"#);
     }
 }

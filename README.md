@@ -2,7 +2,7 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.7.1**.
+Phiên bản hiện tại: **0.8.0**.
 
 ## Chạy trên Windows
 
@@ -29,14 +29,18 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 
 - Đọc PGN và phát lại đúng vị trí sau từng lượt.
 - Tải link ván Chess.com đã kết thúc qua dữ liệu công khai.
-- Tự động lưu các ván đã nạp vào Kho ván SQLite cục bộ; sidebar có thumbnail, số nước và thông tin mở gần nhất.
+- Tự động lưu các ván đã nạp vào Kho ván SQLite cục bộ; sidebar có thumbnail, số nước, badge phân tích toàn ván và thông tin mở gần nhất.
 - Highlight nước vừa đi, phản đòn, best move và phương án tốt thứ hai do Stockfish đề xuất.
 - Phân loại khai cuộc, trung cuộc, tàn cuộc.
 - Stockfish 18 Lite chạy local ở depth 13 cho nước đang xem, dùng MultiPV 2; app phân loại theo mức giảm Expected Points và nhận diện Brilliant bằng tiêu chí hy sinh quân gần tối ưu có điều chỉnh theo Elo.
 - Phân tích toàn ván ở depth 11 với tiến độ nền, ACPL, tỷ lệ Brilliant/Best/Tốt, thống kê lỗi theo từng bên và danh sách vị trí then chốt có thể mở trực tiếp.
+- Sau phân tích toàn ván, một dòng thống kê gọn dưới bàn cờ đếm chất lượng nước đi của hồ sơ đang chọn.
+- Tactical Intelligence nhận diện 10 motif bằng hình học bàn cờ + biến Stockfish, lưu confidence/evidence và đưa nhãn vào Mistake Lab/Dashboard.
+- Threat View hiển thị best reply, quân nguy hiểm và quân phòng thủ quan trọng trực tiếp trên bàn cờ mà không gọi AI.
 - OpenAI hoặc Gemini viết lời giải thích tiếng Việt dựa trên dữ liệu Stockfish.
+- Tổng kết HLV AI kiểm tra bắt buộc số liệu dạng chữ số, tự thử lại một lần và dùng fallback deterministic nếu output vẫn sai.
 - Chế độ tự động giải thích Mistake/Blunder hoặc mọi nước đã mở xem.
-- Lời giải thích được lưu trong SQLite cục bộ và tái sử dụng khi mở lại vị trí; API key không được ghi vào cơ sở dữ liệu.
+- Lời giải thích được lưu trong SQLite cục bộ và tái sử dụng khi mở lại vị trí; API key nằm trong Windows Credential Manager, không nằm trong cơ sở dữ liệu.
 - Badge chỉ rõ người cầm Trắng, người cầm Đen và bên vừa đi ở mỗi bước.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
@@ -60,7 +64,7 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 
 ## Cấu hình AI
 
-Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn model và nhập API key. Key chỉ được giữ trong bộ nhớ Rust của phiên chạy và bị xoá khi đóng app.
+Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn model và nhập API key. Key được lưu trong Windows Credential Manager và giữ lại khi nâng cấp ứng dụng; app không tải key lên cloud.
 
 - Gemini mặc định dùng `gemini-3.5-flash-lite`; có thể chọn `gemini-3.6-flash`.
 - OpenAI hỗ trợ `gpt-5.6-sol`, `gpt-5.6-terra` và `gpt-5.6-luna`.

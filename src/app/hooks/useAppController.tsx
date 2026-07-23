@@ -62,6 +62,11 @@ import { useLibraryController } from "./useLibraryController";
 import { useCoachController } from "./useCoachController";
 import { useBoardController } from "./useBoardController";
 import { useTrainingController } from "../../features/training/hooks/useTrainingController";
+import { useTacticsController } from "../../features/tactics/hooks/useTacticsController";
+import {
+  buildPlayerMoveStats,
+  playerColorForUsername,
+} from "../../features/analysis/playerMoveStats";
 
 export function useAppController() {
   const appState = useAppState();
@@ -118,6 +123,15 @@ export function useAppController() {
     ? variationState.moveSquares[variationState.index - 1]
     : null;
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || null;
+  const playerMoveSummary = useMemo(() => {
+    if (!fullAnalysis.complete || !activeProfile) return null;
+    const color = playerColorForUsername(headers, activeProfile.username);
+    if (!color) return null;
+    return {
+      playerName: color === "w" ? headers.White || activeProfile.username : headers.Black || activeProfile.username,
+      stats: buildPlayerMoveStats(analysis.steps, engineCache, color),
+    };
+  }, [activeProfile, analysis.steps, engineCache, fullAnalysis.complete, headers]);
   const activeProfileLabel = activeProfile
     ? `${activeProfile.platform === "chesscom" ? "Chess.com" : "Lichess"} · ${activeProfile.username}`
     : "Chưa chọn hồ sơ";
@@ -211,12 +225,15 @@ export function useAppController() {
     refreshSavedGames,
     generateCardsForGame: trainingController.generateCardsForGame,
   });
+  const tacticsController = useTacticsController(engine);
   const boardController = useBoardController(appState, {
     step,
     engine,
     boardPosition,
     boardInteractionMode,
     variationMoveSquares,
+    threatViewEnabled: tacticsController.threatViewEnabled,
+    threatSquareStyles: tacticsController.threatSquareStyles,
   });
   return {
     ...appState,
@@ -224,6 +241,7 @@ export function useAppController() {
     ...dataController,
     ...libraryController,
     ...coachController,
+    ...tacticsController,
     ...boardController,
     ...trainingController,
     step,
@@ -249,6 +267,7 @@ export function useAppController() {
     boardInteractionMode,
     variationMoveSquares,
     activeProfile,
+    playerMoveSummary,
     activeProfileLabel,
     accountInitial,
     cloudAccountLabel,

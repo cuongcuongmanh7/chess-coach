@@ -2,8 +2,6 @@ use crate::*;
 
 pub(crate) const COACH_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode; không được bỏ dấu ở bất kỳ từ tiếng Việt nào. Dữ liệu Stockfish và các trường màu quân là nguồn sự thật. Viết tổng cộng 70–90 từ trên đúng bốn dòng theo mẫu: 'ĐÁNH GIÁ: ...', 'Ý TƯỞNG: ...', 'SO SÁNH: ...', 'KẾ HOẠCH: ...'. Mỗi nhãn và toàn bộ nội dung của nhãn đó bắt buộc nằm trên cùng một dòng. Dòng ĐÁNH GIÁ kết luận thẳng về nước của ben_vua_di. Dòng Ý TƯỞNG giải thích lý do cụ thể. Dòng SO SÁNH đối chiếu ngắn với nuoc_tot_nhat. Dòng KẾ HOẠCH chỉ khuyên ben_toi_luot chơi nuoc_dap_tot_nhat sau vị trí thực tế; nếu không có nước đáp thì nói ván đã kết thúc. Khi nhắc quân đang tấn công, phòng thủ hoặc bị hạn chế, phải gọi đúng màu Trắng hoặc Đen theo ben_vua_di và ben_toi_luot; tuyệt đối không tự đảo màu quân. Bắt đầu ngay bằng nhãn, không chào hỏi, không câu chúc, không khen xã giao và không dùng lời dẫn. Giữ nguyên mọi ký hiệu nước cờ theo SAN như Bf4, e3, dxc4 hoặc O-O; không dịch hay đọc chúng thành chữ. Mọi điểm đánh giá phải giữ dạng có dấu và chữ số thập phân giống dữ liệu đầu vào, ví dụ +0.38 hoặc -1.25; tuyệt đối không viết số hay dấu thành chữ. Dùng Elo chỉ để điều chỉnh độ khó, không nhắc Elo trong câu trả lời. Không đưa lời khuyên chung chung; phải nêu quân, ô hoặc kế hoạch cụ thể. Tuyệt đối không chép hoặc nhắc tên khóa dữ liệu nội bộ như nuoc_tot_nhat, nuoc_dap_tot_nhat, ben_vua_di hay ben_toi_luot; chỉ diễn đạt ý nghĩa và giá trị thật của chúng bằng tiếng Việt tự nhiên. Không dùng Markdown, không nhắc lại FEN và không bịa thêm biến ngoài dữ liệu được cung cấp.";
 pub(crate) const PROMPT_VERSION: &str = "coach-v7";
-pub(crate) const GAME_SUMMARY_PROMPT: &str = "Bạn là huấn luyện viên cờ vua nói tiếng Việt. Hãy đưa ra nhận xét sơ bộ về toàn ván chỉ từ thống kê Stockfish và các vị trí then chốt được cung cấp. Luôn viết tiếng Việt có dấu đầy đủ bằng Unicode. Viết 150–220 từ trên đúng bảy dòng theo mẫu: 'TỔNG QUAN: ...', 'TRẮNG · ĐIỂM MẠNH: ...', 'TRẮNG · CẦN CẢI THIỆN: ...', 'TRẮNG · ƯU TIÊN: ...', 'ĐEN · ĐIỂM MẠNH: ...', 'ĐEN · CẦN CẢI THIỆN: ...', 'ĐEN · ƯU TIÊN: ...'. So sánh hai bên bằng ACPL, tỷ lệ Best/Tốt và số lỗi; chỉ nhắc nước cờ có trong critical_positions. Mỗi mục ưu tiên phải là đúng một chủ đề luyện tập cụ thể. Đây là đánh giá sơ bộ, không khẳng định phong cách hay tâm lý người chơi. Không chào hỏi, không câu chúc, không Markdown, không bịa chiến thuật, không nhắc FEN và không đọc ký hiệu nước cờ hay số thành chữ.";
-pub(crate) const GAME_SUMMARY_PROMPT_VERSION: &str = "game-summary-v1";
 pub(crate) const VIETNAMESE_DIACRITICS: &str = "ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵĂÂĐÊÔƠƯÁÀẢÃẠẤẦẨẪẬẮẰẲẴẶÉÈẺẼẸẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌỐỒỔỖỘỚỜỞỠỢÚÙỦŨỤỨỪỬỮỰÝỲỶỸỴ";
 
 pub(crate) fn has_vietnamese_diacritics(text: &str) -> bool {
@@ -35,20 +33,23 @@ pub(crate) fn environment_key(provider: &str) -> Option<String> {
     })
 }
 
-pub(crate) fn api_key(state: &tauri::State<'_, ApiKeyState>, provider: &str) -> Result<String, String> {
+pub(crate) fn api_key(
+    state: &tauri::State<'_, ApiKeyState>,
+    provider: &str,
+) -> Result<String, String> {
     let provider = normalized_provider(provider)?;
     if let Some(value) = environment_key(provider) {
         return Ok(value);
     }
-    let key = if provider == "gemini" {
-        &state.gemini
-    } else {
-        &state.openai
-    };
-    key.lock()
-        .map_err(|_| "Không đọc được trạng thái API key.".to_string())?
-        .clone()
+    persisted_api_key(state, provider)?
         .ok_or_else(|| format!("Chưa cấu hình {} API key.", provider_label(provider)))
+}
+
+pub(crate) fn persisted_api_key(
+    state: &ApiKeyState,
+    provider: &str,
+) -> Result<Option<String>, String> {
+    state.secret_store.get(provider)
 }
 
 pub(crate) fn provider_label(provider: &str) -> &str {
@@ -64,34 +65,28 @@ pub(crate) fn set_api_key(
     provider: String,
     api_key: String,
 ) -> Result<(), String> {
-    let provider = normalized_provider(&provider)?;
+    persist_api_key(&state, &provider, &api_key)
+}
+
+pub(crate) fn persist_api_key(
+    state: &ApiKeyState,
+    provider: &str,
+    api_key: &str,
+) -> Result<(), String> {
+    let provider = normalized_provider(provider)?;
     let trimmed = api_key.trim();
     if trimmed.len() < 20 || trimmed.chars().any(char::is_whitespace) {
         return Err("API key không đúng định dạng.".to_string());
     }
-    let target = if provider == "gemini" {
-        &state.gemini
-    } else {
-        &state.openai
-    };
-    *target
-        .lock()
-        .map_err(|_| "Không thể lưu API key trong phiên này.".to_string())? =
-        Some(trimmed.to_string());
-    Ok(())
+    state.secret_store.set(provider, trimmed)
 }
 
-pub(crate) fn clear_api_key(state: tauri::State<'_, ApiKeyState>, provider: String) -> Result<(), String> {
+pub(crate) fn clear_api_key(
+    state: tauri::State<'_, ApiKeyState>,
+    provider: String,
+) -> Result<(), String> {
     let provider = normalized_provider(&provider)?;
-    let target = if provider == "gemini" {
-        &state.gemini
-    } else {
-        &state.openai
-    };
-    *target
-        .lock()
-        .map_err(|_| "Không thể xoá API key khỏi phiên này.".to_string())? = None;
-    Ok(())
+    state.secret_store.delete(provider)
 }
 
 pub(crate) fn has_api_key(state: tauri::State<'_, ApiKeyState>, provider: String) -> bool {
@@ -101,12 +96,9 @@ pub(crate) fn has_api_key(state: tauri::State<'_, ApiKeyState>, provider: String
     if environment_key(&provider).is_some() {
         return true;
     }
-    let target = if provider == "gemini" {
-        &state.gemini
-    } else {
-        &state.openai
-    };
-    target.lock().map(|value| value.is_some()).unwrap_or(false)
+    persisted_api_key(&state, &provider)
+        .map(|value| value.is_some())
+        .unwrap_or(false)
 }
 
 pub(crate) fn extract_output_text(response: &Value) -> Option<String> {

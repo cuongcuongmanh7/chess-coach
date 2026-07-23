@@ -9,6 +9,7 @@ import {
   normalizeEngineAnalysis,
   playerEloForColor,
 } from "../../features/analysis/moveClassification";
+import { withTacticalAnalysis } from "../../features/tactics/detector.ts";
 import { isTauri } from "../../shared/services/tauriClient";
 import { playSfx } from "../../sfx";
 import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
@@ -221,7 +222,10 @@ export function useAppEffects(
       playerElo,
     )
       .then((rawResult) => {
-        const result = normalizeEngineAnalysis(step, rawResult, playerElo);
+        const result = withTacticalAnalysis(
+          step,
+          normalizeEngineAnalysis(step, rawResult, playerElo),
+        );
         setEngineCache((cache) => {
           if ((cache[step.ply]?.depth || 0) >= result.depth) return cache;
           return { ...cache, [step.ply]: result };

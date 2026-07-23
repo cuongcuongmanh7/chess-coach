@@ -212,9 +212,9 @@ export function ImportSettingsModals() {
             <label className="field-label" htmlFor="api-key">{providerLabel} API key</label>
             <div className="key-field">
               <KeyRound size={17} />
-              <input id="api-key" type="password" autoComplete="off" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={hasApiKey ? `${providerLabel} key đã được cấu hình trong phiên này` : provider === "gemini" ? "AIza…" : "sk-…"} />
+              <input id="api-key" type="password" autoComplete="off" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={hasApiKey ? `${providerLabel} key đã được lưu an toàn` : provider === "gemini" ? "AIza…" : "sk-…"} />
             </div>
-            <div className="security-note"><ShieldCheck size={15} /> Key chỉ nằm trong bộ nhớ Rust và bị xoá khi đóng app. Có thể dùng biến môi trường {provider === "gemini" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"}. Lời giải thích được lưu riêng trong SQLite, không kèm API key.</div>
+            <div className="security-note"><ShieldCheck size={15} /> Key được lưu trong Windows Credential Manager và giữ lại khi nâng cấp ứng dụng. Có thể ưu tiên biến môi trường {provider === "gemini" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"}. Key không được lưu trong SQLite hoặc tải lên cloud.</div>
             {settingsError && <div className="error-message">{settingsError}</div>}
 
             <div className="modal-actions settings-actions">
@@ -230,7 +230,7 @@ export function ImportSettingsModals() {
 
       <footer>
         <span className="footer-services">
-          Chess Coach v0.7.1 · Stockfish 18 Lite ·
+          Chess Coach v0.8.0 · Stockfish 18 Lite ·
           <BrandIcon brand="openai" size={11} /> OpenAI +
           <BrandIcon brand="gemini" size={11} /> Gemini
         </span>

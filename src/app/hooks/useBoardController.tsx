@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { Chess, type Square } from "chess.js";
 import type { AnalysisStep } from "../../analysis";
 import { buildVariation } from "../../features/analysis/boardUtils";
@@ -12,6 +12,8 @@ type BoardDependencies = {
   boardPosition: string;
   boardInteractionMode: "main" | "retry" | "variation";
   variationMoveSquares: { from: string; to: string } | null;
+  threatViewEnabled: boolean;
+  threatSquareStyles: Record<string, CSSProperties>;
 };
 
 export function useBoardController(
@@ -22,6 +24,8 @@ export function useBoardController(
     boardPosition,
     boardInteractionMode,
     variationMoveSquares,
+    threatViewEnabled,
+    threatSquareStyles,
   }: BoardDependencies,
 ) {
   const {
@@ -51,8 +55,15 @@ export function useBoardController(
         color: index === 0 ? "#43d9a3" : "#67a7ff",
       });
     });
+    if (threatViewEnabled && engine?.tactics?.threat.arrow) {
+      result.push(engine.tactics.threat.arrow);
+    }
     return result;
-  }, [engine?.variations, step.arrows, step.lan]);
+  }, [engine?.tactics?.threat.arrow, engine?.variations, step.arrows, step.lan, threatViewEnabled]);
+  const squareStyles = useMemo(() => ({
+    ...boardHints.squareStyles,
+    ...(boardInteractionMode === "main" ? threatSquareStyles : {}),
+  }), [boardHints.squareStyles, boardInteractionMode, threatSquareStyles]);
 
   const beginRetry = () => {
     if (!engine) return;
@@ -146,7 +157,7 @@ export function useBoardController(
       if (moved) boardHints.clearSelection();
       return moved;
     },
-    squareStyles: boardHints.squareStyles,
+    squareStyles,
     allowDrawingArrows: false,
     showAnimations: true,
     animationDurationInMs: 220,
@@ -161,7 +172,7 @@ export function useBoardController(
     squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
       <div
         className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}`}
-        style={boardHints.squareStyles[square]}
+        style={squareStyles[square]}
       >
         {children}
       </div>

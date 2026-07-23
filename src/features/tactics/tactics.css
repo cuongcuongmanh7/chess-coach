@@ -1,0 +1,25 @@
+.threat-view-toggle {
+  height: 29px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #33463e;
+  border-radius: 7px;
+  color: #8fa39a;
+  background: #14201c;
+  font-size: 8px;
+  font-weight: 800;
+}
+.threat-view-toggle:hover:not(:disabled) { color: #ffd1cd; border-color: rgba(239,106,98,.5); }
+.threat-view-toggle.active { color: #ffd1cd; border-color: rgba(239,106,98,.62); background: rgba(239,106,98,.13); }
+.threat-view-toggle:disabled { cursor: not-allowed; opacity: .42; }
+.tactical-insights { margin-top: 9px; padding: 10px 11px; border: 1px solid rgba(103,167,255,.22); border-radius: 9px; background: rgba(49,81,103,.12); }
+.tactical-insights-heading { display: flex; align-items: center; gap: 6px; color: #93c6ff; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.tactical-insights-heading span { margin-left: auto; color: #607f97; font-size: 7px; }
+.tactical-tag-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.tactical-tag { padding: 5px 7px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(103,167,255,.25); border-radius: 999px; color: #bedcff; background: rgba(103,167,255,.1); font-size: 8px; font-weight: 750; }
+.tactical-tag i { color: #7297ba; font-size: 7px; font-style: normal; }
+.tactical-insights > p { margin: 7px 0 0; color: #718b9e; font-size: 9px; }
+.tactical-threat-summary { margin-top: 8px; padding-top: 8px; display: flex; align-items: flex-start; gap: 6px; border-top: 1px solid rgba(239,106,98,.17); color: #d9aaa5; font-size: 9px; line-height: 1.45; }
+.tag-row .guidance-tag { color: #879a91; border-color: #30423a; background: rgba(255,255,255,.025); }

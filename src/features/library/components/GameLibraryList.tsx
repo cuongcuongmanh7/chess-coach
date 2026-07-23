@@ -1,4 +1,4 @@
-import { Library, LoaderCircle, Trash2 } from "lucide-react";
+import { Check, Library, LoaderCircle, Trash2 } from "lucide-react";
 import type { SavedGameSummary } from "../../../shared/types/tauri";
 import { formatVietnamDate } from "../../../shared/utils/format";
 import { gameOutcomeForProfile } from "../utils";
@@ -37,10 +37,22 @@ export function GameLibraryList({
           ? "b"
           : "w";
         return (
-          <article className={`library-game outcome-${outcome.kind}${game.id === activeGameId ? " active" : ""}`} key={game.id}>
+          <article className={`library-game outcome-${outcome.kind}${game.analysis_complete ? " has-analysis" : ""}${game.id === activeGameId ? " active" : ""}`} key={game.id}>
             <button className="library-game-open" onClick={() => onOpen(game.id)} disabled={loading} aria-current={game.id === activeGameId ? "true" : undefined}>
               <div className="library-game-layout">
-                {variant === "sidebar" && game.final_fen && <GamePositionThumbnail fen={game.final_fen} orientation={orientation} />}
+                {variant === "sidebar" && game.final_fen && (
+                  <div
+                    className={`library-thumbnail-status${game.analysis_complete ? " analyzed" : ""}`}
+                    title={game.analysis_complete ? "Đã phân tích toàn ván" : undefined}
+                  >
+                    <GamePositionThumbnail fen={game.final_fen} orientation={orientation} />
+                    {game.analysis_complete && (
+                      <i className="library-analysis-thumbnail-badge" aria-label="Đã phân tích toàn ván">
+                        <Check size={10} strokeWidth={3} aria-hidden="true" />
+                      </i>
+                    )}
+                  </div>
+                )}
                 <div className="library-game-copy">
                   <div className="library-game-players">
                     <span className="library-player white"><i className="side-badge white-side">Trắng</i><strong>{game.white}</strong><small>{game.white_elo ? `Elo ${game.white_elo}` : "Elo —"}</small></span>
@@ -62,7 +74,11 @@ export function GameLibraryList({
                     {game.opening && <span className="library-opening" title={game.opening}>{game.opening}</span>}
                     {game.time_control && <span>{game.time_control}s</span>}
                     {game.source_platform && <span>{game.source_platform === "lichess" ? "Lichess" : "Chess.com"}</span>}
-                    {game.analysis_complete && <span className="analyzed-game">Đã phân tích</span>}
+                    {variant === "modal" && game.analysis_complete && (
+                      <span className="library-analysis-meta" title="Đã phân tích toàn ván">
+                        <Check size={11} strokeWidth={3} aria-hidden="true" /> Đã phân tích
+                      </span>
+                    )}
                     <span className="library-opened">Mở {formatVietnamDate(game.last_opened_at, true)}</span>
                   </div>
                 </div>

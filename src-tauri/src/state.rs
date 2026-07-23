@@ -1,9 +1,22 @@
 use crate::*;
 
-#[derive(Default)]
 pub(crate) struct ApiKeyState {
-    pub(crate) openai: Mutex<Option<String>>,
-    pub(crate) gemini: Mutex<Option<String>>,
+    pub(crate) secret_store: Box<dyn SecretStore>,
+}
+
+impl Default for ApiKeyState {
+    fn default() -> Self {
+        Self {
+            secret_store: Box::new(PlatformSecretStore::default()),
+        }
+    }
+}
+
+#[cfg(test)]
+impl ApiKeyState {
+    pub(crate) fn with_secret_store(secret_store: Box<dyn SecretStore>) -> Self {
+        Self { secret_store }
+    }
 }
 
 pub(crate) struct ActiveDatabase {

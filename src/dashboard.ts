@@ -1,4 +1,5 @@
 import type { MoveQuality, Phase } from "./analysis";
+import { tacticLabel } from "./features/tactics/presentation.ts";
 
 export type DashboardMoveRecord = {
   game_id: string;
@@ -102,7 +103,7 @@ export function buildDashboardStats(records: DashboardMoveRecord[]): DashboardSt
     timeClasses: groupBreakdown(records, (item) => item.time_class || item.time_control || "Không rõ"),
     openings: groupBreakdown(records, (item) => item.opening || item.eco || "Không rõ khai cuộc", 6),
     weaknesses: [...weaknessCounts.entries()]
-      .map(([label, count]) => ({ label, count }))
+      .map(([label, count]) => ({ label: tacticLabel(label), count }))
       .sort((left, right) => right.count - left.count)
       .slice(0, 6),
     timedMoves: timed.length,

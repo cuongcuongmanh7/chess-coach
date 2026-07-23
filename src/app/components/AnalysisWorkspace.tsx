@@ -40,9 +40,9 @@ import {
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
 import {
+  COACH_LABELS,
   GEMINI_MODELS,
   OPENAI_MODELS,
-  PROVIDER_LABELS,
   QUALITY_LABELS,
 } from "../constants";
 import { BOARD_MOVE_BADGES } from "../../features/analysis/boardUtils";
@@ -57,6 +57,9 @@ import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
 import { BrandIcon } from "../../shared/components/BrandIdentity";
 import { ChessTerm } from "../../shared/components/ChessTerm";
 import { useAppControllerContext } from "../AppControllerContext";
+import { ThreatViewToggle } from "../../features/tactics/components/ThreatViewToggle";
+import { TacticalInsights } from "../../features/tactics/components/TacticalInsights";
+import { PlayerMoveStats } from "../../features/analysis/components/PlayerMoveStats";
 
 export function AnalysisWorkspace() {
   const {
@@ -81,7 +84,6 @@ export function AnalysisWorkspace() {
     fullAnalysis,
     aiLoading,
     aiError,
-    model,
     timelineScrollerRef,
     coachScrollerRef,
     step,
@@ -106,6 +108,11 @@ export function AnalysisWorkspace() {
     evaluateRetryMove,
     openVariation,
     retryBestPiece, chessboardOptions, handleBoardMouseDown,
+    tacticalAnalysis,
+    playerMoveSummary,
+    threatViewAvailable,
+    threatViewEnabled,
+    toggleThreatView,
   } = useAppControllerContext();
   return (
     <>
@@ -143,6 +150,7 @@ export function AnalysisWorkspace() {
             <div className="board-toolbar">
               <div className="board-status"><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span>{currentOpening && <span className="opening-live" title={`${currentOpening.eco} · ${currentOpening.name}`}><BookOpen size={12} /><b>{currentOpening.family}</b>{currentOpening.variation && <em>: {currentOpening.variation}</em>}</span>}</div>
               <div className="board-tools">
+                <ThreatViewToggle available={threatViewAvailable} enabled={threatViewEnabled} onToggle={toggleThreatView} />
                 <div className="evaluation-chip">
                   <CircleGauge size={15} />
                   <ChessTerm term="evaluation">{engineLoading ? "…" : engine?.evaluation || "—"}</ChessTerm>
@@ -202,6 +210,8 @@ export function AnalysisWorkspace() {
                 )}
               </div>
             </div>
+
+            {playerMoveSummary && <PlayerMoveStats playerName={playerMoveSummary.playerName} stats={playerMoveSummary.stats} />}
 
             {variationState && (
               <div className="variation-player">
@@ -350,7 +360,7 @@ export function AnalysisWorkspace() {
             <div className="coach-insight-scroll" ref={coachScrollerRef} role="region" aria-label="Góc nhìn HLV">
             <div className={`insight-card ${aiExplanation ? "ai-ready" : ""}`}>
               <div className="insight-title">
-                <BrandIcon brand={provider} size={17} /> {aiExplanation ? `${providerLabel} · ${model}` : "Góc nhìn HLV"}
+                <BrandIcon brand={aiExplanation?.provider || provider} size={17} /> {aiExplanation ? COACH_LABELS[aiExplanation.provider] : "Góc nhìn HLV"}
                 {aiExplanation?.cached && <span className="saved-badge">Đã lưu</span>}
               </div>
               {aiExplanation ? <CoachExplanation text={aiExplanation.text} /> : <p>{step.insight}</p>}
@@ -358,7 +368,7 @@ export function AnalysisWorkspace() {
               {!aiExplanation && (
                 <button className="ai-button" onClick={() => void explainWithAi(false)} disabled={!engine || aiLoading}>
                   {aiLoading ? <LoaderCircle className="spin" size={16} /> : <BrandIcon brand={provider} size={16} />}
-                  {aiLoading ? `${providerLabel} đang giải thích…` : `Giải thích bằng ${providerLabel}`}
+                  {aiLoading ? `${COACH_LABELS[provider]} đang giải thích…` : `Giải thích bằng ${COACH_LABELS[provider]}`}
                 </button>
               )}
               {aiExplanation && (
@@ -369,9 +379,12 @@ export function AnalysisWorkspace() {
             </div>
 
             <div className="tag-row">
-              {step.tags.map((tag) => <span key={tag}>{tag}</span>)}
-              {engine && <span className="engine-tag">Stockfish xác thực</span>}
+              {step.tags.map((tag) => <span className="guidance-tag" key={tag}>{tag}</span>)}
             </div>
+            <TacticalInsights
+              analysis={tacticalAnalysis}
+              threatViewEnabled={threatViewEnabled}
+            />
             <div className="coach-spacer" />
             </div>
             </div>

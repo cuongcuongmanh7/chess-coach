@@ -1,5 +1,6 @@
 import type { AnalysisStep } from "../../analysis";
 import type { EngineMoveAnalysis } from "../../stockfish";
+import { tacticCodes } from "../tactics/detector.ts";
 import type {
   TrainingCard,
   TrainingCardSeed,
@@ -35,7 +36,7 @@ export function buildTrainingSeeds(
       quality: engine.quality as TrainingCardSeed["quality"],
       centipawn_loss: engine.centipawnLoss,
       phase: step.phase,
-      tags: step.tags,
+      tags: tacticCodes(engine),
     }];
   });
 }

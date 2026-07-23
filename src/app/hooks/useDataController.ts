@@ -11,6 +11,11 @@ import {
   playerEloForColor,
   type DisplayMoveQuality,
 } from "../../features/analysis/moveClassification";
+import {
+  tacticCodes,
+  withTacticalAnalysis,
+} from "../../features/tactics/detector.ts";
+import { TACTICS_VERSION } from "../../features/tactics/types";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { PlayerProfile } from "../../shared/types/tauri";
@@ -70,19 +75,20 @@ export function useDataController(
     result: EngineMoveAnalysis,
   ) => {
     if (!isTauri()) return;
+    const enriched = withTacticalAnalysis(item, result);
     await analysisRepository.save({
         game_id: gameId,
         ply: item.ply,
-        depth: result.depth,
-        result,
+        depth: enriched.depth,
+        result: enriched,
         color: item.color,
         phase: item.phase,
-        quality: result.quality,
-        centipawn_loss: result.centipawnLoss,
+        quality: enriched.quality,
+        centipawn_loss: enriched.centipawnLoss,
         think_time_seconds: item.thinkTimeSeconds,
         is_quick: item.isQuickMove,
         is_time_pressure: item.isTimePressure,
-        tags: item.tags,
+        tags: tacticCodes(enriched),
     });
   }, []);
 
@@ -94,16 +100,20 @@ export function useDataController(
       const cache = stored.reduce<Record<number, EngineMoveAnalysis>>((values, item) => {
         const step = next.steps[item.ply - 1];
         if (item.result && item.result.depth >= item.depth && step) {
-          const result = normalizeEngineAnalysis(
+          const result = withTacticalAnalysis(
             step,
-            item.result,
-            playerEloForColor(next.headers, step.color),
+            normalizeEngineAnalysis(
+              step,
+              item.result,
+              playerEloForColor(next.headers, step.color),
+            ),
           );
           values[item.ply] = result;
           if (
             item.result.quality !== result.quality
             || item.result.displayQuality !== result.displayQuality
             || item.result.expectedPointsLoss === undefined
+            || item.result.tactics?.version !== TACTICS_VERSION
           ) {
             classificationUpdates.push(persistEngineResult(gameId, step, result));
           }

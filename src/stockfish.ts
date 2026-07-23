@@ -5,6 +5,8 @@ import {
   normalizeEngineAnalysis,
   type DisplayMoveQuality,
 } from "./features/analysis/moveClassification";
+import type { TacticalAnalysis } from "./features/tactics/types";
+import { withTacticalAnalysis } from "./features/tactics/detector.ts";
 
 type ScoreType = "cp" | "mate";
 
@@ -49,6 +51,7 @@ export type EngineMoveAnalysis = {
   replyLineSan: string[];
   variations: EngineVariation[];
   playedMoveUci: string;
+  tactics?: TacticalAnalysis;
 };
 
 const ENGINE_URL = "/stockfish/stockfish-18-lite-single.js";
@@ -317,10 +320,13 @@ export async function analyzeGameWithStockfish(
         after,
         playerElos[step.color],
       );
-      const result = normalizeEngineAnalysis(
+      const result = withTacticalAnalysis(
         step,
-        rawResult,
-        playerElos[step.color],
+        normalizeEngineAnalysis(
+          step,
+          rawResult,
+          playerElos[step.color],
+        ),
       );
       onProgress(step.ply, result, index + 1, steps.length);
       before = after;

@@ -35,6 +35,11 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   gemini: "Gemini",
 };
 
+export const COACH_LABELS: Record<AiProvider, string> = {
+  openai: "HLV ChatGPT",
+  gemini: "HLV Gemini",
+};
+
 export const DEFAULT_MODELS: Record<AiProvider, string> = {
   openai: "gpt-5.6-sol",
   gemini: "gemini-3.5-flash-lite",

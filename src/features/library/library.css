@@ -1,5 +1,39 @@
+.library-game { position: relative; }
 .library-game-layout { min-width: 0; }
 .library-game-copy { min-width: 0; }
+.library-thumbnail-status {
+  width: 50px;
+  height: 50px;
+  position: relative;
+}
+.library-thumbnail-status .game-position-thumbnail {
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.library-thumbnail-status.analyzed .game-position-thumbnail {
+  border-color: #43d9a3;
+  box-shadow: inset 0 0 0 1px #43d9a3, 0 0 0 1px rgba(67,217,163,.12), 0 4px 12px rgba(0,0,0,.22);
+}
+.library-analysis-thumbnail-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #dffaf0;
+  background: #187e5d;
+  box-shadow: 0 0 0 2px #0d1613;
+  font-style: normal;
+  z-index: 2;
+}
+.library-analysis-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #65dbae;
+}
 
 .sidebar-library .library-game-layout {
   display: grid;

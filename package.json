@@ -1,7 +1,7 @@
 {
   "name": "chess-coach-vn",
   "private": true,
-  "version": "0.7.1",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,8 @@
     "test:training-timeline": "node --test tests/training-timeline.test.mjs",
     "test:game-story": "node --test tests/game-story.test.mjs",
     "test:move-classification": "node --test tests/move-classification.test.mjs",
+    "test:player-move-stats": "node --test --test-isolation=none tests/player-move-stats.test.mjs",
+    "test:tactics": "node --test --test-isolation=none tests/tactics.test.mjs",
     "test:pgn": "node --test tests/pgn-fixtures.test.mjs",
     "update-openings": "node scripts/update-openings.mjs",
     "preview": "vite preview",

@@ -42,9 +42,13 @@ mod commands {
 mod models;
 mod services {
     pub(crate) mod ai_cache;
+    #[cfg(test)]
+    pub(crate) mod ai_cache_tests;
     pub(crate) mod ai_providers;
+    pub(crate) mod ai_summary;
     pub(crate) mod game_sources;
     pub(crate) mod oauth;
+    pub(crate) mod secret_store;
     pub(crate) mod training_scheduler;
     pub(crate) mod cloud_validation;
 }
@@ -68,8 +72,10 @@ pub(crate) use db::training_schema::*;
 pub(crate) use models::*;
 pub(crate) use services::ai_cache::*;
 pub(crate) use services::ai_providers::*;
+pub(crate) use services::ai_summary::*;
 pub(crate) use services::game_sources::*;
 pub(crate) use services::oauth::*;
+pub(crate) use services::secret_store::*;
 pub(crate) use services::training_scheduler::*;
 pub(crate) use services::cloud_validation::*;
 pub(crate) use state::*;

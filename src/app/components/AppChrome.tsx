@@ -112,7 +112,7 @@ export function AppChrome() {
             <div className="brand">
               <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
               <div className="brand-copy">
-                <div className="brand-name">Chess Coach <span className="version-badge">v0.7.1</span></div>
+                <div className="brand-name">Chess Coach <span className="version-badge">v0.8.0</span></div>
                 <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
               </div>
             </div>
@@ -201,7 +201,7 @@ export function AppChrome() {
         <div className="brand mobile-brand">
           <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
           <div className="brand-copy">
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.7.1</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.8.0</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
