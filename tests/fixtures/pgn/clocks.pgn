@@ -1,0 +1,10 @@
+[Event "Clock Comments"]
+[Site "Local"]
+[Date "2026.07.23"]
+[Round "-"]
+[White "Fixture White"]
+[Black "Fixture Black"]
+[Result "*"]
+[TimeControl "300+0"]
+
+1. e4 {[%clk 0:04:57]} e5 {[%clk 0:04:58]} 2. Nf3 {[%clk 0:04:50]} Nc6 {[%clk 0:04:54]} *

@@ -1,12 +1,14 @@
 {
   "name": "chess-coach-vn",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "check:code-size": "node scripts/check-code-size.mjs",
+    "test:code-size": "node --test scripts/check-code-size.test.mjs",
+    "test:pgn": "node --test tests/pgn-fixtures.test.mjs",
     "update-openings": "node scripts/update-openings.mjs",
     "preview": "vite preview",
     "tauri": "tauri"

@@ -1,7 +1,7 @@
 # Chess Coach — Kế hoạch phát triển sản phẩm
 
-> Trạng thái: Dự thảo triển khai
-> Mốc nền: v0.6.0
+> Trạng thái: Hoàn thành Phase 0
+> Mốc hiện tại: v0.6.2
 > Cập nhật: 2026-07-23
 > Phạm vi: ứng dụng desktop local-first trên Windows
 
@@ -57,8 +57,8 @@ Khoảng trống chính:
 
 | Phiên bản | Chủ đề | Kết quả chính | Ước lượng một lập trình viên |
 |---|---|---|---:|
-| 0.6.1 | Code Freeze & Guardrails | Chặn file lớn tiếp tục phình, thêm rule và kiểm tra tự động | 2–3 ngày |
-| 0.6.2 | Modularization | Tách frontend, Rust, CSS và chuẩn hóa migration | 7–10 ngày |
+| 0.6.1 ✅ | Code Freeze & Guardrails | Chặn file lớn tiếp tục phình, thêm rule và kiểm tra tự động | Hoàn thành 2026-07-23 |
+| 0.6.2 ✅ | Modularization | Tách frontend, Rust, CSS và chuẩn hóa migration | Hoàn thành 2026-07-23 |
 | 0.7.0 | Mistake Lab | Kho bài tập cá nhân + spaced repetition | 8–12 ngày |
 | 0.7.1 | Game Story | Biểu đồ evaluation/thời gian và key moments | 4–6 ngày |
 | 0.8.0 | Ask Coach | Hỏi đáp theo vị trí và so sánh candidate move | 6–9 ngày |
@@ -82,6 +82,8 @@ Phase này là cổng bắt buộc. Không bắt đầu Mistake Lab hoặc tính
 | `src/firebase.ts` | 386 | Đang gần ngưỡng cảnh báo, cần tách auth và sync |
 
 ### Milestone 0.6.1 — Code Freeze & Guardrails
+
+**Trạng thái:** Hoàn thành ngày 2026-07-23.
 
 #### Mục tiêu
 
@@ -112,6 +114,8 @@ Ngăn nợ kỹ thuật tiếp tục tăng trong lúc chuẩn bị tái cấu tr
 - Không thay đổi hành vi ứng dụng.
 
 ### Milestone 0.6.2 — Modularization
+
+**Trạng thái:** Hoàn thành ngày 2026-07-23.
 
 ### Mục tiêu
 

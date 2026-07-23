@@ -1,0 +1,11 @@
+[Event "Clear Mistake"]
+[Site "Local"]
+[Date "2026.07.23"]
+[Round "-"]
+[White "Fixture White"]
+[Black "Fixture Black"]
+[Result "*"]
+[SetUp "1"]
+[FEN "3r2k1/8/8/8/8/8/8/Q5K1 w - - 0 1"]
+
+1. Qd4 Rxd4 *

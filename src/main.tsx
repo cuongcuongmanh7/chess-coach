@@ -6,6 +6,10 @@ import "@fontsource/be-vietnam-pro/500.css";
 import "@fontsource/be-vietnam-pro/600.css";
 import "@fontsource/be-vietnam-pro/700.css";
 import "./styles.css";
+import "./app/chrome.css";
+import "./features/analysis/analysis.css";
+import "./features/modals/modals.css";
+import "./app/responsive.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
