@@ -47,6 +47,9 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Dashboard tiến bộ của từng hồ sơ tổng hợp ACPL, lỗi theo giai đoạn, màu quân, thể loại và khai cuộc.
 - Đồng bộ 20 ván gần nhất cho hồ sơ đang chọn theo thể loại; ván trùng tự bỏ qua.
 - Đăng nhập Google và hợp nhất hồ sơ + PGN giữa SQLite local với Cloud Firestore; API key và kết quả Stockfish không được tải lên.
+- Đồng bộ Firebase theo thay đổi tăng dần: SQLite giữ hàng đợi bền vững, tự retry khi Firebase tạm mất kết nối và tiếp tục khi app mở lại hoặc mạng hoạt động trở lại.
+- Thao tác xoá dùng tombstone trên Firestore để truyền sang các thiết bị khác và ngăn thiết bị cũ tải lại ván hoặc hồ sơ đã xoá.
+- Mỗi Firebase UID dùng một file SQLite riêng. Kho local cũ chỉ được chuyển một lần cho tài khoản đầu tiên sở hữu nó; đổi tài khoản không tự động trộn dữ liệu giữa các UID.
 - Hiển thị tên khai cuộc và biến ECO theo vị trí đang xem bằng bộ dữ liệu offline; Kho ván được sắp theo thời điểm thi đấu và dùng ngày giờ Việt Nam.
 - Bấm vào một phương án Stockfish để phát lại biến trực tiếp trên bàn cờ.
 - Đọc `%clk` trong PGN để thống kê thời gian suy nghĩ, lỗi đi quá nhanh và lỗi dưới áp lực thời gian.
@@ -69,6 +72,10 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 4. Chạy lại `npm run tauri dev`. Nút tài khoản trên thanh đầu sẽ mở Google Sign-In và tự đồng bộ sau khi đăng nhập.
 
 Rules trong repo chỉ cho phép người dùng đã xác thực đọc/ghi đường dẫn `users/{uid}` của chính họ. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
+
+Schema cloud hiện tại là phiên bản 2. Lần đồng bộ đầu sau khi nâng cấp sẽ đọc dữ liệu schema cũ, đưa các mục local hiện có vào hàng đợi một lần và bổ sung metadata `updatedAt` cần cho các lần đồng bộ tăng dần sau đó. Tombstone được giữ trên Firestore để thiết bị offline lâu ngày vẫn nhận được thao tác xoá.
+
+Các kho theo tài khoản được lưu dưới tên băm SHA-256 trong thư mục dữ liệu ứng dụng; Firebase UID không được dùng trực tiếp làm tên file. Khi đăng xuất, app quay về kho local khách, còn kho của tài khoản vẫn được giữ nguyên để mở lại ở lần đăng nhập sau.
 
 ## Thành phần mã nguồn mở
 

@@ -1,11 +1,13 @@
 use reqwest::{Client, Url};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, DatabaseName, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::ops::{Deref, DerefMut};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::thread;
@@ -18,7 +20,28 @@ struct ApiKeyState {
     gemini: Mutex<Option<String>>,
 }
 
-struct DatabaseState(Mutex<Connection>);
+struct ActiveDatabase {
+    connection: Connection,
+    data_dir: PathBuf,
+    active_uid: Option<String>,
+    generation: u64,
+}
+
+impl Deref for ActiveDatabase {
+    type Target = Connection;
+
+    fn deref(&self) -> &Self::Target {
+        &self.connection
+    }
+}
+
+impl DerefMut for ActiveDatabase {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.connection
+    }
+}
+
+struct DatabaseState(Mutex<ActiveDatabase>);
 
 #[derive(Clone, Deserialize, Serialize)]
 struct ExplainMoveRequest {
@@ -137,21 +160,84 @@ struct CloudSavedGame {
 }
 
 #[derive(Deserialize)]
-struct MergeCloudSnapshotRequest {
-    profiles: Vec<CloudPlayerProfile>,
-    games: Vec<CloudSavedGame>,
+struct CloudRemoteProfileChange {
+    document_id: String,
+    deleted: bool,
+    needs_upgrade: bool,
+    data: Option<CloudPlayerProfile>,
+}
+
+#[derive(Deserialize)]
+struct CloudRemoteGameChange {
+    document_id: String,
+    deleted: bool,
+    needs_upgrade: bool,
+    data: Option<CloudSavedGame>,
+}
+
+#[derive(Deserialize)]
+struct MergeCloudChangesRequest {
+    profiles: Vec<CloudRemoteProfileChange>,
+    games: Vec<CloudRemoteGameChange>,
 }
 
 #[derive(Serialize)]
-struct CloudSyncSnapshot {
-    profiles: Vec<CloudPlayerProfile>,
-    games: Vec<CloudSavedGame>,
+struct CloudPendingProfileChange {
+    document_id: String,
+    generation: i64,
+    attempts: i64,
+    deleted: bool,
+    data: Option<CloudPlayerProfile>,
+}
+
+#[derive(Serialize)]
+struct CloudPendingGameChange {
+    document_id: String,
+    generation: i64,
+    attempts: i64,
+    deleted: bool,
+    data: Option<CloudSavedGame>,
+}
+
+#[derive(Serialize)]
+struct CloudSyncBatch {
+    profiles: Vec<CloudPendingProfileChange>,
+    games: Vec<CloudPendingGameChange>,
+}
+
+#[derive(Clone, Deserialize)]
+struct CloudAckToken {
+    entity_type: String,
+    entity_id: String,
+    generation: i64,
+}
+
+#[derive(Clone, Deserialize, Serialize, Default)]
+struct CloudSyncCursor {
+    initialized: bool,
+    updated_at_seconds: Option<i64>,
+    updated_at_nanoseconds: Option<i64>,
+    document_id: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize, Default)]
+struct CloudSyncCursors {
+    profiles: CloudSyncCursor,
+    games: CloudSyncCursor,
 }
 
 #[derive(Serialize)]
 struct CloudMergeResult {
     profiles_added: usize,
     games_added: usize,
+    profiles_deleted: usize,
+    games_deleted: usize,
+}
+
+#[derive(Serialize)]
+struct DatabaseActivationResult {
+    changed: bool,
+    claimed_legacy_data: bool,
 }
 
 #[derive(Serialize)]
@@ -364,6 +450,62 @@ async fn fetch_chess_com_game(game_url: String) -> Result<String, String> {
     Err("Không tìm thấy ván trong dữ liệu công khai. Hãy dán PGN để phân tích ngay.".to_string())
 }
 
+fn profile_cloud_key(platform: &str, username: &str) -> String {
+    format!("{platform}_{}", username.trim().to_ascii_lowercase())
+}
+
+fn queue_cloud_change(
+    connection: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    operation: &str,
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "INSERT INTO cloud_sync_queue
+         (entity_type, entity_id, operation, generation, attempts, next_retry_at, last_error, updated_at)
+         VALUES (?1, ?2, ?3, 1, 0, NULL, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+           operation = excluded.operation,
+           generation = cloud_sync_queue.generation + 1,
+           attempts = 0,
+           next_retry_at = NULL,
+           last_error = NULL,
+           updated_at = excluded.updated_at",
+        params![entity_type, entity_id, operation],
+    )?;
+    Ok(())
+}
+
+fn pending_cloud_operation(
+    connection: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+) -> rusqlite::Result<Option<String>> {
+    connection
+        .query_row(
+            "SELECT operation FROM cloud_sync_queue
+             WHERE entity_type = ?1 AND entity_id = ?2",
+            params![entity_type, entity_id],
+            |row| row.get(0),
+        )
+        .optional()
+}
+
+fn queue_games_for_profile(connection: &Connection, profile_id: i64) -> rusqlite::Result<()> {
+    let game_ids = {
+        let mut statement =
+            connection.prepare("SELECT game_id FROM game_profiles WHERE profile_id = ?1")?;
+        let rows = statement
+            .query_map(params![profile_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    for game_id in game_ids {
+        queue_cloud_change(connection, "game", &game_id, "upsert")?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn save_game(
     database: tauri::State<'_, DatabaseState>,
@@ -454,6 +596,8 @@ fn save_game(
             params![&id, &request.white, &request.black, &source_platform],
         )
         .map_err(|_| "Không thể liên kết ván với hồ sơ người chơi.".to_string())?;
+    queue_cloud_change(&connection, "game", &id, "upsert")
+        .map_err(|_| "Không thể xếp ván vào hàng đợi đồng bộ.".to_string())?;
     Ok(id)
 }
 
@@ -529,6 +673,8 @@ fn open_saved_game(
     if updated == 0 {
         return Err("Ván cờ không còn trong kho.".to_string());
     }
+    queue_cloud_change(&connection, "game", &id, "upsert")
+        .map_err(|_| "Không thể cập nhật hàng đợi cloud cho ván vừa mở.".to_string())?;
     connection
         .query_row(
             "SELECT id, pgn FROM saved_games WHERE id = ?1",
@@ -551,23 +697,34 @@ fn delete_saved_game(
     if id.len() != 64 || !id.chars().all(|character| character.is_ascii_hexdigit()) {
         return Err("Mã ván cờ không hợp lệ.".to_string());
     }
-    let connection = database
+    let mut connection = database
         .0
         .lock()
         .map_err(|_| "Không thể mở kho ván cờ.".to_string())?;
-    connection
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Không thể bắt đầu xoá ván cờ.".to_string())?;
+    transaction
         .execute(
             "DELETE FROM engine_analyses WHERE game_id = ?1",
             params![&id],
         )
         .map_err(|_| "Không thể xoá dữ liệu phân tích của ván.".to_string())?;
-    connection
+    transaction
         .execute("DELETE FROM game_profiles WHERE game_id = ?1", params![&id])
         .map_err(|_| "Không thể xoá liên kết hồ sơ của ván.".to_string())?;
-    connection
-        .execute("DELETE FROM saved_games WHERE id = ?1", params![id])
-        .map(|count| count > 0)
-        .map_err(|_| "Không thể xoá ván cờ khỏi kho.".to_string())
+    let deleted = transaction
+        .execute("DELETE FROM saved_games WHERE id = ?1", params![&id])
+        .map_err(|_| "Không thể xoá ván cờ khỏi kho.".to_string())?
+        > 0;
+    if deleted {
+        queue_cloud_change(&transaction, "game", &id, "delete")
+            .map_err(|_| "Không thể xếp thao tác xoá vào hàng đợi cloud.".to_string())?;
+    }
+    transaction
+        .commit()
+        .map_err(|_| "Không thể hoàn tất xoá ván cờ.".to_string())?;
+    Ok(deleted)
 }
 
 const ENGINE_VERSION: &str = "stockfish-18-lite";
@@ -594,6 +751,18 @@ fn save_engine_analysis(
         .0
         .lock()
         .map_err(|_| "Không thể mở kho phân tích.".to_string())?;
+    let game_exists = connection
+        .query_row(
+            "SELECT 1 FROM saved_games WHERE id = ?1",
+            params![&request.game_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|_| "Không thể kiểm tra ván trước khi lưu phân tích.".to_string())?
+        .is_some();
+    if !game_exists {
+        return Ok(());
+    }
     connection
         .execute(
             "INSERT INTO engine_analyses
@@ -888,6 +1057,11 @@ fn add_player_profile(
             params![profile_id, username, platform],
         )
         .map_err(|_| "Không thể liên kết các ván cũ với hồ sơ.".to_string())?;
+    let cloud_key = profile_cloud_key(platform, username);
+    queue_cloud_change(&connection, "profile", &cloud_key, "upsert")
+        .map_err(|_| "Không thể xếp hồ sơ vào hàng đợi đồng bộ.".to_string())?;
+    queue_games_for_profile(&connection, profile_id)
+        .map_err(|_| "Không thể cập nhật hàng đợi ván của hồ sơ.".to_string())?;
     connection
         .query_row(
             "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at
@@ -913,7 +1087,7 @@ fn delete_player_profile(
     database: tauri::State<'_, DatabaseState>,
     profile_id: i64,
 ) -> Result<(), String> {
-    let connection = database
+    let mut connection = database
         .0
         .lock()
         .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
@@ -923,18 +1097,36 @@ fn delete_player_profile(
     if total <= 1 {
         return Err("Cần giữ lại ít nhất một hồ sơ.".to_string());
     }
-    connection
+    let (platform, username): (String, String) = connection
+        .query_row(
+            "SELECT platform, username FROM player_profiles WHERE id = ?1",
+            params![profile_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| "Không tìm thấy hồ sơ cần xoá.".to_string())?;
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Không thể bắt đầu xoá hồ sơ.".to_string())?;
+    queue_games_for_profile(&transaction, profile_id)
+        .map_err(|_| "Không thể cập nhật các ván liên quan trong hàng đợi.".to_string())?;
+    transaction
         .execute(
             "DELETE FROM game_profiles WHERE profile_id = ?1",
             params![profile_id],
         )
         .map_err(|_| "Không thể xoá liên kết hồ sơ.".to_string())?;
-    connection
+    transaction
         .execute(
             "DELETE FROM player_profiles WHERE id = ?1",
             params![profile_id],
         )
         .map_err(|_| "Không thể xoá hồ sơ.".to_string())?;
+    let cloud_key = profile_cloud_key(&platform, &username);
+    queue_cloud_change(&transaction, "profile", &cloud_key, "delete")
+        .map_err(|_| "Không thể xếp thao tác xoá hồ sơ vào hàng đợi cloud.".to_string())?;
+    transaction
+        .commit()
+        .map_err(|_| "Không thể hoàn tất xoá hồ sơ.".to_string())?;
     Ok(())
 }
 
@@ -953,40 +1145,51 @@ fn mark_profile_synced(
             params![profile_id],
         )
         .map_err(|_| "Không thể cập nhật thời gian đồng bộ.".to_string())?;
+    let (platform, username): (String, String) = connection
+        .query_row(
+            "SELECT platform, username FROM player_profiles WHERE id = ?1",
+            params![profile_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| "Không thể đọc hồ sơ vừa đồng bộ.".to_string())?;
+    queue_cloud_change(
+        &connection,
+        "profile",
+        &profile_cloud_key(&platform, &username),
+        "upsert",
+    )
+    .map_err(|_| "Không thể xếp hồ sơ vào hàng đợi cloud.".to_string())?;
     Ok(())
 }
 
-#[tauri::command]
-fn export_cloud_snapshot(
-    database: tauri::State<'_, DatabaseState>,
-) -> Result<CloudSyncSnapshot, String> {
-    let connection = database
-        .0
-        .lock()
-        .map_err(|_| "Không thể mở dữ liệu để đồng bộ.".to_string())?;
-
-    let mut profile_statement = connection
-        .prepare(
+fn cloud_profile_by_key(
+    connection: &Connection,
+    document_id: &str,
+) -> rusqlite::Result<Option<CloudPlayerProfile>> {
+    connection
+        .query_row(
             "SELECT platform, username, last_sync_at, created_at
              FROM player_profiles
-             ORDER BY created_at, id",
+             WHERE platform || '_' || lower(username) = ?1",
+            params![document_id],
+            |row| {
+                Ok(CloudPlayerProfile {
+                    platform: row.get(0)?,
+                    username: row.get(1)?,
+                    last_sync_at: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            },
         )
-        .map_err(|_| "Không thể chuẩn bị danh sách hồ sơ để đồng bộ.".to_string())?;
-    let profiles = profile_statement
-        .query_map([], |row| {
-            Ok(CloudPlayerProfile {
-                platform: row.get(0)?,
-                username: row.get(1)?,
-                last_sync_at: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        })
-        .map_err(|_| "Không thể đọc hồ sơ để đồng bộ.".to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "Dữ liệu hồ sơ đồng bộ không hợp lệ.".to_string())?;
+        .optional()
+}
 
-    let mut game_statement = connection
-        .prepare(
+fn cloud_game_by_id(
+    connection: &Connection,
+    game_id: &str,
+) -> rusqlite::Result<Option<CloudSavedGame>> {
+    connection
+        .query_row(
             "SELECT sg.id, sg.pgn, sg.white, sg.black, sg.white_elo, sg.black_elo,
                     sg.result, sg.event, sg.game_date, sg.played_at, sg.eco, sg.opening,
                     sg.time_control, sg.time_class, sg.source_url, sg.source_platform,
@@ -998,70 +1201,199 @@ fn export_cloud_snapshot(
                       WHERE gp.game_id = sg.id
                     ), '')
              FROM saved_games sg
-             ORDER BY sg.created_at, sg.id",
+             WHERE sg.id = ?1",
+            params![game_id],
+            |row| {
+                let profile_keys: String = row.get(18)?;
+                Ok(CloudSavedGame {
+                    id: row.get(0)?,
+                    pgn: row.get(1)?,
+                    white: row.get(2)?,
+                    black: row.get(3)?,
+                    white_elo: row.get(4)?,
+                    black_elo: row.get(5)?,
+                    result: row.get(6)?,
+                    event: row.get(7)?,
+                    date: row.get(8)?,
+                    played_at: row.get(9)?,
+                    eco: row.get(10)?,
+                    opening: row.get(11)?,
+                    time_control: row.get(12)?,
+                    time_class: row.get(13)?,
+                    source_url: row.get(14)?,
+                    source_platform: row.get(15)?,
+                    created_at: row.get(16)?,
+                    last_opened_at: row.get(17)?,
+                    profile_keys: profile_keys
+                        .split('|')
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string)
+                        .collect(),
+                })
+            },
         )
-        .map_err(|_| "Không thể chuẩn bị kho ván để đồng bộ.".to_string())?;
-    let games = game_statement
-        .query_map([], |row| {
-            let profile_keys: String = row.get(18)?;
-            Ok(CloudSavedGame {
-                id: row.get(0)?,
-                pgn: row.get(1)?,
-                white: row.get(2)?,
-                black: row.get(3)?,
-                white_elo: row.get(4)?,
-                black_elo: row.get(5)?,
-                result: row.get(6)?,
-                event: row.get(7)?,
-                date: row.get(8)?,
-                played_at: row.get(9)?,
-                eco: row.get(10)?,
-                opening: row.get(11)?,
-                time_control: row.get(12)?,
-                time_class: row.get(13)?,
-                source_url: row.get(14)?,
-                source_platform: row.get(15)?,
-                created_at: row.get(16)?,
-                last_opened_at: row.get(17)?,
-                profile_keys: profile_keys
-                    .split('|')
-                    .filter(|value| !value.is_empty())
-                    .map(str::to_string)
-                    .collect(),
-            })
-        })
-        .map_err(|_| "Không thể đọc kho ván để đồng bộ.".to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "Dữ liệu ván đồng bộ không hợp lệ.".to_string())?;
+        .optional()
+}
 
-    Ok(CloudSyncSnapshot { profiles, games })
+fn pending_rows(
+    connection: &Connection,
+    entity_type: &str,
+) -> Result<Vec<(String, i64, i64, String)>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT entity_id, generation, attempts, operation
+             FROM cloud_sync_queue
+             WHERE entity_type = ?1
+             ORDER BY updated_at, entity_id",
+        )
+        .map_err(|_| "Không thể chuẩn bị hàng đợi cloud.".to_string())?;
+    let rows = statement
+        .query_map(params![entity_type], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(|_| "Không thể đọc hàng đợi cloud.".to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Hàng đợi cloud không hợp lệ.".to_string())?;
+    Ok(rows)
 }
 
 #[tauri::command]
-fn merge_cloud_snapshot(
+fn export_cloud_changes(
     database: tauri::State<'_, DatabaseState>,
-    request: MergeCloudSnapshotRequest,
+) -> Result<CloudSyncBatch, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở dữ liệu để đồng bộ.".to_string())?;
+
+    let profiles = pending_rows(&connection, "profile")?
+        .into_iter()
+        .map(|(document_id, generation, attempts, operation)| {
+            let deleted = operation == "delete";
+            let data = if deleted {
+                None
+            } else {
+                cloud_profile_by_key(&connection, &document_id)
+                    .map_err(|_| "Không thể đọc hồ sơ đang chờ đồng bộ.".to_string())?
+            };
+            if !deleted && data.is_none() {
+                return Err("Hồ sơ trong hàng đợi cloud không còn tồn tại.".to_string());
+            }
+            Ok(CloudPendingProfileChange {
+                document_id,
+                generation,
+                attempts,
+                deleted,
+                data,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    let games = pending_rows(&connection, "game")?
+        .into_iter()
+        .map(|(document_id, generation, attempts, operation)| {
+            let deleted = operation == "delete";
+            let data = if deleted {
+                None
+            } else {
+                cloud_game_by_id(&connection, &document_id)
+                    .map_err(|_| "Không thể đọc ván đang chờ đồng bộ.".to_string())?
+            };
+            if !deleted && data.is_none() {
+                return Err("Ván trong hàng đợi cloud không còn tồn tại.".to_string());
+            }
+            Ok(CloudPendingGameChange {
+                document_id,
+                generation,
+                attempts,
+                deleted,
+                data,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(CloudSyncBatch { profiles, games })
+}
+
+fn valid_cloud_document_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && !value.contains('/')
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "_-".contains(character))
+}
+
+fn merge_cloud_changes_connection(
+    connection: &mut Connection,
+    request: MergeCloudChangesRequest,
 ) -> Result<CloudMergeResult, String> {
-    if request.profiles.len() > 100 || request.games.len() > 10_000 {
+    if request.profiles.len() > 1_000 || request.games.len() > 10_000 {
         return Err("Bản đồng bộ vượt quá giới hạn an toàn.".to_string());
     }
 
-    let mut connection = database
-        .0
-        .lock()
-        .map_err(|_| "Không thể mở dữ liệu để hợp nhất.".to_string())?;
     let transaction = connection
         .transaction()
         .map_err(|_| "Không thể bắt đầu hợp nhất dữ liệu cloud.".to_string())?;
     let mut profiles_added = 0usize;
     let mut games_added = 0usize;
+    let mut profiles_deleted = 0usize;
+    let mut games_deleted = 0usize;
 
-    for profile in &request.profiles {
+    for change in &request.profiles {
+        if !valid_cloud_document_id(&change.document_id) {
+            return Err("Mã hồ sơ cloud không hợp lệ.".to_string());
+        }
+        if change.deleted {
+            transaction
+                .execute(
+                    "DELETE FROM cloud_sync_queue
+                     WHERE entity_type = 'profile' AND entity_id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xác nhận hồ sơ đã xoá trên cloud.".to_string())?;
+            let profile_id: Option<i64> = transaction
+                .query_row(
+                    "SELECT id FROM player_profiles
+                     WHERE platform || '_' || lower(username) = ?1",
+                    params![&change.document_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "Không thể tìm hồ sơ cần xoá từ cloud.".to_string())?;
+            if let Some(profile_id) = profile_id {
+                transaction
+                    .execute(
+                        "DELETE FROM game_profiles WHERE profile_id = ?1",
+                        params![profile_id],
+                    )
+                    .map_err(|_| "Không thể xoá liên kết hồ sơ từ cloud.".to_string())?;
+                profiles_deleted += transaction
+                    .execute(
+                        "DELETE FROM player_profiles WHERE id = ?1",
+                        params![profile_id],
+                    )
+                    .map_err(|_| "Không thể xoá hồ sơ từ cloud.".to_string())?;
+            }
+            continue;
+        }
+
+        let profile = change
+            .data
+            .as_ref()
+            .ok_or_else(|| "Hồ sơ cloud bị thiếu dữ liệu.".to_string())?;
         let platform = normalized_platform(Some(profile.platform.as_str()))
             .ok_or_else(|| "Nền tảng hồ sơ cloud không hợp lệ.".to_string())?;
         let username = profile.username.trim();
-        if !valid_username(username) {
-            return Err("Username hồ sơ cloud không hợp lệ.".to_string());
+        if !valid_username(username) || profile_cloud_key(platform, username) != change.document_id
+        {
+            return Err("Username hoặc mã hồ sơ cloud không hợp lệ.".to_string());
+        }
+        if pending_cloud_operation(&transaction, "profile", &change.document_id)
+            .map_err(|_| "Không thể kiểm tra xung đột hồ sơ local.".to_string())?
+            .is_some()
+        {
+            continue;
         }
         profiles_added += transaction
             .execute(
@@ -1087,9 +1419,50 @@ fn merge_cloud_snapshot(
                 params![platform, username, &profile.last_sync_at],
             )
             .map_err(|_| "Không thể cập nhật hồ sơ từ cloud.".to_string())?;
+        if change.needs_upgrade {
+            queue_cloud_change(&transaction, "profile", &change.document_id, "upsert")
+                .map_err(|_| "Không thể nâng cấp hồ sơ cloud cũ.".to_string())?;
+        }
     }
 
-    for game in &request.games {
+    for change in &request.games {
+        validate_game_id(&change.document_id)?;
+        if change.deleted {
+            transaction
+                .execute(
+                    "DELETE FROM cloud_sync_queue
+                     WHERE entity_type = 'game' AND entity_id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xác nhận ván đã xoá trên cloud.".to_string())?;
+            transaction
+                .execute(
+                    "DELETE FROM engine_analyses WHERE game_id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xoá phân tích của ván từ cloud.".to_string())?;
+            transaction
+                .execute(
+                    "DELETE FROM game_profiles WHERE game_id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xoá liên kết ván từ cloud.".to_string())?;
+            games_deleted += transaction
+                .execute(
+                    "DELETE FROM saved_games WHERE id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xoá ván từ cloud.".to_string())?;
+            continue;
+        }
+
+        let game = change
+            .data
+            .as_ref()
+            .ok_or_else(|| "Ván cloud bị thiếu dữ liệu.".to_string())?;
+        if game.id != change.document_id {
+            return Err("Mã tài liệu cloud không khớp mã ván.".to_string());
+        }
         validate_game_id(&game.id)?;
         let normalized_pgn = game.pgn.trim().replace("\r\n", "\n");
         if normalized_pgn.is_empty() || normalized_pgn.len() > 900_000 {
@@ -1100,16 +1473,49 @@ fn merge_cloud_snapshot(
         if format!("{:x}", hasher.finalize()) != game.id {
             return Err("Mã ván trên cloud không khớp nội dung PGN.".to_string());
         }
+        if pending_cloud_operation(&transaction, "game", &change.document_id)
+            .map_err(|_| "Không thể kiểm tra xung đột ván local.".to_string())?
+            .is_some()
+        {
+            continue;
+        }
         let source_platform = normalized_platform(game.source_platform.as_deref());
-        games_added += transaction
+        let existed = transaction
+            .query_row(
+                "SELECT 1 FROM saved_games WHERE id = ?1",
+                params![&game.id],
+                |_| Ok(()),
+            )
+            .optional()
+            .map_err(|_| "Không thể kiểm tra ván local.".to_string())?
+            .is_some();
+        transaction
             .execute(
-                "INSERT OR IGNORE INTO saved_games
+                "INSERT INTO saved_games
                  (id, pgn, white, black, white_elo, black_elo, result, event, game_date,
                   played_at, eco, opening, time_control, time_class, source_url,
                   source_platform, analysis_complete, created_at, last_opened_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
                          ?14, ?15, ?16, 0, COALESCE(NULLIF(?17, ''), datetime('now')),
-                         COALESCE(NULLIF(?18, ''), datetime('now')))",
+                         COALESCE(NULLIF(?18, ''), datetime('now')))
+                 ON CONFLICT(id) DO UPDATE SET
+                   pgn = excluded.pgn,
+                   white = excluded.white,
+                   black = excluded.black,
+                   white_elo = excluded.white_elo,
+                   black_elo = excluded.black_elo,
+                   result = excluded.result,
+                   event = excluded.event,
+                   game_date = excluded.game_date,
+                   played_at = excluded.played_at,
+                   eco = excluded.eco,
+                   opening = excluded.opening,
+                   time_control = excluded.time_control,
+                   time_class = excluded.time_class,
+                   source_url = excluded.source_url,
+                   source_platform = excluded.source_platform,
+                   created_at = MIN(saved_games.created_at, excluded.created_at),
+                   last_opened_at = MAX(saved_games.last_opened_at, excluded.last_opened_at)",
                 params![
                     &game.id,
                     &normalized_pgn,
@@ -1132,7 +1538,15 @@ fn merge_cloud_snapshot(
                 ],
             )
             .map_err(|_| "Không thể nhập ván từ cloud.".to_string())?;
-
+        if !existed {
+            games_added += 1;
+        }
+        transaction
+            .execute(
+                "DELETE FROM game_profiles WHERE game_id = ?1",
+                params![&game.id],
+            )
+            .map_err(|_| "Không thể cập nhật liên kết ván cloud.".to_string())?;
         for profile_key in &game.profile_keys {
             let Some((platform_value, username_value)) = profile_key.split_once(':') else {
                 continue;
@@ -1156,29 +1570,221 @@ fn merge_cloud_snapshot(
                 )
                 .map_err(|_| "Không thể liên kết ván cloud với hồ sơ.".to_string())?;
         }
+        if game.profile_keys.is_empty() {
+            transaction
+                .execute(
+                    "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+                     SELECT ?1, pp.id,
+                            CASE WHEN lower(?2) = lower(pp.username) THEN 'w' ELSE 'b' END,
+                            datetime('now')
+                     FROM player_profiles pp
+                     WHERE (lower(?2) = lower(pp.username) OR lower(?3) = lower(pp.username))
+                       AND (?4 IS NULL OR pp.platform = ?4)",
+                    params![&game.id, &game.white, &game.black, source_platform],
+                )
+                .map_err(|_| "Không thể suy ra liên kết hồ sơ cho ván cloud cũ.".to_string())?;
+        }
+        if change.needs_upgrade {
+            queue_cloud_change(&transaction, "game", &change.document_id, "upsert")
+                .map_err(|_| "Không thể nâng cấp ván cloud cũ.".to_string())?;
+        }
     }
 
     transaction
-        .execute(
-            "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
-             SELECT sg.id, pp.id,
-                    CASE WHEN lower(sg.white) = lower(pp.username) THEN 'w' ELSE 'b' END,
-                    datetime('now')
-             FROM saved_games sg
-             JOIN player_profiles pp
-               ON lower(sg.white) = lower(pp.username) OR lower(sg.black) = lower(pp.username)
-             WHERE sg.source_platform IS NULL OR sg.source_platform = pp.platform",
-            [],
-        )
-        .map_err(|_| "Không thể hoàn tất liên kết dữ liệu cloud.".to_string())?;
-    transaction
         .commit()
         .map_err(|_| "Không thể lưu dữ liệu cloud đã hợp nhất.".to_string())?;
-
     Ok(CloudMergeResult {
         profiles_added,
         games_added,
+        profiles_deleted,
+        games_deleted,
     })
+}
+
+#[tauri::command]
+fn merge_cloud_changes(
+    database: tauri::State<'_, DatabaseState>,
+    request: MergeCloudChangesRequest,
+) -> Result<CloudMergeResult, String> {
+    let mut connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở dữ liệu để hợp nhất.".to_string())?;
+    merge_cloud_changes_connection(&mut connection, request)
+}
+
+fn load_cloud_cursor(
+    connection: &Connection,
+    uid: &str,
+    collection: &str,
+) -> rusqlite::Result<CloudSyncCursor> {
+    connection
+        .query_row(
+            "SELECT initialized, updated_at_seconds, updated_at_nanoseconds, document_id
+             FROM cloud_sync_cursors
+             WHERE uid = ?1 AND collection_name = ?2",
+            params![uid, collection],
+            |row| {
+                Ok(CloudSyncCursor {
+                    initialized: row.get::<_, i64>(0)? != 0,
+                    updated_at_seconds: row.get(1)?,
+                    updated_at_nanoseconds: row.get(2)?,
+                    document_id: row.get(3)?,
+                })
+            },
+        )
+        .optional()
+        .map(|cursor| cursor.unwrap_or_default())
+}
+
+#[tauri::command]
+fn get_cloud_sync_cursors(
+    database: tauri::State<'_, DatabaseState>,
+    uid: String,
+) -> Result<CloudSyncCursors, String> {
+    if uid.trim().is_empty() || uid.len() > 128 {
+        return Err("Firebase UID không hợp lệ.".to_string());
+    }
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở trạng thái đồng bộ.".to_string())?;
+    Ok(CloudSyncCursors {
+        profiles: load_cloud_cursor(&connection, &uid, "profiles")
+            .map_err(|_| "Không thể đọc con trỏ hồ sơ cloud.".to_string())?,
+        games: load_cloud_cursor(&connection, &uid, "games")
+            .map_err(|_| "Không thể đọc con trỏ ván cloud.".to_string())?,
+    })
+}
+
+fn save_cloud_cursor(
+    connection: &Connection,
+    uid: &str,
+    collection: &str,
+    cursor: &CloudSyncCursor,
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "INSERT INTO cloud_sync_cursors
+         (uid, collection_name, initialized, updated_at_seconds, updated_at_nanoseconds, document_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(uid, collection_name) DO UPDATE SET
+           initialized = excluded.initialized,
+           updated_at_seconds = excluded.updated_at_seconds,
+           updated_at_nanoseconds = excluded.updated_at_nanoseconds,
+           document_id = excluded.document_id",
+        params![
+            uid,
+            collection,
+            i64::from(cursor.initialized),
+            cursor.updated_at_seconds,
+            cursor.updated_at_nanoseconds,
+            cursor.document_id,
+        ],
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+fn set_cloud_sync_cursors(
+    database: tauri::State<'_, DatabaseState>,
+    uid: String,
+    cursors: CloudSyncCursors,
+) -> Result<(), String> {
+    let mut connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở trạng thái đồng bộ.".to_string())?;
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Không thể lưu con trỏ đồng bộ.".to_string())?;
+    save_cloud_cursor(&transaction, &uid, "profiles", &cursors.profiles)
+        .map_err(|_| "Không thể lưu con trỏ hồ sơ cloud.".to_string())?;
+    save_cloud_cursor(&transaction, &uid, "games", &cursors.games)
+        .map_err(|_| "Không thể lưu con trỏ ván cloud.".to_string())?;
+    transaction
+        .commit()
+        .map_err(|_| "Không thể hoàn tất lưu con trỏ cloud.".to_string())
+}
+
+fn acknowledge_cloud_changes_connection(
+    connection: &mut Connection,
+    changes: Vec<CloudAckToken>,
+) -> Result<usize, String> {
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Không thể xác nhận hàng đợi cloud.".to_string())?;
+    for change in changes {
+        if !matches!(change.entity_type.as_str(), "profile" | "game") {
+            return Err("Loại thay đổi cloud không hợp lệ.".to_string());
+        }
+        transaction
+            .execute(
+                "DELETE FROM cloud_sync_queue
+                 WHERE entity_type = ?1 AND entity_id = ?2 AND generation = ?3",
+                params![change.entity_type, change.entity_id, change.generation],
+            )
+            .map_err(|_| "Không thể xác nhận thay đổi đã tải lên.".to_string())?;
+    }
+    let remaining: i64 = transaction
+        .query_row("SELECT COUNT(*) FROM cloud_sync_queue", [], |row| {
+            row.get(0)
+        })
+        .map_err(|_| "Không thể đếm hàng đợi cloud.".to_string())?;
+    transaction
+        .commit()
+        .map_err(|_| "Không thể hoàn tất xác nhận cloud.".to_string())?;
+    Ok(remaining.max(0) as usize)
+}
+
+#[tauri::command]
+fn acknowledge_cloud_changes(
+    database: tauri::State<'_, DatabaseState>,
+    changes: Vec<CloudAckToken>,
+) -> Result<usize, String> {
+    let mut connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở hàng đợi cloud.".to_string())?;
+    acknowledge_cloud_changes_connection(&mut connection, changes)
+}
+
+fn mark_cloud_changes_failed_connection(
+    connection: &Connection,
+    changes: Vec<CloudAckToken>,
+    error: String,
+) -> Result<(), String> {
+    let message: String = error.chars().take(500).collect();
+    for change in changes {
+        connection
+            .execute(
+                "UPDATE cloud_sync_queue
+                 SET attempts = attempts + 1,
+                     next_retry_at = datetime('now', '+' || MIN(300, (attempts + 1) * (attempts + 1) * 2) || ' seconds'),
+                     last_error = ?4
+                 WHERE entity_type = ?1 AND entity_id = ?2 AND generation = ?3",
+                params![
+                    change.entity_type,
+                    change.entity_id,
+                    change.generation,
+                    &message
+                ],
+            )
+            .map_err(|_| "Không thể lưu trạng thái retry cloud.".to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn mark_cloud_changes_failed(
+    database: tauri::State<'_, DatabaseState>,
+    changes: Vec<CloudAckToken>,
+    error: String,
+) -> Result<(), String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở hàng đợi cloud.".to_string())?;
+    mark_cloud_changes_failed_connection(&connection, changes, error)
 }
 
 fn valid_username(username: &str) -> bool {
@@ -1528,6 +2134,7 @@ fn read_cached_explanation(
 
 fn write_cached_explanation(
     database: &tauri::State<'_, DatabaseState>,
+    expected_generation: u64,
     cache_key: &str,
     provider: &str,
     model: &str,
@@ -1538,6 +2145,9 @@ fn write_cached_explanation(
         .0
         .lock()
         .map_err(|_| "Không thể ghi bộ nhớ lời giải thích.".to_string())?;
+    if connection.generation != expected_generation {
+        return Ok(());
+    }
     connection
         .execute(
             "INSERT OR REPLACE INTO ai_explanations
@@ -1857,6 +2467,11 @@ async fn explain_move(
     model: String,
     force_refresh: bool,
 ) -> Result<AiExplanation, String> {
+    let database_generation = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể đọc phiên kho dữ liệu.".to_string())?
+        .generation;
     let provider = normalized_provider(&provider)?;
     validate_model(provider, &model)?;
     let cache_key = explanation_cache_key(provider, &model, &request);
@@ -1885,6 +2500,7 @@ async fn explain_move(
     let text = normalize_coach_explanation(&raw_text, &request);
     write_cached_explanation(
         &database,
+        database_generation,
         &cache_key,
         provider,
         &model,
@@ -1908,6 +2524,11 @@ async fn summarize_game(
     model: String,
     force_refresh: bool,
 ) -> Result<AiExplanation, String> {
+    let database_generation = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể đọc phiên kho dữ liệu.".to_string())?
+        .generation;
     let provider = normalized_provider(&provider)?;
     validate_model(provider, &model)?;
     let cache_key = game_summary_cache_key(provider, &model, &request);
@@ -1936,6 +2557,7 @@ async fn summarize_game(
     };
     write_cached_explanation(
         &database,
+        database_generation,
         &cache_key,
         provider,
         &model,
@@ -1953,6 +2575,331 @@ async fn summarize_game(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cloud_test_connection() -> Connection {
+        let connection = Connection::open_in_memory().expect("open in-memory database");
+        connection
+            .execute_batch(
+                "CREATE TABLE saved_games (
+                    id TEXT PRIMARY KEY,
+                    pgn TEXT NOT NULL,
+                    white TEXT NOT NULL,
+                    black TEXT NOT NULL,
+                    white_elo TEXT,
+                    black_elo TEXT,
+                    result TEXT,
+                    event TEXT,
+                    game_date TEXT,
+                    played_at TEXT,
+                    eco TEXT,
+                    opening TEXT,
+                    time_control TEXT,
+                    time_class TEXT,
+                    source_url TEXT,
+                    source_platform TEXT,
+                    analysis_complete INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    last_opened_at TEXT NOT NULL
+                );
+                CREATE TABLE player_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    platform TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    last_sync_at TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX idx_test_profiles_identity
+                ON player_profiles(platform, username COLLATE NOCASE);
+                CREATE TABLE game_profiles (
+                    game_id TEXT NOT NULL,
+                    profile_id INTEGER NOT NULL,
+                    player_color TEXT NOT NULL,
+                    linked_at TEXT NOT NULL,
+                    PRIMARY KEY(game_id, profile_id)
+                );
+                CREATE TABLE engine_analyses (
+                    game_id TEXT NOT NULL
+                );
+                CREATE TABLE cloud_sync_queue (
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    generation INTEGER NOT NULL DEFAULT 1,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    next_retry_at TEXT,
+                    last_error TEXT,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(entity_type, entity_id)
+                );",
+            )
+            .expect("create cloud test schema");
+        connection
+    }
+
+    fn cloud_game(pgn: &str) -> CloudSavedGame {
+        let normalized_pgn = pgn.trim().replace("\r\n", "\n");
+        let mut hasher = Sha256::new();
+        hasher.update(normalized_pgn.as_bytes());
+        CloudSavedGame {
+            id: format!("{:x}", hasher.finalize()),
+            pgn: normalized_pgn,
+            white: "White".to_string(),
+            black: "Black".to_string(),
+            white_elo: None,
+            black_elo: None,
+            result: Some("1-0".to_string()),
+            event: Some("Test".to_string()),
+            date: None,
+            played_at: None,
+            eco: None,
+            opening: None,
+            time_control: None,
+            time_class: None,
+            source_url: None,
+            source_platform: None,
+            created_at: "2026-07-23 10:00:00".to_string(),
+            last_opened_at: "2026-07-23 10:00:00".to_string(),
+            profile_keys: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn account_databases_are_isolated_and_legacy_is_claimed_once() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!(
+            "chess-coach-account-test-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&data_dir).unwrap();
+        let guest = Connection::open(data_dir.join("ky-pho.sqlite3")).unwrap();
+        initialize_database(&guest, true).unwrap();
+        let guest_profiles: i64 = guest
+            .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+            .unwrap();
+        assert!(guest_profiles > 0);
+        let mut active = ActiveDatabase {
+            connection: guest,
+            data_dir: data_dir.clone(),
+            active_uid: None,
+            generation: 0,
+        };
+
+        let first = activate_cloud_account_connection(&mut active, "firebase-user-a").unwrap();
+        assert!(first.changed);
+        assert!(first.claimed_legacy_data);
+        let account_a_profiles: i64 = active
+            .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(account_a_profiles, guest_profiles);
+
+        let second = activate_cloud_account_connection(&mut active, "firebase-user-b").unwrap();
+        assert!(second.changed);
+        assert!(!second.claimed_legacy_data);
+        let account_b_profiles: i64 = active
+            .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(account_b_profiles, 0);
+
+        let reopened = activate_cloud_account_connection(&mut active, "firebase-user-a").unwrap();
+        assert!(reopened.changed);
+        assert!(!reopened.claimed_legacy_data);
+        let reopened_profiles: i64 = active
+            .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(reopened_profiles, guest_profiles);
+
+        drop(active);
+        fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn ambiguous_legacy_account_history_is_not_migrated_automatically() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!(
+            "chess-coach-account-ambiguity-test-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&data_dir).unwrap();
+        let guest = Connection::open(data_dir.join("ky-pho.sqlite3")).unwrap();
+        initialize_database(&guest, true).unwrap();
+        for uid in ["firebase-user-a", "firebase-user-b"] {
+            guest
+                .execute(
+                    "INSERT INTO cloud_sync_cursors
+                     (uid, collection_name, initialized)
+                     VALUES (?1, 'games', 1)",
+                    params![uid],
+                )
+                .unwrap();
+        }
+        let mut active = ActiveDatabase {
+            connection: guest,
+            data_dir: data_dir.clone(),
+            active_uid: None,
+            generation: 0,
+        };
+
+        let error = activate_cloud_account_connection(&mut active, "firebase-user-a")
+            .err()
+            .expect("ambiguous history must be rejected");
+        assert!(error.contains("nhiều tài khoản Firebase"));
+
+        drop(active);
+        fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn cloud_queue_keeps_new_generation_for_retries() {
+        let mut connection = cloud_test_connection();
+        queue_cloud_change(&connection, "game", "game-1", "upsert").unwrap();
+        connection
+            .execute(
+                "UPDATE cloud_sync_queue
+                 SET attempts = 3, last_error = 'offline'
+                 WHERE entity_type = 'game' AND entity_id = 'game-1'",
+                [],
+            )
+            .unwrap();
+        queue_cloud_change(&connection, "game", "game-1", "delete").unwrap();
+        let remaining = acknowledge_cloud_changes_connection(
+            &mut connection,
+            vec![CloudAckToken {
+                entity_type: "game".to_string(),
+                entity_id: "game-1".to_string(),
+                generation: 1,
+            }],
+        )
+        .unwrap();
+
+        let state: (String, i64, i64, Option<String>) = connection
+            .query_row(
+                "SELECT operation, generation, attempts, last_error
+                 FROM cloud_sync_queue
+                 WHERE entity_type = 'game' AND entity_id = 'game-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(remaining, 1);
+        assert_eq!(state, ("delete".to_string(), 2, 0, None));
+    }
+
+    #[test]
+    fn failed_cloud_change_persists_retry_state() {
+        let connection = cloud_test_connection();
+        queue_cloud_change(&connection, "profile", "lichess_player", "upsert").unwrap();
+        mark_cloud_changes_failed_connection(
+            &connection,
+            vec![CloudAckToken {
+                entity_type: "profile".to_string(),
+                entity_id: "lichess_player".to_string(),
+                generation: 1,
+            }],
+            "offline".to_string(),
+        )
+        .unwrap();
+
+        let state: (i64, Option<String>, Option<String>) = connection
+            .query_row(
+                "SELECT attempts, next_retry_at, last_error
+                 FROM cloud_sync_queue
+                 WHERE entity_type = 'profile' AND entity_id = 'lichess_player'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(state.0, 1);
+        assert!(state.1.is_some());
+        assert_eq!(state.2.as_deref(), Some("offline"));
+    }
+
+    #[test]
+    fn remote_tombstone_removes_local_game_and_pending_upload() {
+        let mut connection = cloud_test_connection();
+        let game = cloud_game("[Event \"Test\"]\n\n1. e4 e5 1-0");
+        connection
+            .execute(
+                "INSERT INTO saved_games
+                 (id, pgn, white, black, created_at, last_opened_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    &game.id,
+                    &game.pgn,
+                    &game.white,
+                    &game.black,
+                    &game.created_at,
+                    &game.last_opened_at
+                ],
+            )
+            .unwrap();
+        queue_cloud_change(&connection, "game", &game.id, "upsert").unwrap();
+
+        let result = merge_cloud_changes_connection(
+            &mut connection,
+            MergeCloudChangesRequest {
+                profiles: Vec::new(),
+                games: vec![CloudRemoteGameChange {
+                    document_id: game.id.clone(),
+                    deleted: true,
+                    needs_upgrade: false,
+                    data: None,
+                }],
+            },
+        )
+        .unwrap();
+
+        assert_eq!(result.games_deleted, 1);
+        let saved: i64 = connection
+            .query_row("SELECT COUNT(*) FROM saved_games", [], |row| row.get(0))
+            .unwrap();
+        let pending: i64 = connection
+            .query_row("SELECT COUNT(*) FROM cloud_sync_queue", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(saved, 0);
+        assert_eq!(pending, 0);
+    }
+
+    #[test]
+    fn local_delete_wins_over_remote_upsert() {
+        let mut connection = cloud_test_connection();
+        let game = cloud_game("[Event \"Test\"]\n\n1. d4 d5 1-0");
+        queue_cloud_change(&connection, "game", &game.id, "delete").unwrap();
+
+        merge_cloud_changes_connection(
+            &mut connection,
+            MergeCloudChangesRequest {
+                profiles: Vec::new(),
+                games: vec![CloudRemoteGameChange {
+                    document_id: game.id.clone(),
+                    deleted: false,
+                    needs_upgrade: false,
+                    data: Some(game),
+                }],
+            },
+        )
+        .unwrap();
+
+        let saved: i64 = connection
+            .query_row("SELECT COUNT(*) FROM saved_games", [], |row| row.get(0))
+            .unwrap();
+        let operation: String = connection
+            .query_row(
+                "SELECT operation FROM cloud_sync_queue WHERE entity_type = 'game'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(saved, 0);
+        assert_eq!(operation, "delete");
+    }
 
     #[test]
     fn splits_lichess_multi_pgn_without_losing_event_headers() {
@@ -2205,6 +3152,378 @@ async fn begin_google_oauth() -> Result<String, String> {
         .map_err(|error| format!("Luồng đăng nhập bị gián đoạn: {error}"))?
 }
 
+fn initialize_database(
+    connection: &Connection,
+    seed_default_profiles: bool,
+) -> rusqlite::Result<()> {
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ai_explanations (
+            cache_key TEXT PRIMARY KEY,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt_version TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ai_explanations_provider_model
+        ON ai_explanations(provider, model);
+        CREATE TABLE IF NOT EXISTS saved_games (
+            id TEXT PRIMARY KEY,
+            pgn TEXT NOT NULL,
+            white TEXT NOT NULL,
+            black TEXT NOT NULL,
+            white_elo TEXT,
+            black_elo TEXT,
+            result TEXT,
+            event TEXT,
+            game_date TEXT,
+            played_at TEXT,
+            eco TEXT,
+            opening TEXT,
+            time_control TEXT,
+            time_class TEXT,
+            source_url TEXT,
+            source_platform TEXT,
+            analysis_complete INTEGER NOT NULL DEFAULT 0,
+            analyzed_at TEXT,
+            created_at TEXT NOT NULL,
+            last_opened_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_saved_games_last_opened
+        ON saved_games(last_opened_at DESC);
+        CREATE TABLE IF NOT EXISTS engine_analyses (
+            game_id TEXT NOT NULL,
+            ply INTEGER NOT NULL,
+            engine_version TEXT NOT NULL,
+            depth INTEGER NOT NULL,
+            result_json TEXT NOT NULL,
+            color TEXT NOT NULL,
+            phase TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            centipawn_loss REAL NOT NULL,
+            think_time_seconds REAL,
+            is_quick INTEGER NOT NULL DEFAULT 0,
+            is_time_pressure INTEGER NOT NULL DEFAULT 0,
+            tags_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(game_id, ply, engine_version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_engine_analyses_game
+        ON engine_analyses(game_id, engine_version, ply);
+        CREATE TABLE IF NOT EXISTS player_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            username TEXT NOT NULL,
+            last_sync_at TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_player_profiles_identity
+        ON player_profiles(platform, username COLLATE NOCASE);
+        CREATE TABLE IF NOT EXISTS game_profiles (
+            game_id TEXT NOT NULL,
+            profile_id INTEGER NOT NULL,
+            player_color TEXT NOT NULL,
+            linked_at TEXT NOT NULL,
+            PRIMARY KEY(game_id, profile_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_profiles_profile
+        ON game_profiles(profile_id, game_id);
+        CREATE TABLE IF NOT EXISTS cloud_sync_queue (
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            generation INTEGER NOT NULL DEFAULT 1,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            next_retry_at TEXT,
+            last_error TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(entity_type, entity_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cloud_sync_queue_retry
+        ON cloud_sync_queue(next_retry_at, updated_at);
+        CREATE TABLE IF NOT EXISTS cloud_sync_cursors (
+            uid TEXT NOT NULL,
+            collection_name TEXT NOT NULL,
+            initialized INTEGER NOT NULL DEFAULT 0,
+            updated_at_seconds INTEGER,
+            updated_at_nanoseconds INTEGER,
+            document_id TEXT,
+            PRIMARY KEY(uid, collection_name)
+        );
+        CREATE TABLE IF NOT EXISTS app_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
+    )?;
+    for migration in [
+        "ALTER TABLE saved_games ADD COLUMN opening TEXT",
+        "ALTER TABLE saved_games ADD COLUMN time_class TEXT",
+        "ALTER TABLE saved_games ADD COLUMN analysis_complete INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE saved_games ADD COLUMN analyzed_at TEXT",
+        "ALTER TABLE saved_games ADD COLUMN source_platform TEXT",
+        "ALTER TABLE saved_games ADD COLUMN played_at TEXT",
+    ] {
+        let _ = connection.execute(migration, []);
+    }
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_saved_games_played_at ON saved_games(played_at DESC)",
+        [],
+    )?;
+    backfill_played_at(connection)?;
+    connection.execute(
+        "UPDATE saved_games
+         SET source_platform = CASE
+           WHEN source_url LIKE '%lichess.org%' THEN 'lichess'
+           WHEN source_url LIKE '%chess.com%' THEN 'chesscom'
+           ELSE source_platform
+         END
+         WHERE source_platform IS NULL",
+        [],
+    )?;
+    let profile_count: i64 =
+        connection.query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))?;
+    if seed_default_profiles && profile_count == 0 {
+        connection.execute(
+            "INSERT INTO player_profiles (platform, username, created_at)
+             VALUES ('chesscom', 'Cuongkool', datetime('now'))",
+            [],
+        )?;
+        connection.execute(
+            "INSERT INTO player_profiles (platform, username, created_at)
+             VALUES ('lichess', 'chinsu1409', datetime('now'))",
+            [],
+        )?;
+    }
+    connection.execute(
+        "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
+         SELECT sg.id, pp.id,
+                CASE WHEN lower(sg.white) = lower(pp.username) THEN 'w' ELSE 'b' END,
+                datetime('now')
+         FROM saved_games sg
+         JOIN player_profiles pp
+           ON lower(sg.white) = lower(pp.username) OR lower(sg.black) = lower(pp.username)
+         WHERE sg.source_platform IS NULL OR sg.source_platform = pp.platform",
+        [],
+    )?;
+    let cloud_queue_initialized: Option<String> = connection
+        .query_row(
+            "SELECT value FROM app_metadata WHERE key = 'cloud_sync_queue_initialized'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if cloud_queue_initialized.is_none() {
+        connection.execute(
+            "INSERT OR IGNORE INTO cloud_sync_queue
+             (entity_type, entity_id, operation, generation, attempts, updated_at)
+             SELECT 'profile', platform || '_' || lower(username), 'upsert', 1, 0,
+                    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM player_profiles",
+            [],
+        )?;
+        connection.execute(
+            "INSERT OR IGNORE INTO cloud_sync_queue
+             (entity_type, entity_id, operation, generation, attempts, updated_at)
+             SELECT 'game', id, 'upsert', 1, 0,
+                    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             FROM saved_games",
+            [],
+        )?;
+        connection.execute(
+            "INSERT INTO app_metadata(key, value)
+             VALUES ('cloud_sync_queue_initialized', '2')",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
+fn account_uid_hash(uid: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(uid.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn initialize_account_registry(data_dir: &Path) -> rusqlite::Result<Connection> {
+    let registry = Connection::open(data_dir.join("cloud-account-registry.sqlite3"))?;
+    registry.execute_batch(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS accounts (
+            uid_hash TEXT PRIMARY KEY,
+            database_path TEXT NOT NULL,
+            claimed_legacy_data INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            last_opened_at TEXT NOT NULL
+        );",
+    )?;
+    Ok(registry)
+}
+
+fn legacy_owner_hash(guest: &Connection, registry: &Connection) -> Result<Option<String>, String> {
+    if let Some(owner) = registry
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'legacy_owner_hash'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Không thể đọc chủ sở hữu dữ liệu local cũ.".to_string())?
+    {
+        return Ok(Some(owner));
+    }
+    let previous_uids = {
+        let mut statement = guest
+            .prepare("SELECT DISTINCT uid FROM cloud_sync_cursors ORDER BY uid")
+            .map_err(|_| "Không thể kiểm tra lịch sử tài khoản cloud.".to_string())?;
+        let values = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|_| "Không thể đọc lịch sử tài khoản cloud.".to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| "Lịch sử tài khoản cloud không hợp lệ.".to_string())?;
+        values
+    };
+    if previous_uids.len() > 1 {
+        return Err(
+            "Kho local cũ đã chứa dấu vết của nhiều tài khoản Firebase; không thể tự chọn tài khoản sở hữu an toàn."
+                .to_string(),
+        );
+    }
+    Ok(previous_uids.first().map(|uid| account_uid_hash(uid)))
+}
+
+fn activate_cloud_account_connection(
+    active: &mut ActiveDatabase,
+    uid: &str,
+) -> Result<DatabaseActivationResult, String> {
+    let uid = uid.trim();
+    if uid.is_empty() || uid.len() > 128 {
+        return Err("Firebase UID không hợp lệ.".to_string());
+    }
+    if active.active_uid.as_deref() == Some(uid) {
+        return Ok(DatabaseActivationResult {
+            changed: false,
+            claimed_legacy_data: false,
+        });
+    }
+
+    let uid_hash = account_uid_hash(uid);
+    let accounts_dir = active.data_dir.join("cloud-accounts");
+    fs::create_dir_all(&accounts_dir)
+        .map_err(|_| "Không thể tạo thư mục dữ liệu tài khoản.".to_string())?;
+    let account_path = accounts_dir.join(format!("{uid_hash}.sqlite3"));
+    let account_existed = account_path.exists();
+    let guest_path = active.data_dir.join("ky-pho.sqlite3");
+    let guest = Connection::open(&guest_path)
+        .map_err(|_| "Không thể mở kho local để chuyển dữ liệu.".to_string())?;
+    initialize_database(&guest, true)
+        .map_err(|_| "Không thể chuẩn bị kho local để chuyển dữ liệu.".to_string())?;
+    let registry = initialize_account_registry(&active.data_dir)
+        .map_err(|_| "Không thể mở registry tài khoản.".to_string())?;
+    let reserved_owner = legacy_owner_hash(&guest, &registry)?.unwrap_or_else(|| uid_hash.clone());
+    registry
+        .execute(
+            "INSERT OR IGNORE INTO settings(key, value)
+             VALUES ('legacy_owner_hash', ?1)",
+            params![&reserved_owner],
+        )
+        .map_err(|_| "Không thể lưu chủ sở hữu dữ liệu cũ.".to_string())?;
+    let legacy_migrated = registry
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'legacy_migrated'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|_| "Không thể đọc trạng thái chuyển dữ liệu cũ.".to_string())?
+        .is_some();
+    let should_claim_legacy = !account_existed && !legacy_migrated && reserved_owner == uid_hash;
+
+    if should_claim_legacy {
+        if let Err(error) = guest.backup(DatabaseName::Main, &account_path, None) {
+            let _ = fs::remove_file(&account_path);
+            return Err(format!(
+                "Không thể chuyển dữ liệu local sang tài khoản: {error}"
+            ));
+        }
+    }
+    let account_connection = Connection::open(&account_path)
+        .map_err(|_| "Không thể mở kho riêng của tài khoản.".to_string())?;
+    initialize_database(&account_connection, false)
+        .map_err(|_| "Không thể chuẩn bị kho riêng của tài khoản.".to_string())?;
+    if should_claim_legacy {
+        registry
+            .execute(
+                "INSERT OR REPLACE INTO settings(key, value)
+                 VALUES ('legacy_migrated', ?1)",
+                params![&uid_hash],
+            )
+            .map_err(|_| "Không thể xác nhận chuyển dữ liệu local.".to_string())?;
+    }
+    registry
+        .execute(
+            "INSERT INTO accounts
+             (uid_hash, database_path, claimed_legacy_data, created_at, last_opened_at)
+             VALUES (?1, ?2, ?3, datetime('now'), datetime('now'))
+             ON CONFLICT(uid_hash) DO UPDATE SET
+               last_opened_at = datetime('now')",
+            params![
+                &uid_hash,
+                account_path.to_string_lossy().as_ref(),
+                i64::from(should_claim_legacy)
+            ],
+        )
+        .map_err(|_| "Không thể cập nhật registry tài khoản.".to_string())?;
+
+    active.connection = account_connection;
+    active.active_uid = Some(uid.to_string());
+    active.generation = active.generation.wrapping_add(1);
+    Ok(DatabaseActivationResult {
+        changed: true,
+        claimed_legacy_data: should_claim_legacy,
+    })
+}
+
+#[tauri::command]
+fn activate_cloud_account(
+    database: tauri::State<'_, DatabaseState>,
+    uid: String,
+) -> Result<DatabaseActivationResult, String> {
+    let mut active = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể chuyển kho dữ liệu tài khoản.".to_string())?;
+    activate_cloud_account_connection(&mut active, &uid)
+}
+
+#[tauri::command]
+fn deactivate_cloud_account(
+    database: tauri::State<'_, DatabaseState>,
+) -> Result<DatabaseActivationResult, String> {
+    let mut active = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể chuyển về kho local.".to_string())?;
+    if active.active_uid.is_none() {
+        return Ok(DatabaseActivationResult {
+            changed: false,
+            claimed_legacy_data: false,
+        });
+    }
+    let guest = Connection::open(active.data_dir.join("ky-pho.sqlite3"))
+        .map_err(|_| "Không thể mở kho local.".to_string())?;
+    initialize_database(&guest, true).map_err(|_| "Không thể chuẩn bị kho local.".to_string())?;
+    active.connection = guest;
+    active.active_uid = None;
+    active.generation = active.generation.wrapping_add(1);
+    Ok(DatabaseActivationResult {
+        changed: true,
+        claimed_legacy_data: false,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -2284,7 +3603,33 @@ pub fn run() {
                     PRIMARY KEY(game_id, profile_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_game_profiles_profile
-                ON game_profiles(profile_id, game_id);",
+                ON game_profiles(profile_id, game_id);
+                CREATE TABLE IF NOT EXISTS cloud_sync_queue (
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    generation INTEGER NOT NULL DEFAULT 1,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    next_retry_at TEXT,
+                    last_error TEXT,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(entity_type, entity_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_cloud_sync_queue_retry
+                ON cloud_sync_queue(next_retry_at, updated_at);
+                CREATE TABLE IF NOT EXISTS cloud_sync_cursors (
+                    uid TEXT NOT NULL,
+                    collection_name TEXT NOT NULL,
+                    initialized INTEGER NOT NULL DEFAULT 0,
+                    updated_at_seconds INTEGER,
+                    updated_at_nanoseconds INTEGER,
+                    document_id TEXT,
+                    PRIMARY KEY(uid, collection_name)
+                );
+                CREATE TABLE IF NOT EXISTS app_metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );",
             )?;
             for migration in [
                 "ALTER TABLE saved_games ADD COLUMN opening TEXT",
@@ -2339,7 +3684,42 @@ pub fn run() {
                  WHERE sg.source_platform IS NULL OR sg.source_platform = pp.platform",
                 [],
             )?;
-            app.manage(DatabaseState(Mutex::new(connection)));
+            let cloud_queue_initialized: Option<String> = connection
+                .query_row(
+                    "SELECT value FROM app_metadata WHERE key = 'cloud_sync_queue_initialized'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if cloud_queue_initialized.is_none() {
+                connection.execute(
+                    "INSERT OR IGNORE INTO cloud_sync_queue
+                     (entity_type, entity_id, operation, generation, attempts, updated_at)
+                     SELECT 'profile', platform || '_' || lower(username), 'upsert', 1, 0,
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                     FROM player_profiles",
+                    [],
+                )?;
+                connection.execute(
+                    "INSERT OR IGNORE INTO cloud_sync_queue
+                     (entity_type, entity_id, operation, generation, attempts, updated_at)
+                     SELECT 'game', id, 'upsert', 1, 0,
+                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                     FROM saved_games",
+                    [],
+                )?;
+                connection.execute(
+                    "INSERT INTO app_metadata(key, value)
+                     VALUES ('cloud_sync_queue_initialized', '2')",
+                    [],
+                )?;
+            }
+            app.manage(DatabaseState(Mutex::new(ActiveDatabase {
+                connection,
+                data_dir,
+                active_uid: None,
+                generation: 0,
+            })));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -2357,8 +3737,14 @@ pub fn run() {
             add_player_profile,
             delete_player_profile,
             mark_profile_synced,
-            export_cloud_snapshot,
-            merge_cloud_snapshot,
+            export_cloud_changes,
+            merge_cloud_changes,
+            get_cloud_sync_cursors,
+            set_cloud_sync_cursors,
+            acknowledge_cloud_changes,
+            mark_cloud_changes_failed,
+            activate_cloud_account,
+            deactivate_cloud_account,
             begin_google_oauth,
             set_api_key,
             clear_api_key,

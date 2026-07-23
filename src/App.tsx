@@ -54,16 +54,15 @@ import { lastKnownOpening, openingTimeline, type OpeningInfo } from "./openings"
 import appIcon from "../src-tauri/icons/128x128.png";
 import { playSfx, setSfxEnabled as persistSfxEnabled, sfxEnabled as storedSfxEnabled } from "./sfx";
 import {
-  deleteCloudGame,
-  deleteCloudProfile,
-  downloadCloudSnapshot,
+  downloadCloudChanges,
   firebaseConfigured,
   firebaseErrorMessage,
   observeFirebaseUser,
   signInWithGoogle,
   signOutFirebase,
-  uploadCloudSnapshot,
-  type CloudSyncSnapshot,
+  uploadCloudChanges,
+  type CloudSyncBatch,
+  type CloudSyncCursors,
   type User as FirebaseUser,
 } from "./firebase";
 
@@ -180,7 +179,36 @@ type VariationState = {
 };
 type SyncNotice = { type: "success" | "info" | "error"; message: string };
 type SyncProgress = { phase: "fetching" | "saving"; completed: number; total: number };
-type CloudMergeResult = { profiles_added: number; games_added: number };
+type CloudMergeResult = {
+  profiles_added: number;
+  games_added: number;
+  profiles_deleted: number;
+  games_deleted: number;
+};
+type CloudAckToken = {
+  entity_type: "profile" | "game";
+  entity_id: string;
+  generation: number;
+};
+type DatabaseActivationResult = {
+  changed: boolean;
+  claimed_legacy_data: boolean;
+};
+
+function cloudAckTokens(batch: CloudSyncBatch): CloudAckToken[] {
+  return [
+    ...batch.profiles.map((change) => ({
+      entity_type: "profile" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
+    ...batch.games.map((change) => ({
+      entity_type: "game" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
+  ];
+}
 
 function gameOutcomeForProfile(game: SavedGameSummary, username?: string): GameOutcome {
   const normalizedUsername = username?.trim().toLocaleLowerCase();
@@ -493,9 +521,7 @@ function App() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [cloudSyncing, setCloudSyncing] = useState(false);
-  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(() =>
-    localStorage.getItem("kypho-cloud-last-sync"),
-  );
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
@@ -554,7 +580,12 @@ function App() {
   const timelineScrollerRef = useRef<HTMLDivElement | null>(null);
   const coachScrollerRef = useRef<HTMLDivElement | null>(null);
   const cloudSyncInFlightRef = useRef(false);
+  const cloudSyncPendingRef = useRef(false);
+  const cloudRetryTimerRef = useRef<number | null>(null);
+  const cloudRetryAttemptRef = useRef(0);
+  const cloudRetryHandlerRef = useRef<() => void>(() => undefined);
   const cloudSyncedUserRef = useRef<string | null>(null);
+  const activeProfileStorageKeyRef = useRef("kypho-active-profile-id:guest");
   const previousMoveIndexRef = useRef<number | null>(null);
   const modalWasOpenRef = useRef(false);
   const analysisWasCompleteRef = useRef(false);
@@ -591,6 +622,14 @@ function App() {
   const cloudAccountLabel = firebaseUser
     ? firebaseUser.displayName || firebaseUser.email || "Google"
     : firebaseConfigured ? "Đăng nhập" : "Cloud chưa cấu hình";
+  const accountSwitchBusy = cloudSyncing
+    || loading
+    || libraryLoading
+    || profilesLoading
+    || fullAnalysis.running
+    || engineLoading
+    || aiLoading
+    || gameCoachLoading;
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -611,12 +650,12 @@ function App() {
       const nextProfiles = await invoke<PlayerProfile[]>("list_player_profiles");
       setProfiles(nextProfiles);
       setActiveProfileId((current) => {
-        const savedId = Number(localStorage.getItem("kypho-active-profile-id"));
+        const savedId = Number(localStorage.getItem(activeProfileStorageKeyRef.current));
         const candidate = preferredId || current || savedId;
         const nextId = nextProfiles.some((profile) => profile.id === candidate)
           ? candidate
           : nextProfiles[0]?.id || null;
-        if (nextId) localStorage.setItem("kypho-active-profile-id", String(nextId));
+        if (nextId) localStorage.setItem(activeProfileStorageKeyRef.current, String(nextId));
         return nextId;
       });
     } catch (reason) {
@@ -639,47 +678,156 @@ function App() {
     }
   }, [activeProfileId]);
 
+  const resetForDatabaseSwitch = useCallback(() => {
+    fullAnalysisAbortRef.current?.abort();
+    fullAnalysisAbortRef.current = null;
+    setAnalysis(analyzePgn(DEMO_PGN));
+    setCurrentIndex(7);
+    setCurrentGameId(null);
+    setProfiles([]);
+    setSavedGames([]);
+    setDashboardRecords([]);
+    setActiveProfileId(null);
+    setEngineCache({});
+    setAiCache({});
+    setGameCoachSummary(null);
+    setFullAnalysis({ running: false, complete: false, completed: 0, total: 0, error: "" });
+  }, []);
+
   const syncCloud = useCallback(async (
     targetUser: FirebaseUser | null = firebaseUser,
     showSuccess = true,
   ) => {
-    if (!targetUser || cloudSyncInFlightRef.current) return;
+    if (!targetUser) return;
+    if (cloudSyncInFlightRef.current) {
+      cloudSyncPendingRef.current = true;
+      return;
+    }
     if (!isTauri()) {
       setSyncNotice({ type: "error", message: "Đồng bộ cloud cần chạy trong ứng dụng desktop." });
       return;
     }
+    if (cloudRetryTimerRef.current !== null) {
+      window.clearTimeout(cloudRetryTimerRef.current);
+      cloudRetryTimerRef.current = null;
+    }
     cloudSyncInFlightRef.current = true;
     setCloudSyncing(true);
+    let activeTokens: CloudAckToken[] = [];
+    let activeRetryAttempt = 0;
+    let uploaded = 0;
+    const mergedTotal: CloudMergeResult = {
+      profiles_added: 0,
+      games_added: 0,
+      profiles_deleted: 0,
+      games_deleted: 0,
+    };
     try {
-      const remoteSnapshot = await downloadCloudSnapshot(targetUser.uid);
-      const merged = await invoke<CloudMergeResult>("merge_cloud_snapshot", {
-        request: remoteSnapshot,
-      });
-      const localSnapshot = await invoke<CloudSyncSnapshot>("export_cloud_snapshot");
-      await uploadCloudSnapshot(targetUser.uid, localSnapshot);
+      let rounds = 0;
+      do {
+        cloudSyncPendingRef.current = false;
+        const activation = await invoke<DatabaseActivationResult>("activate_cloud_account", {
+          uid: targetUser.uid,
+        });
+        if (activation.changed) {
+          activeProfileStorageKeyRef.current = `kypho-active-profile-id:${targetUser.uid}`;
+          resetForDatabaseSwitch();
+        }
+        const cursors = await invoke<CloudSyncCursors>("get_cloud_sync_cursors", {
+          uid: targetUser.uid,
+        });
+        const remote = await downloadCloudChanges(targetUser.uid, cursors);
+        const merged = await invoke<CloudMergeResult>("merge_cloud_changes", {
+          request: remote.changes,
+        });
+        mergedTotal.profiles_added += merged.profiles_added;
+        mergedTotal.games_added += merged.games_added;
+        mergedTotal.profiles_deleted += merged.profiles_deleted;
+        mergedTotal.games_deleted += merged.games_deleted;
+        await invoke("set_cloud_sync_cursors", {
+          uid: targetUser.uid,
+          cursors: remote.cursors,
+        });
+
+        const localChanges = await invoke<CloudSyncBatch>("export_cloud_changes");
+        activeTokens = cloudAckTokens(localChanges);
+        activeRetryAttempt = Math.max(
+          0,
+          ...localChanges.profiles.map((change) => change.attempts),
+          ...localChanges.games.map((change) => change.attempts),
+        );
+        if (activeTokens.length) {
+          await uploadCloudChanges(targetUser.uid, localChanges);
+          uploaded += activeTokens.length;
+          const remaining = await invoke<number>("acknowledge_cloud_changes", {
+            changes: activeTokens,
+          });
+          activeTokens = [];
+          if (remaining > 0) cloudSyncPendingRef.current = true;
+        }
+        rounds += 1;
+      } while (cloudSyncPendingRef.current && rounds < 4);
+
+      cloudRetryAttemptRef.current = 0;
       const completedAt = new Date().toISOString();
-      localStorage.setItem("kypho-cloud-last-sync", completedAt);
+      localStorage.setItem(`kypho-cloud-last-sync:${targetUser.uid}`, completedAt);
       setLastCloudSyncAt(completedAt);
       await Promise.all([refreshProfiles(), refreshSavedGames()]);
       if (showSuccess) {
-        const imported = merged.profiles_added + merged.games_added;
+        const imported = mergedTotal.profiles_added + mergedTotal.games_added;
+        const deleted = mergedTotal.profiles_deleted + mergedTotal.games_deleted;
         setSyncNotice({
           type: "success",
-          message: imported
-            ? `Đã nhập ${merged.profiles_added} hồ sơ và ${merged.games_added} ván từ cloud; dữ liệu trên máy cũng đã được tải lên.`
-            : `Đã sao lưu ${localSnapshot.profiles.length} hồ sơ và ${localSnapshot.games.length} ván lên Firebase.`,
+          message: imported || deleted || uploaded
+            ? `Cloud đã cập nhật: nhận ${imported} mục mới, áp dụng ${deleted} mục đã xoá và gửi ${uploaded} thay đổi local.`
+            : "Dữ liệu trên máy và Firebase đã đồng bộ.",
         });
       }
     } catch (reason) {
-      setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
+      const message = firebaseErrorMessage(reason);
+      if (activeTokens.length) {
+        await invoke("mark_cloud_changes_failed", {
+          changes: activeTokens,
+          error: message,
+        }).catch(() => undefined);
+      }
+      cloudRetryAttemptRef.current = Math.max(
+        cloudRetryAttemptRef.current,
+        activeRetryAttempt,
+      ) + 1;
+      const retryDelays = [2_000, 5_000, 15_000, 60_000, 300_000];
+      const retryDelay = retryDelays[Math.min(
+        cloudRetryAttemptRef.current - 1,
+        retryDelays.length - 1,
+      )];
+      cloudRetryTimerRef.current = window.setTimeout(() => {
+        cloudRetryTimerRef.current = null;
+        cloudRetryHandlerRef.current();
+      }, retryDelay);
+      setSyncNotice({
+        type: "error",
+        message: `${message} Ứng dụng sẽ tự thử lại.`,
+      });
     } finally {
       cloudSyncInFlightRef.current = false;
       setCloudSyncing(false);
+      if (cloudSyncPendingRef.current && cloudRetryTimerRef.current === null) {
+        window.setTimeout(() => cloudRetryHandlerRef.current(), 0);
+      }
     }
-  }, [firebaseUser, refreshProfiles, refreshSavedGames]);
+  }, [firebaseUser, refreshProfiles, refreshSavedGames, resetForDatabaseSwitch]);
+
+  cloudRetryHandlerRef.current = () => {
+    if (firebaseUser) void syncCloud(firebaseUser, false);
+  };
 
   const handleGoogleLogin = async () => {
-    if (authLoading || cloudSyncing) return;
+    if (authLoading || accountSwitchBusy) {
+      if (accountSwitchBusy) {
+        setSyncNotice({ type: "info", message: "Hãy chờ phân tích hiện tại hoàn tất trước khi đổi kho tài khoản." });
+      }
+      return;
+    }
     setAuthLoading(true);
     setSyncNotice(null);
     try {
@@ -696,12 +844,26 @@ function App() {
   };
 
   const handleGoogleLogout = async () => {
-    if (cloudSyncing) return;
+    if (accountSwitchBusy) {
+      setSyncNotice({ type: "info", message: "Hãy chờ phân tích hiện tại hoàn tất trước khi đăng xuất." });
+      return;
+    }
     try {
       await signOutFirebase();
+      await invoke<DatabaseActivationResult>("deactivate_cloud_account");
+      activeProfileStorageKeyRef.current = "kypho-active-profile-id:guest";
+      if (cloudRetryTimerRef.current !== null) {
+        window.clearTimeout(cloudRetryTimerRef.current);
+        cloudRetryTimerRef.current = null;
+      }
+      cloudSyncPendingRef.current = false;
+      cloudRetryAttemptRef.current = 0;
       cloudSyncedUserRef.current = null;
       setFirebaseUser(null);
-      setSyncNotice({ type: "info", message: "Đã đăng xuất. Dữ liệu SQLite vẫn được giữ nguyên trên máy này." });
+      setLastCloudSyncAt(null);
+      resetForDatabaseSwitch();
+      await refreshProfiles();
+      setSyncNotice({ type: "info", message: "Đã đăng xuất. Kho tài khoản được giữ riêng và app đã quay về dữ liệu local." });
     } catch (reason) {
       setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
     }
@@ -786,7 +948,7 @@ function App() {
 
   const changeActiveProfile = (profileId: number) => {
     setActiveProfileId(profileId);
-    localStorage.setItem("kypho-active-profile-id", String(profileId));
+    localStorage.setItem(activeProfileStorageKeyRef.current, String(profileId));
     setDashboardRecords([]);
     setDashboardError("");
     setSyncStatus("");
@@ -818,9 +980,9 @@ function App() {
     setProfilesLoading(true);
     setProfilesError("");
     try {
-      if (firebaseUser) await deleteCloudProfile(firebaseUser.uid, profile);
       await invoke("delete_player_profile", { profileId: profile.id });
       await refreshProfiles();
+      if (firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setProfilesError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -914,6 +1076,9 @@ function App() {
 
   useEffect(() => observeFirebaseUser((user) => {
     setFirebaseUser(user);
+    setLastCloudSyncAt(user
+      ? localStorage.getItem(`kypho-cloud-last-sync:${user.uid}`)
+      : null);
     setAuthLoading(false);
   }), []);
 
@@ -922,6 +1087,20 @@ function App() {
     cloudSyncedUserRef.current = firebaseUser.uid;
     void syncCloud(firebaseUser, false);
   }, [firebaseUser, syncCloud]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (firebaseUser) void syncCloud(firebaseUser, false);
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [firebaseUser, syncCloud]);
+
+  useEffect(() => () => {
+    if (cloudRetryTimerRef.current !== null) {
+      window.clearTimeout(cloudRetryTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -1252,9 +1431,9 @@ function App() {
     setLibraryLoading(true);
     setLibraryError("");
     try {
-      if (firebaseUser) await deleteCloudGame(firebaseUser.uid, game.id);
       await invoke<boolean>("delete_saved_game", { id: game.id });
       await refreshSavedGames();
+      if (firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setLibraryError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -2258,9 +2437,9 @@ function App() {
                   <div><Database size={16} /><span><strong>{profiles.length} hồ sơ · {savedGames.length} ván đang hiển thị</strong><small>Dữ liệu local sẵn sàng khi offline</small></span></div>
                   <div><RefreshCw size={16} /><span><strong>{lastCloudSyncAt ? `Đồng bộ ${formatVietnamDate(lastCloudSyncAt, true)}` : "Chưa đồng bộ lần đầu"}</strong><small>Hợp nhất hai chiều, không tạo ván trùng</small></span></div>
                 </div>
-                <div className="security-note"><ShieldCheck size={15} /> Mỗi tài khoản chỉ đọc và ghi vùng dữ liệu theo Firebase UID của chính mình. API key AI và kết quả Stockfish không được tải lên.</div>
+                <div className="security-note"><ShieldCheck size={15} /> Mỗi Firebase UID có vùng Firestore và file SQLite riêng. API key AI và kết quả Stockfish không được tải lên.</div>
                 <div className="modal-actions account-actions">
-                  <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={cloudSyncing}><LogOut size={15} /> Đăng xuất</button>
+                  <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={accountSwitchBusy}><LogOut size={15} /> Đăng xuất</button>
                   <button className="primary-button large" onClick={() => void syncCloud(firebaseUser, true)} disabled={cloudSyncing}>
                     {cloudSyncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
                     {cloudSyncing ? "Đang đồng bộ…" : "Đồng bộ ngay"}
@@ -2277,7 +2456,7 @@ function App() {
                 <div className="security-note"><ShieldCheck size={15} /> App chỉ nhận tên, email và mã UID từ Google. Mật khẩu không đi qua Chess Coach.</div>
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={() => setAccountOpen(false)}>Để sau</button>
-                  <button className="primary-button large" onClick={() => void handleGoogleLogin()} disabled={!firebaseConfigured || authLoading}>
+                  <button className="primary-button large" onClick={() => void handleGoogleLogin()} disabled={!firebaseConfigured || authLoading || accountSwitchBusy}>
                     {authLoading ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}
                     {authLoading ? "Đang mở Google…" : "Tiếp tục với Google"}
                   </button>
