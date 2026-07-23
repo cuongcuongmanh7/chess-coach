@@ -3,15 +3,12 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
   ClipboardPaste,
   Clock,
-  Cloud,
   CloudOff,
   Database,
   Download,
@@ -58,6 +55,7 @@ import {
   GameCoachSummaryView,
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
+import { BrandIcon } from "../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../AppControllerContext";
 import { DEMO_PGN } from "../../demo";
 import { firebaseConfigured } from "../../firebase";
@@ -100,13 +98,15 @@ export function GameInsightsModals() {
       {summaryOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setSummaryOpen(false)}>
           <section className="modal-card summary-modal" role="dialog" aria-modal="true" aria-labelledby="summary-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSummaryOpen(false)} aria-label="Đóng"><X size={20} /></button>
-            <div className="summary-heading">
-              <div className="modal-icon"><BarChart3 size={24} /></div>
-              <div>
-                <div className="eyebrow">STOCKFISH · DEPTH 11 · TOÀN VÁN</div>
-                <h2 id="summary-title">Tổng kết ván đấu</h2>
-                <p>{gameOpening ? `${gameOpening.eco} · ${gameOpening.name}` : headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
+            <div className="modal-sticky-header">
+              <button className="modal-close" onClick={() => setSummaryOpen(false)} aria-label="Đóng"><X size={20} /></button>
+              <div className="summary-heading">
+                <div className="modal-icon"><BarChart3 size={24} /></div>
+                <div>
+                  <div className="eyebrow">STOCKFISH · DEPTH 11 · TOÀN VÁN</div>
+                  <h2 id="summary-title">Tổng kết ván đấu</h2>
+                  <p>{gameOpening ? `${gameOpening.eco} · ${gameOpening.name}` : headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
+                </div>
               </div>
             </div>
 
@@ -140,7 +140,7 @@ export function GameInsightsModals() {
 
             <div className={`game-coach-card ${gameCoachSummary ? "ready" : ""}`}>
               <div className="game-coach-heading">
-                <div><BrainCircuit size={17} /><strong>Nhận xét của HLV AI</strong></div>
+                <div><BrandIcon brand={gameCoachSummary?.provider || provider} size={17} /><strong>Nhận xét của HLV AI</strong></div>
                 {gameCoachSummary && <span>{PROVIDER_LABELS[gameCoachSummary.provider]} · {gameCoachSummary.model}{gameCoachSummary.cached ? " · Đã lưu" : ""}</span>}
               </div>
               {gameCoachSummary ? (
@@ -154,7 +154,7 @@ export function GameInsightsModals() {
                 <div className="game-coach-empty">
                   <p>Dựa trên ACPL, tỷ lệ nước tốt và các vị trí then chốt để nêu điểm mạnh, điểm cần cải thiện của cả hai bên.</p>
                   <button className="summary-ai-button" onClick={() => void summarizeGameWithAi(false)} disabled={gameCoachLoading || !gameSummaryRequest}>
-                    {gameCoachLoading ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}
+                    {gameCoachLoading ? <LoaderCircle className="spin" size={15} /> : <BrandIcon brand={provider} size={15} />}
                     {gameCoachLoading ? `${providerLabel} đang tổng kết…` : hasApiKey ? `HLV ${providerLabel} đánh giá ván đấu` : `Cấu hình ${providerLabel} để đánh giá`}
                   </button>
                 </div>
@@ -183,13 +183,15 @@ export function GameInsightsModals() {
       {dashboardOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setDashboardOpen(false)}>
           <section className="modal-card dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="dashboard-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" onClick={() => setDashboardOpen(false)} aria-label="Đóng"><X size={20} /></button>
-            <div className="summary-heading">
-              <div className="modal-icon"><BarChart3 size={24} /></div>
-              <div>
-                <div className="eyebrow">HỒ SƠ NGƯỜI HỌC · {activeProfileLabel}</div>
-                <h2 id="dashboard-title">Tiến bộ của bạn</h2>
-                <p>Chỉ dùng các ván đã hoàn tất phân tích Stockfish.</p>
+            <div className="modal-sticky-header">
+              <button className="modal-close" onClick={() => setDashboardOpen(false)} aria-label="Đóng"><X size={20} /></button>
+              <div className="summary-heading">
+                <div className="modal-icon"><BarChart3 size={24} /></div>
+                <div>
+                  <div className="eyebrow">HỒ SƠ NGƯỜI HỌC · {activeProfileLabel}</div>
+                  <h2 id="dashboard-title">Tiến bộ của bạn</h2>
+                  <p>Chỉ dùng các ván đã hoàn tất phân tích Stockfish.</p>
+                </div>
               </div>
             </div>
             {dashboardError && <div className="error-message">{dashboardError}</div>}

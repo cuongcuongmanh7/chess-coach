@@ -19,11 +19,17 @@ mod db {
     pub(crate) mod cloud_export;
     pub(crate) mod cloud_merge;
     pub(crate) mod cloud_state;
+    pub(crate) mod game_previews;
     pub(crate) mod games;
     pub(crate) mod migrations;
     #[cfg(test)]
     pub(crate) mod migrations_tests;
     pub(crate) mod profiles;
+    pub(crate) mod training;
+    pub(crate) mod training_cards;
+    pub(crate) mod training_cloud;
+    pub(crate) mod training_cleanup;
+    pub(crate) mod training_schema;
 }
 mod commands {
     pub(crate) mod ai;
@@ -31,6 +37,7 @@ mod commands {
     pub(crate) mod games;
     pub(crate) mod profiles;
     pub(crate) mod sources;
+    pub(crate) mod training;
 }
 mod models;
 mod services {
@@ -38,6 +45,8 @@ mod services {
     pub(crate) mod ai_providers;
     pub(crate) mod game_sources;
     pub(crate) mod oauth;
+    pub(crate) mod training_scheduler;
+    pub(crate) mod cloud_validation;
 }
 mod state;
 #[cfg(test)]
@@ -47,14 +56,22 @@ pub(crate) use db::accounts::*;
 pub(crate) use db::cloud_export::*;
 pub(crate) use db::cloud_merge::*;
 pub(crate) use db::cloud_state::*;
+pub(crate) use db::game_previews::*;
 pub(crate) use db::games::*;
 pub(crate) use db::migrations::*;
 pub(crate) use db::profiles::*;
+pub(crate) use db::training::*;
+pub(crate) use db::training_cards::*;
+pub(crate) use db::training_cloud::*;
+pub(crate) use db::training_cleanup::*;
+pub(crate) use db::training_schema::*;
 pub(crate) use models::*;
 pub(crate) use services::ai_cache::*;
 pub(crate) use services::ai_providers::*;
 pub(crate) use services::game_sources::*;
 pub(crate) use services::oauth::*;
+pub(crate) use services::training_scheduler::*;
+pub(crate) use services::cloud_validation::*;
 pub(crate) use state::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -77,6 +94,7 @@ pub fn run() {
             commands::sources::fetch_chess_com_game,
             commands::games::save_game,
             commands::games::list_saved_games,
+            commands::games::save_game_previews,
             commands::games::open_saved_game,
             commands::games::delete_saved_game,
             commands::sources::fetch_recent_games,
@@ -84,6 +102,11 @@ pub fn run() {
             commands::games::list_engine_analyses,
             commands::games::mark_game_analysis_complete,
             commands::games::get_dashboard_records,
+            commands::training::generate_training_cards,
+            commands::training::list_training_cards,
+            commands::training::review_training_card,
+            commands::training::update_training_card,
+            commands::training::get_training_stats,
             commands::profiles::list_player_profiles,
             commands::profiles::add_player_profile,
             commands::profiles::delete_player_profile,
@@ -97,6 +120,7 @@ pub fn run() {
             commands::cloud::activate_cloud_account,
             commands::cloud::deactivate_cloud_account,
             commands::sources::begin_google_oauth,
+            commands::sources::cancel_google_oauth,
             commands::ai::set_api_key,
             commands::ai::clear_api_key,
             commands::ai::has_api_key,

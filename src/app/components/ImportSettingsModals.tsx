@@ -3,15 +3,12 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
   ClipboardPaste,
   Clock,
-  Cloud,
   CloudOff,
   Database,
   Download,
@@ -20,7 +17,6 @@ import {
   Eye,
   Lightbulb,
   LogIn,
-  LogOut,
   KeyRound,
   Library,
   Link2,
@@ -58,6 +54,7 @@ import {
   GameCoachSummaryView,
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
+import { AccountAvatar, BrandIcon } from "../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../AppControllerContext";
 import { DEMO_PGN } from "../../demo";
 import { firebaseConfigured } from "../../firebase";
@@ -98,6 +95,7 @@ export function ImportSettingsModals() {
     providerLabel,
     models,
     activeProfile,
+    accountInitial,
     toggleSfx,
     changeActiveProfile,
     loadAnalysis,
@@ -187,7 +185,7 @@ export function ImportSettingsModals() {
             <div className="provider-switch" role="group" aria-label="Nhà cung cấp AI">
               {(["gemini", "openai"] as AiProvider[]).map((item) => (
                 <button key={item} className={provider === item ? "active" : ""} onClick={() => changeProvider(item)}>
-                  <Bot size={15} /> {PROVIDER_LABELS[item]}
+                  <BrandIcon brand={item} size={15} /> {PROVIDER_LABELS[item]}
                   {hasApiKeys[item] && <span className="provider-ready">Sẵn sàng</span>}
                 </button>
               ))}
@@ -231,8 +229,21 @@ export function ImportSettingsModals() {
       )}
 
       <footer>
-        <span>Chess Coach v0.6.0 · Stockfish 18 Lite · OpenAI + Gemini</span>
-        <span>{firebaseUser ? <Cloud size={13} /> : <ShieldCheck size={13} />} {firebaseUser ? "Hồ sơ + PGN được sao lưu Firebase · AI vẫn cục bộ" : "PGN ở lại trên máy · Đăng nhập Google để sao lưu"}</span>
+        <span className="footer-services">
+          Chess Coach v0.7.0 · Stockfish 18 Lite ·
+          <BrandIcon brand="openai" size={11} /> OpenAI +
+          <BrandIcon brand="gemini" size={11} /> Gemini
+        </span>
+        {firebaseUser ? (
+          <span className="footer-account-status">
+            <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="footer-account-avatar" />
+            Hồ sơ + PGN được sao lưu Firebase · AI vẫn cục bộ
+          </span>
+        ) : (
+          <span className="footer-account-status">
+            <BrandIcon brand="google" size={13} /> PGN ở lại trên máy · Đăng nhập Google để sao lưu
+          </span>
+        )}
       </footer>
     </>
   );

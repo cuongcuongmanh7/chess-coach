@@ -21,6 +21,7 @@ import type {
   CloudDownloadResult,
   CloudPlayerProfile,
   CloudSavedGame,
+  CloudTrainingProgress,
   CloudSyncBatch,
   CloudSyncCursor,
   CloudSyncCursors,
@@ -67,12 +68,13 @@ function laterCursor(
 
 async function downloadCollectionChanges<T>(
   uid: string,
-  collectionName: "profiles" | "games",
+  collectionName: "profiles" | "games" | "trainingProgress",
   cursor: CloudSyncCursor,
   maximumDocuments: number,
 ) {
   const db = requireFirestore();
   const reference = collection(db, "users", uid, collectionName);
+  const expectedSchemaVersion = collectionName === "trainingProgress" ? 1 : 2;
   const incrementalTimestamp = cursorTimestamp(cursor);
   let pageCursor = cursor;
   let initialPageAfter: string | null = null;
@@ -118,7 +120,7 @@ async function downloadCollectionChanges<T>(
       changes.push({
         document_id: item.id,
         deleted,
-        needs_upgrade: raw.schemaVersion !== 2 || !updatedAt,
+        needs_upgrade: raw.schemaVersion !== expectedSchemaVersion || !updatedAt,
         data: deleted ? null : payload as T,
       });
       if (updatedAt) pageCursor = laterCursor(pageCursor, updatedAt, item.id);
@@ -152,18 +154,26 @@ export async function downloadCloudChanges(
   uid: string,
   cursors: CloudSyncCursors,
 ): Promise<CloudDownloadResult> {
-  const [profiles, games] = await Promise.all([
+  const [profiles, games, trainingProgress] = await Promise.all([
     downloadCollectionChanges<CloudPlayerProfile>(uid, "profiles", cursors.profiles, 1_000),
     downloadCollectionChanges<CloudSavedGame>(uid, "games", cursors.games, 10_000),
+    downloadCollectionChanges<CloudTrainingProgress>(
+      uid,
+      "trainingProgress",
+      cursors.training_progress,
+      50_000,
+    ),
   ]);
   return {
     changes: {
       profiles: profiles.changes,
       games: games.changes,
+      training_progress: trainingProgress.changes,
     },
     cursors: {
       profiles: profiles.cursor,
       games: games.cursor,
+      training_progress: trainingProgress.cursor,
     },
   };
 }
@@ -182,6 +192,12 @@ export async function uploadCloudChanges(uid: string, changes: CloudSyncBatch) {
       value: change.deleted
         ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
         : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
+    })),
+    ...changes.training_progress.map((change) => ({
+      reference: doc(db, "users", uid, "trainingProgress", change.document_id),
+      value: change.deleted
+        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
+        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
     })),
   ];
 
@@ -203,7 +219,7 @@ export async function uploadCloudChanges(uid: string, changes: CloudSyncBatch) {
   if (batchCount) await batch.commit();
 
   await setDoc(doc(db, "users", uid), {
-    schemaVersion: 2,
+    schemaVersion: 3,
     profileCount: deleteField(),
     gameCount: deleteField(),
     lastSyncAt: serverTimestamp(),

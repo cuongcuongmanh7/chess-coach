@@ -94,8 +94,10 @@ pub(crate) fn save_game(
         .execute(
             "INSERT INTO saved_games
              (id, pgn, white, black, white_elo, black_elo, result, event, game_date, played_at,
-              eco, opening, time_control, time_class, source_url, source_platform, created_at, last_opened_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, datetime('now'), datetime('now'))
+              eco, opening, time_control, time_class, source_url, source_platform, final_fen,
+              created_at, last_opened_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                     ?17, datetime('now'), datetime('now'))
              ON CONFLICT(id) DO UPDATE SET
                pgn = excluded.pgn,
                white = excluded.white,
@@ -112,6 +114,7 @@ pub(crate) fn save_game(
                time_class = excluded.time_class,
                source_url = COALESCE(excluded.source_url, saved_games.source_url),
                source_platform = COALESCE(excluded.source_platform, saved_games.source_platform),
+               final_fen = COALESCE(excluded.final_fen, saved_games.final_fen),
                last_opened_at = datetime('now')",
             params![
                 &id,
@@ -130,6 +133,7 @@ pub(crate) fn save_game(
                 &request.time_class,
                 &request.source_url,
                 &source_platform,
+                &request.final_fen,
             ],
         )
         .map_err(|_| "Không thể lưu ván cờ vào máy.".to_string())?;
@@ -162,7 +166,8 @@ pub(crate) fn list_saved_games(
         .prepare(
             "SELECT id, white, black, white_elo, black_elo, result, event, game_date, played_at, eco,
                     opening, time_control, time_class, source_url, source_platform,
-                    analysis_complete, created_at, last_opened_at
+                    analysis_complete, created_at, last_opened_at, final_fen,
+                    CASE WHEN final_fen IS NULL OR final_fen = '' THEN pgn ELSE NULL END
              FROM saved_games sg
              WHERE ?1 IS NULL OR EXISTS (
                SELECT 1 FROM game_profiles gp WHERE gp.game_id = sg.id AND gp.profile_id = ?1
@@ -192,6 +197,8 @@ pub(crate) fn list_saved_games(
                 analysis_complete: row.get::<_, i64>(15)? != 0,
                 created_at: row.get(16)?,
                 last_opened_at: row.get(17)?,
+                final_fen: row.get(18)?,
+                preview_pgn: row.get(19)?,
             })
         })
         .map_err(|_| "Không thể đọc danh sách ván đã lưu.".to_string())?;
@@ -250,6 +257,7 @@ pub(crate) fn delete_saved_game(
     let transaction = connection
         .transaction()
         .map_err(|_| "Không thể bắt đầu xoá ván cờ.".to_string())?;
+    remove_training_for_game(&transaction, &id, true)?;
     transaction
         .execute(
             "DELETE FROM engine_analyses WHERE game_id = ?1",
@@ -274,7 +282,6 @@ pub(crate) fn delete_saved_game(
 }
 
 pub(crate) const ENGINE_VERSION: &str = "stockfish-18-lite";
-
 pub(crate) fn validate_game_id(id: &str) -> Result<(), String> {
     if id.len() == 64 && id.chars().all(|character| character.is_ascii_hexdigit()) {
         Ok(())

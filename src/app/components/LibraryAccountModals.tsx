@@ -3,8 +3,6 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -58,6 +56,8 @@ import {
   GameCoachSummaryView,
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
+import { isTauri } from "../../shared/services/tauriClient";
+import { AccountAvatar, BrandIcon } from "../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../AppControllerContext";
 import { DEMO_PGN } from "../../demo";
 import { firebaseConfigured } from "../../firebase";
@@ -75,6 +75,7 @@ export function LibraryAccountModals() {
     setAccountOpen,
     firebaseUser,
     authLoading,
+    googleLoginPending,
     cloudSyncing,
     lastCloudSyncAt,
     currentGameId,
@@ -99,6 +100,7 @@ export function LibraryAccountModals() {
     accountSwitchBusy,
     syncCloud,
     handleGoogleLogin,
+    handleCancelGoogleLogin,
     handleGoogleLogout,
     changeActiveProfile,
     addPlayerProfile,
@@ -198,7 +200,7 @@ export function LibraryAccountModals() {
             {firebaseUser ? (
               <>
                 <div className="account-identity">
-                  <span className="account-avatar">{accountInitial}</span>
+                  <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="account-avatar" />
                   <div>
                     <strong>{firebaseUser.displayName || "Tài khoản Google"}</strong>
                     <span>{firebaseUser.email}</span>
@@ -221,17 +223,23 @@ export function LibraryAccountModals() {
             ) : (
               <>
                 <div className="account-signin-card">
-                  <div className="google-mark">G</div>
+                  <div className="google-mark"><BrandIcon brand="google" size={22} /></div>
                   <div><strong>Đăng nhập bằng Google</strong><span>Firebase dùng tài khoản này để tách riêng dữ liệu của mày.</span></div>
                 </div>
                 {!firebaseConfigured && <div className="error-message">Bản build này chưa có Firebase Web App config. Điền các biến VITE_FIREBASE_* rồi build lại.</div>}
                 <div className="security-note"><ShieldCheck size={15} /> App chỉ nhận tên, email và mã UID từ Google. Mật khẩu không đi qua Chess Coach.</div>
                 <div className="modal-actions">
                   <button className="ghost-button" onClick={() => setAccountOpen(false)}>Để sau</button>
-                  <button className="primary-button large" onClick={() => void handleGoogleLogin()} disabled={!firebaseConfigured || authLoading || accountSwitchBusy}>
-                    {authLoading ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}
-                    {authLoading ? "Đang mở Google…" : "Tiếp tục với Google"}
-                  </button>
+                  {googleLoginPending && isTauri() ? (
+                    <button className="danger-ghost large" onClick={() => void handleCancelGoogleLogin()}>
+                      <X size={16} /> Hủy đăng nhập
+                    </button>
+                  ) : (
+                    <button className="primary-button large" onClick={() => void handleGoogleLogin()} disabled={!firebaseConfigured || authLoading || accountSwitchBusy}>
+                      {authLoading ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}
+                      {googleLoginPending ? "Đang mở Google…" : authLoading ? "Đang khởi tạo…" : "Tiếp tục với Google"}
+                    </button>
+                  )}
                 </div>
               </>
             )}

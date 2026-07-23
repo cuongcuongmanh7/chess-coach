@@ -49,11 +49,12 @@ fn upgrades_v061_data_without_losing_games_or_caches() {
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    let game: (String, String, String) = connection
+    let game: (String, String, String, Option<String>) = connection
         .query_row(
-            "SELECT pgn, played_at, source_platform FROM saved_games WHERE id = 'game-1'",
+            "SELECT pgn, played_at, source_platform, final_fen
+             FROM saved_games WHERE id = 'game-1'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .unwrap();
     let explanation: String = connection
@@ -75,6 +76,7 @@ fn upgrades_v061_data_without_losing_games_or_caches() {
     assert!(game.0.contains("1. e4 e5"));
     assert_eq!(game.1, "2026-07-23");
     assert_eq!(game.2, "lichess");
+    assert_eq!(game.3, None);
     assert_eq!(explanation, "Giải thích cũ");
     assert_eq!(engine, (11, 2));
     initialize_database(&connection, false).expect("migration must be idempotent");
@@ -112,6 +114,75 @@ fn creates_backup_before_file_database_migration() {
 }
 
 #[test]
+fn creates_v070_backup_before_training_schema_migration() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "chess-coach-v070-migration-test-{}-{unique}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let database_path = directory.join("current.sqlite3");
+    {
+        let connection = Connection::open(&database_path).unwrap();
+        initialize_database(&connection, false).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE training_attempts;
+                 DROP TABLE training_cards;
+                 DROP TABLE training_progress_inbox;
+                 PRAGMA user_version = 2;",
+            )
+            .unwrap();
+    }
+
+    let connection = open_database(&database_path, false).unwrap();
+    assert!(directory.join("current.sqlite3.pre-v0.7.0.bak").exists());
+    assert_eq!(
+        connection
+            .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+            .unwrap(),
+        CURRENT_SCHEMA_VERSION
+    );
+    drop(connection);
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn creates_separate_backup_before_preview_cache_migration() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "chess-coach-preview-migration-test-{}-{unique}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let database_path = directory.join("current.sqlite3");
+    {
+        let connection = Connection::open(&database_path).unwrap();
+        initialize_database(&connection, false).unwrap();
+        connection.execute_batch("PRAGMA user_version = 3;").unwrap();
+    }
+
+    let connection = open_database(&database_path, false).unwrap();
+    assert!(directory
+        .join("current.sqlite3.pre-v0.7.0-preview.bak")
+        .exists());
+    assert_eq!(
+        connection
+            .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+            .unwrap(),
+        CURRENT_SCHEMA_VERSION
+    );
+    drop(connection);
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn engine_cache_keeps_profiles_and_reads_highest_depth() {
     let connection = Connection::open_in_memory().unwrap();
     initialize_database(&connection, false).unwrap();
@@ -144,4 +215,31 @@ fn engine_cache_keeps_profiles_and_reads_highest_depth() {
     assert_eq!(count, 2);
     assert_eq!(stored.len(), 1);
     assert_eq!(stored[0].depth, 13);
+}
+
+#[test]
+fn creates_training_schema_and_keeps_it_idempotent() {
+    let connection = legacy_connection();
+    initialize_database(&connection, false).unwrap();
+
+    let card_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('training_cards')
+             WHERE name IN ('due_at', 'correct_streak', 'last_correct_at')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let attempt_table: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'table' AND name = 'training_attempts'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    assert_eq!(card_columns, 3);
+    assert_eq!(attempt_table, 1);
+    initialize_database(&connection, false).expect("v3 migration must be idempotent");
 }

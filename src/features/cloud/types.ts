@@ -57,9 +57,37 @@ export type CloudPendingGameChange = {
   data: CloudSavedGame | null;
 };
 
+export type CloudTrainingProgress = {
+  card_id: string;
+  status: string;
+  due_at: string;
+  interval_days: number;
+  correct_streak: number;
+  attempts: number;
+  starred: boolean;
+  suspended: boolean;
+  updated_at: string;
+};
+
+export type CloudRemoteTrainingProgressChange = {
+  document_id: string;
+  deleted: boolean;
+  needs_upgrade: boolean;
+  data: CloudTrainingProgress | null;
+};
+
+export type CloudPendingTrainingProgressChange = {
+  document_id: string;
+  generation: number;
+  attempts: number;
+  deleted: boolean;
+  data: CloudTrainingProgress | null;
+};
+
 export type CloudSyncBatch = {
   profiles: CloudPendingProfileChange[];
   games: CloudPendingGameChange[];
+  training_progress: CloudPendingTrainingProgressChange[];
 };
 
 export type CloudSyncCursor = {
@@ -72,12 +100,14 @@ export type CloudSyncCursor = {
 export type CloudSyncCursors = {
   profiles: CloudSyncCursor;
   games: CloudSyncCursor;
+  training_progress: CloudSyncCursor;
 };
 
 export type CloudDownloadResult = {
   changes: {
     profiles: CloudRemoteProfileChange[];
     games: CloudRemoteGameChange[];
+    training_progress: CloudRemoteTrainingProgressChange[];
   };
   cursors: CloudSyncCursors;
 };

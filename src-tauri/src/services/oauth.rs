@@ -1,4 +1,34 @@
 use crate::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+const GOOGLE_OAUTH_TIMEOUT: Duration = Duration::from_secs(120);
+const GOOGLE_OAUTH_CANCELLED: &str = "Đăng nhập đã được hủy.";
+static GOOGLE_OAUTH_SESSION: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, PartialEq)]
+enum OAuthWaitStatus {
+    Waiting,
+    Cancelled,
+    TimedOut,
+}
+
+fn start_google_oauth_session() -> u64 {
+    GOOGLE_OAUTH_SESSION.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+fn oauth_wait_status(session: u64, now: Instant, deadline: Instant) -> OAuthWaitStatus {
+    if GOOGLE_OAUTH_SESSION.load(Ordering::SeqCst) != session {
+        OAuthWaitStatus::Cancelled
+    } else if now >= deadline {
+        OAuthWaitStatus::TimedOut
+    } else {
+        OAuthWaitStatus::Waiting
+    }
+}
+
+pub(crate) fn cancel_google_oauth() {
+    GOOGLE_OAUTH_SESSION.fetch_add(1, Ordering::SeqCst);
+}
 
 pub(crate) fn open_system_browser(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -43,6 +73,7 @@ pub(crate) fn loopback_response(
 }
 
 pub(crate) fn run_google_oauth_loopback() -> Result<String, String> {
+    let session = start_google_oauth_session();
     let listener = TcpListener::bind("127.0.0.1:0")
         .map_err(|error| format!("Không thể mở cổng đăng nhập cục bộ: {error}"))?;
     listener
@@ -69,8 +100,13 @@ pub(crate) fn run_google_oauth_loopback() -> Result<String, String> {
         .append_pair("state", &state);
     open_system_browser(bridge_url.as_str())?;
 
-    let deadline = Instant::now() + Duration::from_secs(300);
-    while Instant::now() < deadline {
+    let deadline = Instant::now() + GOOGLE_OAUTH_TIMEOUT;
+    loop {
+        match oauth_wait_status(session, Instant::now(), deadline) {
+            OAuthWaitStatus::Waiting => {}
+            OAuthWaitStatus::Cancelled => return Err(GOOGLE_OAUTH_CANCELLED.into()),
+            OAuthWaitStatus::TimedOut => break,
+        }
         let (mut stream, _) = match listener.accept() {
             Ok(connection) => connection,
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -164,4 +200,37 @@ pub(crate) async fn begin_google_oauth() -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(run_google_oauth_loopback)
         .await
         .map_err(|error| format!("Luồng đăng nhập bị gián đoạn: {error}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_can_be_cancelled_timed_out_and_restarted() {
+        let deadline = Instant::now() + GOOGLE_OAUTH_TIMEOUT;
+        let first = start_google_oauth_session();
+        assert_eq!(
+            oauth_wait_status(first, Instant::now(), deadline),
+            OAuthWaitStatus::Waiting
+        );
+
+        cancel_google_oauth();
+        assert_eq!(
+            oauth_wait_status(first, Instant::now(), deadline),
+            OAuthWaitStatus::Cancelled
+        );
+
+        let second = start_google_oauth_session();
+        assert_eq!(
+            oauth_wait_status(second, Instant::now(), deadline),
+            OAuthWaitStatus::Waiting
+        );
+
+        let expired_deadline = Instant::now();
+        assert_eq!(
+            oauth_wait_status(second, expired_deadline, expired_deadline),
+            OAuthWaitStatus::TimedOut
+        );
+    }
 }

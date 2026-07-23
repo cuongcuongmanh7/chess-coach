@@ -11,14 +11,17 @@ import { isTauri } from "../../shared/services/tauriClient";
 import type { PlayerProfile } from "../../shared/types/tauri";
 import type { useCloudController } from "./useCloudController";
 import type { AppState } from "./useAppState";
+import type { useTrainingController } from "../../features/training/hooks/useTrainingController";
 
 type CloudController = ReturnType<typeof useCloudController>;
+type TrainingController = ReturnType<typeof useTrainingController>;
 type DataDependencies = {
   syncCloud: CloudController["syncCloud"];
   refreshProfiles: CloudController["refreshProfiles"];
   refreshSavedGames: CloudController["refreshSavedGames"];
   gameOpening: OpeningInfo | null;
   headers: GameAnalysis["headers"];
+  generateCardsForGame: TrainingController["generateCardsForGame"];
 };
 
 export function useDataController(
@@ -29,6 +32,7 @@ export function useDataController(
     refreshSavedGames,
     gameOpening,
     headers,
+    generateCardsForGame,
   }: DataDependencies,
 ) {
   const {
@@ -88,6 +92,7 @@ export function useDataController(
       setEngineCache(cache);
       const complete = next.steps.length > 0 && next.steps.every((item) => Boolean(cache[item.ply]));
       if (complete) void analysisRepository.markComplete(gameId).catch(() => undefined);
+      if (complete) void generateCardsForGame(gameId, next.steps, cache).catch(() => undefined);
       setFullAnalysis({
         running: false,
         complete,
@@ -98,7 +103,7 @@ export function useDataController(
     } catch (reason) {
       setEngineError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, []);
+  }, [generateCardsForGame]);
 
   const openDashboard = useCallback(async () => {
     setDashboardOpen(true);

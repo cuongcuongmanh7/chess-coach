@@ -7,6 +7,7 @@ import {
   isChessComLink,
 } from "../../features/library/utils";
 import { gameRepository } from "../../features/library/services/gameRepository";
+import { finalFenFromAnalysis } from "../../features/library/gamePreviews";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { PlayerProfile, SavedGameSummary } from "../../shared/types/tauri";
@@ -131,6 +132,7 @@ export function useLibraryController(
               time_class: inferTimeClass(importedAnalysis.headers.TimeControl) || null,
               source_url: sourceUrl,
               source_platform: inferSourcePlatform(sourceUrl || importedAnalysis.headers.Link || importedAnalysis.headers.Site),
+              final_fen: finalFenFromAnalysis(importedAnalysis),
           });
           loadAnalysis(pgn, gameId);
           await refreshSavedGames();
@@ -194,6 +196,7 @@ export function useLibraryController(
                 : syncTimeClass,
               source_url: sourceUrl,
               source_platform: activeProfile.platform,
+              final_fen: finalFenFromAnalysis(parsed),
           });
           if (knownIds.has(id)) skipped += 1;
           else {

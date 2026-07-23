@@ -1,6 +1,6 @@
 [package]
 name = "chess-coach-vn"
-version = "0.6.2"
+version = "0.7.0"
 description = "Prototype phân tích cờ vua trực quan bằng tiếng Việt"
 authors = ["Chess Coach"]
 edition = "2021"

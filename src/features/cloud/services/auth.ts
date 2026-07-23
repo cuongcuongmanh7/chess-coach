@@ -37,6 +37,16 @@ export async function signInWithGoogle() {
   return (await signInWithPopup(requireAuth(), provider)).user;
 }
 
+export async function cancelGoogleSignIn() {
+  if ("__TAURI_INTERNALS__" in window) {
+    await invokeCommand<void>("cancel_google_oauth");
+  }
+}
+
+export function isGoogleSignInCancelled(reason: unknown) {
+  return String(reason).includes("Đăng nhập đã được hủy.");
+}
+
 export async function signOutFirebase() {
   await signOut(requireAuth());
 }

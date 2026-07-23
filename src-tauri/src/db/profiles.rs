@@ -205,6 +205,7 @@ pub(crate) fn delete_player_profile(
     let transaction = connection
         .transaction()
         .map_err(|_| "Không thể bắt đầu xoá hồ sơ.".to_string())?;
+    remove_training_for_profile(&transaction, profile_id, true)?;
     queue_games_for_profile(&transaction, profile_id)
         .map_err(|_| "Không thể cập nhật các ván liên quan trong hàng đợi.".to_string())?;
     transaction

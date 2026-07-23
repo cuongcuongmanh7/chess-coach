@@ -2,7 +2,7 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.6.2**.
+Phiên bản hiện tại: **0.7.0**.
 
 ## Chạy trên Windows
 
@@ -41,6 +41,9 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
 - Chế độ Thử lại cho phép kéo quân, nhận chấm điểm Stockfish và mở dần ba cấp gợi ý.
+- Mistake Lab tự tạo bài từ Mistake/Blunder của hồ sơ đang chọn, chống trùng và dùng được hoàn toàn offline.
+- Lịch ôn local hỗ trợ bài đến hạn, bài mới, đã thuộc, đánh dấu sao, tạm ẩn, bộ lọc và thống kê streak.
+- Tiến độ Mistake Lab được đồng bộ nhỏ gọn qua Firestore; FEN, best line và lịch sử engine vẫn chỉ nằm trên máy.
 - Kết quả Stockfish được lưu theo từng nước trong SQLite; mở lại ván có thể tiếp tục phân tích còn dở.
 - Quản lý nhiều hồ sơ Chess.com/Lichess; hồ sơ mặc định là `Chess.com · Cuongkool` và `Lichess · chinsu1409`.
 - Kho ván và Dashboard được lọc theo hồ sơ đang chọn; một ván có thể liên kết với nhiều hồ sơ nếu các tài khoản gặp nhau.
@@ -73,7 +76,7 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 
 Rules trong repo chỉ cho phép người dùng đã xác thực đọc/ghi đường dẫn `users/{uid}` của chính họ. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
 
-Schema cloud hiện tại là phiên bản 2. Lần đồng bộ đầu sau khi nâng cấp sẽ đọc dữ liệu schema cũ, đưa các mục local hiện có vào hàng đợi một lần và bổ sung metadata `updatedAt` cần cho các lần đồng bộ tăng dần sau đó. Tombstone được giữ trên Firestore để thiết bị offline lâu ngày vẫn nhận được thao tác xoá.
+Schema cloud hiện tại là phiên bản 3. Lần đồng bộ đầu sau khi nâng cấp sẽ đọc dữ liệu schema cũ, đưa các mục local hiện có vào hàng đợi một lần và bổ sung metadata `updatedAt` cần cho các lần đồng bộ tăng dần sau đó. Tombstone được giữ trên Firestore để thiết bị offline lâu ngày vẫn nhận được thao tác xoá.
 
 Các kho theo tài khoản được lưu dưới tên băm SHA-256 trong thư mục dữ liệu ứng dụng; Firebase UID không được dùng trực tiếp làm tên file. Khi đăng xuất, app quay về kho local khách, còn kho của tài khoản vẫn được giữ nguyên để mở lại ở lần đăng nhập sau.
 

@@ -13,5 +13,10 @@ export function cloudAckTokens(batch: CloudSyncBatch): CloudAckToken[] {
       entity_id: change.document_id,
       generation: change.generation,
     })),
+    ...batch.training_progress.map((change) => ({
+      entity_type: "training_progress" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
   ];
 }

@@ -1,19 +1,13 @@
 use crate::*;
 
-pub(crate) fn valid_cloud_document_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && !value.contains('/')
-        && value
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || "_-".contains(character))
-}
-
 pub(crate) fn merge_cloud_changes_connection(
     connection: &mut Connection,
     request: MergeCloudChangesRequest,
 ) -> Result<CloudMergeResult, String> {
-    if request.profiles.len() > 1_000 || request.games.len() > 10_000 {
+    if request.profiles.len() > 1_000
+        || request.games.len() > 10_000
+        || request.training_progress.len() > 50_000
+    {
         return Err("Bản đồng bộ vượt quá giới hạn an toàn.".to_string());
     }
 
@@ -47,6 +41,7 @@ pub(crate) fn merge_cloud_changes_connection(
                 .optional()
                 .map_err(|_| "Không thể tìm hồ sơ cần xoá từ cloud.".to_string())?;
             if let Some(profile_id) = profile_id {
+                remove_training_for_profile(&transaction, profile_id, false)?;
                 transaction
                     .execute(
                         "DELETE FROM game_profiles WHERE profile_id = ?1",
@@ -126,6 +121,7 @@ pub(crate) fn merge_cloud_changes_connection(
                     params![&change.document_id],
                 )
                 .map_err(|_| "Không thể xoá phân tích của ván từ cloud.".to_string())?;
+            remove_training_for_game(&transaction, &change.document_id, false)?;
             transaction
                 .execute(
                     "DELETE FROM game_profiles WHERE game_id = ?1",
@@ -275,6 +271,9 @@ pub(crate) fn merge_cloud_changes_connection(
         }
     }
 
+    let training_progress_merged =
+        merge_training_progress(&transaction, &request.training_progress)?;
+
     transaction
         .commit()
         .map_err(|_| "Không thể lưu dữ liệu cloud đã hợp nhất.".to_string())?;
@@ -283,6 +282,7 @@ pub(crate) fn merge_cloud_changes_connection(
         games_added,
         profiles_deleted,
         games_deleted,
+        training_progress_merged,
     })
 }
 

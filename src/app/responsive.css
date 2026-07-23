@@ -2,21 +2,28 @@
   body { overflow: hidden; }
   .topbar { position: static; }
   .workspace { height: 100%; min-height: 0; overflow-y: auto; }
-  .analysis-grid { grid-template-columns: 1fr; }
+  .analysis-grid { flex: 0 0 auto; grid-template-columns: 1fr; }
   .board-wrap { max-width: 650px; }
-  .coach-panel { min-height: 480px; }
+  .coach-panel { min-height: 480px; overflow: visible; }
+  .coach-scroll-content { min-height: auto; flex: 0 0 auto; overflow: visible; }
+  .coach-insight-scroll { min-height: auto; flex: 0 0 auto; overflow: visible; }
   .timeline-section { flex-basis: auto; min-height: 68px; }
   .service-pill { display: none; }
   .cloud-account-button { max-width: 105px; }
   .sidebar-cloud-button { max-width: none; }
   .profile-switcher { min-width: 170px; }
-  .board-column:has(.retry-panel) .board-stage { width: min(100%, 560px); }
+  .board-column:has(.retry-panel) .board-stage { width: min(100%, clamp(360px, calc(100vh - 430px), 560px)); }
 }
 
 @media (max-height: 780px) {
   body { overflow: hidden; }
   .workspace { overflow-y: auto; }
   .analysis-grid { min-height: 610px; }
+}
+
+@media (max-height: 600px) {
+  .coach-scroll-content { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #31443c transparent; }
+  .coach-insight-scroll { min-height: auto; flex: 0 0 auto; overflow: visible; }
 }
 
 @media (max-width: 860px) {
@@ -80,6 +87,14 @@
   .dashboard-metrics { grid-template-columns: 1fr 1fr; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-modal { max-height: calc(100vh - 18px); padding: 24px 18px; }
+  .summary-modal .modal-sticky-header,
+  .dashboard-modal .modal-sticky-header {
+    margin: -24px -18px 0;
+    padding: 24px 54px 14px 18px;
+    top: -24px;
+  }
+  .summary-modal .modal-sticky-header .modal-close,
+  .dashboard-modal .modal-sticky-header .modal-close { top: 22px; right: 16px; }
   .dashboard-modal .summary-heading h2 { font-size: 25px; }
   .dashboard-modal .summary-heading p { font-size: 11px; }
   .dashboard-modal .dashboard-metrics > div { min-height: 86px; padding: 12px 8px; }
@@ -91,6 +106,8 @@
   .library-heading .modal-icon { width: 39px; height: 39px; }
   .library-game { grid-template-columns: minmax(0,1fr) 37px; }
   .library-game-open { padding: 11px 9px; }
+  .sidebar-library .library-game-layout { grid-template-columns: minmax(0,1fr); }
+  .sidebar-library .game-position-thumbnail { display: none; }
   .library-game-players { gap: 7px; }
   .library-player { gap: 4px; }
   .library-player strong { font-size: 10px; }

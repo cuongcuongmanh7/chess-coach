@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { Chess, type Square } from "chess.js";
 import type { AnalysisStep } from "../../analysis";
 import { buildVariation } from "../../features/analysis/boardUtils";
+import { useInteractiveBoardHints } from "../../shared/chess/useInteractiveBoardHints";
 import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
 import type { AppState } from "./useAppState";
 
@@ -35,6 +36,11 @@ export function useBoardController(
     setVariationState,
     setVariationPlaying,
   } = state;
+  const boardHints = useInteractiveBoardHints({
+    fen: boardPosition,
+    controlledColor: step.color,
+    enabled: Boolean(retryState && !retryState.loading && !retryState.feedback),
+  });
   const arrows = useMemo(() => {
     const result = [...step.arrows];
     engine?.variations.slice(0, 2).forEach((variation, index) => {
@@ -130,7 +136,17 @@ export function useBoardController(
     position: boardPosition,
     boardOrientation: orientation,
     allowDragging: Boolean(retryState && !retryState.loading && !retryState.feedback),
-    onPieceDrop: handleRetryDrop,
+    canDragPiece: boardHints.canDragPiece,
+    onPieceClick: boardHints.onPieceClick,
+    onPieceDrag: boardHints.onPieceDrag,
+    onSquareClick: boardHints.onSquareClick,
+    onSquareRightClick: boardHints.onSquareRightClick,
+    onPieceDrop: (move: { sourceSquare: string; targetSquare: string | null }) => {
+      const moved = handleRetryDrop(move);
+      if (moved) boardHints.clearSelection();
+      return moved;
+    },
+    squareStyles: boardHints.squareStyles,
     allowDrawingArrows: false,
     showAnimations: true,
     animationDurationInMs: 220,
@@ -143,7 +159,10 @@ export function useBoardController(
     darkSquareStyle: { backgroundColor: "#315f50" },
     lightSquareStyle: { backgroundColor: "#d9d4c4" },
     squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
-      <div className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}`}>
+      <div
+        className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}`}
+        style={boardHints.squareStyles[square]}
+      >
         {children}
       </div>
     ),
@@ -163,5 +182,6 @@ export function useBoardController(
     openVariation,
     retryBestPiece,
     chessboardOptions,
+    handleBoardMouseDown: boardHints.handleBoardMouseDown,
   };
 }

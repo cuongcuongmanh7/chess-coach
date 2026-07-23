@@ -3,16 +3,12 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
   ClipboardPaste,
   Clock,
-  Cloud,
-  CloudOff,
   Database,
   Download,
   Dumbbell,
@@ -58,6 +54,7 @@ import {
   GameCoachSummaryView,
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
+import { AccountAvatar, BrandIcon } from "../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../AppControllerContext";
 
 export function AppChrome() {
@@ -84,13 +81,17 @@ export function AppChrome() {
     setSyncNotice,
     engine,
     hasApiKey,
+    provider,
     providerLabel,
     activeProfile,
     accountInitial,
     cloudAccountLabel,
+    accountSwitchBusy,
     toggleSidebar,
     refreshSavedGames,
     openDashboard,
+    openTraining,
+    handleGoogleLogout,
     changeActiveProfile,
     openStoredGame,
     removeStoredGame,
@@ -110,7 +111,7 @@ export function AppChrome() {
             <div className="brand">
               <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
               <div className="brand-copy">
-                <div className="brand-name">Chess Coach <span className="version-badge">v0.6.2</span></div>
+                <div className="brand-name">Chess Coach <span className="version-badge">v0.7.0</span></div>
                 <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
               </div>
             </div>
@@ -166,17 +167,30 @@ export function AppChrome() {
         </section>
 
         <div className="sidebar-library-footer">
-          <button
-            className={`cloud-account-button sidebar-cloud-button ${firebaseUser ? "signed-in" : ""}`}
-            onClick={() => setAccountOpen(true)}
-            aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
-            title={firebaseUser ? `Đã đăng nhập: ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
-          >
-            {authLoading || cloudSyncing
-              ? <LoaderCircle className="spin" size={16} />
-              : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={16} />}
-            <span>{cloudSyncing ? "Đang đồng bộ" : cloudAccountLabel}</span>
-          </button>
+          <div className={`sidebar-cloud-account ${firebaseUser ? "signed-in" : ""}`}>
+            <button
+              className={`cloud-account-button sidebar-cloud-button ${firebaseUser ? "signed-in" : ""}`}
+              onClick={() => setAccountOpen(true)}
+              aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
+              title={firebaseUser ? `Đã đăng nhập: ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}
+            >
+              {authLoading || cloudSyncing
+                ? <LoaderCircle className="spin" size={16} />
+                : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
+              <span>{cloudSyncing ? "Đang đồng bộ" : cloudAccountLabel}</span>
+            </button>
+            {firebaseUser && (
+              <button
+                className="sidebar-cloud-logout"
+                disabled={accountSwitchBusy}
+                onClick={() => void handleGoogleLogout()}
+                aria-label={`Đăng xuất ${cloudAccountLabel}`}
+                title={`Đăng xuất ${cloudAccountLabel}`}
+              >
+                <LogOut size={15} />
+              </button>
+            )}
+          </div>
           <button className="sidebar-settings-button" onClick={() => setSettingsOpen(true)} aria-label="Cài đặt" title="Cài đặt"><Settings size={17} /></button>
           <button className="sidebar-add-button" onClick={() => setImportOpen(true)} aria-label="Nạp ván mới" title="Nạp ván mới"><Plus size={19} /></button>
         </div>
@@ -186,7 +200,7 @@ export function AppChrome() {
         <div className="brand mobile-brand">
           <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
           <div className="brand-copy">
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.6.2</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.7.0</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
@@ -194,16 +208,19 @@ export function AppChrome() {
         <div className="top-actions">
           <button className="icon-button mobile-sidebar-action" onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ"><UserRound size={17} /></button>
           <button className={`icon-button mobile-sidebar-action ${firebaseUser ? "signed-in" : ""}`} onClick={() => setAccountOpen(true)} aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}>
-            {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <span className="cloud-avatar">{accountInitial}</span> : <CloudOff size={16} />}
+            {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
           </button>
           <div className={`service-pill ${engine ? "online" : "working"}`}>
             <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
           </div>
           <div className={`service-pill ${hasApiKey ? "online" : ""}`}>
-            <Bot size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}
+            <BrandIcon brand={provider} size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}
           </div>
           <button className="ghost-button dashboard-button" onClick={() => void openDashboard()}>
             <BarChart3 size={16} /> Tiến bộ
+          </button>
+          <button className="ghost-button dashboard-button" onClick={openTraining}>
+            <Dumbbell size={16} /> Mistake Lab
           </button>
           <button className="ghost-button library-button mobile-library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
             <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}

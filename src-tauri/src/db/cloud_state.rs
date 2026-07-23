@@ -40,6 +40,8 @@ pub(crate) fn get_cloud_sync_cursors(
             .map_err(|_| "Không thể đọc con trỏ hồ sơ cloud.".to_string())?,
         games: load_cloud_cursor(&connection, &uid, "games")
             .map_err(|_| "Không thể đọc con trỏ ván cloud.".to_string())?,
+        training_progress: load_cloud_cursor(&connection, &uid, "trainingProgress")
+            .map_err(|_| "Không thể đọc con trỏ tiến độ luyện cloud.".to_string())?,
     })
 }
 
@@ -86,6 +88,13 @@ pub(crate) fn set_cloud_sync_cursors(
         .map_err(|_| "Không thể lưu con trỏ hồ sơ cloud.".to_string())?;
     save_cloud_cursor(&transaction, &uid, "games", &cursors.games)
         .map_err(|_| "Không thể lưu con trỏ ván cloud.".to_string())?;
+    save_cloud_cursor(
+        &transaction,
+        &uid,
+        "trainingProgress",
+        &cursors.training_progress,
+    )
+    .map_err(|_| "Không thể lưu con trỏ tiến độ luyện cloud.".to_string())?;
     transaction
         .commit()
         .map_err(|_| "Không thể hoàn tất lưu con trỏ cloud.".to_string())
@@ -99,7 +108,10 @@ pub(crate) fn acknowledge_cloud_changes_connection(
         .transaction()
         .map_err(|_| "Không thể xác nhận hàng đợi cloud.".to_string())?;
     for change in changes {
-        if !matches!(change.entity_type.as_str(), "profile" | "game") {
+        if !matches!(
+            change.entity_type.as_str(),
+            "profile" | "game" | "training_progress"
+        ) {
             return Err("Loại thay đổi cloud không hợp lệ.".to_string());
         }
         transaction

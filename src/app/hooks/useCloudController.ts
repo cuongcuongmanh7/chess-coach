@@ -2,8 +2,10 @@ import { useCallback } from "react";
 import { analyzePgn } from "../../analysis";
 import { DEMO_PGN } from "../../demo";
 import {
+  cancelGoogleSignIn,
   downloadCloudChanges,
   firebaseErrorMessage,
+  isGoogleSignInCancelled,
   signInWithGoogle,
   signOutFirebase,
   uploadCloudChanges,
@@ -12,6 +14,7 @@ import {
 import { cloudAckTokens } from "../../features/cloud/utils";
 import { localCloudRepository } from "../../features/cloud/services/localCloudRepository";
 import { gameRepository } from "../../features/library/services/gameRepository";
+import { hydrateGamePreviews } from "../../features/library/gamePreviews";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { CloudAckToken, CloudMergeResult } from "../../shared/types/tauri";
@@ -26,6 +29,8 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     setFirebaseUser,
     authLoading,
     setAuthLoading,
+    googleLoginPending,
+    setGoogleLoginPending,
     setCloudSyncing,
     setLastCloudSyncAt,
     setCurrentGameId,
@@ -82,7 +87,11 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     setLibraryLoading(true);
     setLibraryError("");
     try {
-      setSavedGames(await gameRepository.list(activeProfileId));
+      const previewState = hydrateGamePreviews(await gameRepository.list(activeProfileId));
+      setSavedGames(previewState.games);
+      if (previewState.updates.length) {
+        await gameRepository.savePreviews(previewState.updates);
+      }
     } catch (reason) {
       setLibraryError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -133,6 +142,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       games_added: 0,
       profiles_deleted: 0,
       games_deleted: 0,
+      training_progress_merged: 0,
     };
     try {
       let rounds = 0;
@@ -150,6 +160,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
         mergedTotal.games_added += merged.games_added;
         mergedTotal.profiles_deleted += merged.profiles_deleted;
         mergedTotal.games_deleted += merged.games_deleted;
+        mergedTotal.training_progress_merged += merged.training_progress_merged;
         await localCloudRepository.setCursors(targetUser.uid, remote.cursors);
 
         const localChanges = await localCloudRepository.exportChanges();
@@ -158,6 +169,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
           0,
           ...localChanges.profiles.map((change) => change.attempts),
           ...localChanges.games.map((change) => change.attempts),
+          ...localChanges.training_progress.map((change) => change.attempts),
         );
         if (activeTokens.length) {
           await uploadCloudChanges(targetUser.uid, localChanges);
@@ -175,7 +187,9 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       setLastCloudSyncAt(completedAt);
       await Promise.all([refreshProfiles(), refreshSavedGames()]);
       if (showSuccess) {
-        const imported = mergedTotal.profiles_added + mergedTotal.games_added;
+        const imported = mergedTotal.profiles_added
+          + mergedTotal.games_added
+          + mergedTotal.training_progress_merged;
         const deleted = mergedTotal.profiles_deleted + mergedTotal.games_deleted;
         setSyncNotice({
           type: "success",
@@ -227,6 +241,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       return;
     }
     setAuthLoading(true);
+    setGoogleLoginPending(true);
     setSyncNotice(null);
     try {
       const user = await signInWithGoogle();
@@ -235,10 +250,19 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       setAccountOpen(true);
       await syncCloud(user, true);
     } catch (reason) {
-      setSyncNotice({ type: "error", message: firebaseErrorMessage(reason) });
+      setSyncNotice({
+        type: isGoogleSignInCancelled(reason) ? "info" : "error",
+        message: firebaseErrorMessage(reason),
+      });
     } finally {
+      setGoogleLoginPending(false);
       setAuthLoading(false);
     }
+  };
+
+  const handleCancelGoogleLogin = async () => {
+    if (!googleLoginPending) return;
+    await cancelGoogleSignIn();
   };
 
   const handleGoogleLogout = async () => {
@@ -274,6 +298,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     resetForDatabaseSwitch,
     syncCloud,
     handleGoogleLogin,
+    handleCancelGoogleLogin,
     handleGoogleLogout,
   };
 }

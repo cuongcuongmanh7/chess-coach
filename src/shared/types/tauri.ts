@@ -28,6 +28,8 @@ export type SavedGameSummary = {
   source_url: string | null;
   source_platform: SyncPlatform | null;
   analysis_complete: boolean;
+  final_fen: string | null;
+  preview_pgn: string | null;
   created_at: string;
   last_opened_at: string;
 };
@@ -53,10 +55,11 @@ export type CloudMergeResult = {
   games_added: number;
   profiles_deleted: number;
   games_deleted: number;
+  training_progress_merged: number;
 };
 
 export type CloudAckToken = {
-  entity_type: "profile" | "game";
+  entity_type: "profile" | "game" | "training_progress";
   entity_id: string;
   generation: number;
 };
@@ -82,7 +85,10 @@ export type SaveGameRequest = {
   time_class: string | null;
   source_url: string | null;
   source_platform: SyncPlatform | null;
+  final_fen: string | null;
 };
+
+export type GamePreviewUpdate = { id: string; final_fen: string };
 
 export type SaveEngineAnalysisRequest = {
   game_id: string;

@@ -1,6 +1,7 @@
 import { invokeCommand } from "../../../shared/services/tauriClient";
 import type {
   FetchRecentGamesRequest,
+  GamePreviewUpdate,
   SaveGameRequest,
   SavedGameDetail,
   SavedGameSummary,
@@ -15,6 +16,13 @@ export const gameRepository = {
   },
   save(request: SaveGameRequest) {
     return invokeCommand<string>("save_game", { request });
+  },
+  async savePreviews(updates: GamePreviewUpdate[]) {
+    for (let offset = 0; offset < updates.length; offset += 250) {
+      await invokeCommand<void>("save_game_previews", {
+        updates: updates.slice(offset, offset + 250),
+      });
+    }
   },
   remove(id: string) {
     return invokeCommand<boolean>("delete_saved_game", { id });

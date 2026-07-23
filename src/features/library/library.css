@@ -1,0 +1,39 @@
+.library-game-layout { min-width: 0; }
+.library-game-copy { min-width: 0; }
+
+.sidebar-library .library-game-layout {
+  display: grid;
+  grid-template-columns: 52px minmax(0,1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.game-position-thumbnail {
+  width: 50px;
+  height: 50px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(8,6px);
+  grid-template-rows: repeat(8,6px);
+  overflow: hidden;
+  border: 1px solid #31453c;
+  border-radius: 5px;
+  background: #ddd9c9;
+  box-shadow: 0 4px 12px rgba(0,0,0,.22);
+}
+
+.game-position-thumbnail i {
+  width: 6px;
+  height: 6px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #111;
+  font-family: "Segoe UI Symbol","Arial Unicode MS",sans-serif;
+  font-size: 6px;
+  font-style: normal;
+  line-height: 6px;
+}
+
+.game-position-thumbnail i.light { background: #d8d4c4; }
+.game-position-thumbnail i.dark { background: #3d705f; }

@@ -6,61 +6,7 @@ mod tests {
 
     fn cloud_test_connection() -> Connection {
         let connection = Connection::open_in_memory().expect("open in-memory database");
-        connection
-            .execute_batch(
-                "CREATE TABLE saved_games (
-                    id TEXT PRIMARY KEY,
-                    pgn TEXT NOT NULL,
-                    white TEXT NOT NULL,
-                    black TEXT NOT NULL,
-                    white_elo TEXT,
-                    black_elo TEXT,
-                    result TEXT,
-                    event TEXT,
-                    game_date TEXT,
-                    played_at TEXT,
-                    eco TEXT,
-                    opening TEXT,
-                    time_control TEXT,
-                    time_class TEXT,
-                    source_url TEXT,
-                    source_platform TEXT,
-                    analysis_complete INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    last_opened_at TEXT NOT NULL
-                );
-                CREATE TABLE player_profiles (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    platform TEXT NOT NULL,
-                    username TEXT NOT NULL,
-                    last_sync_at TEXT,
-                    created_at TEXT NOT NULL
-                );
-                CREATE UNIQUE INDEX idx_test_profiles_identity
-                ON player_profiles(platform, username COLLATE NOCASE);
-                CREATE TABLE game_profiles (
-                    game_id TEXT NOT NULL,
-                    profile_id INTEGER NOT NULL,
-                    player_color TEXT NOT NULL,
-                    linked_at TEXT NOT NULL,
-                    PRIMARY KEY(game_id, profile_id)
-                );
-                CREATE TABLE engine_analyses (
-                    game_id TEXT NOT NULL
-                );
-                CREATE TABLE cloud_sync_queue (
-                    entity_type TEXT NOT NULL,
-                    entity_id TEXT NOT NULL,
-                    operation TEXT NOT NULL,
-                    generation INTEGER NOT NULL DEFAULT 1,
-                    attempts INTEGER NOT NULL DEFAULT 0,
-                    next_retry_at TEXT,
-                    last_error TEXT,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY(entity_type, entity_id)
-                );",
-            )
-            .expect("create cloud test schema");
+        initialize_database(&connection, false).expect("create cloud test schema");
         connection
     }
 
@@ -278,6 +224,7 @@ mod tests {
                     needs_upgrade: false,
                     data: None,
                 }],
+                training_progress: Vec::new(),
             },
         )
         .unwrap();
@@ -311,6 +258,7 @@ mod tests {
                     needs_upgrade: false,
                     data: Some(game),
                 }],
+                training_progress: Vec::new(),
             },
         )
         .unwrap();

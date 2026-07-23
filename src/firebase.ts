@@ -1,6 +1,8 @@
 export {
   firebaseConfigured,
   firebaseErrorMessage,
+  cancelGoogleSignIn,
+  isGoogleSignInCancelled,
   observeFirebaseUser,
   signInWithGoogle,
   signOutFirebase,
@@ -21,4 +23,7 @@ export type {
   CloudSyncBatch,
   CloudSyncCursor,
   CloudSyncCursors,
+  CloudTrainingProgress,
+  CloudPendingTrainingProgressChange,
+  CloudRemoteTrainingProgressChange,
 } from "./features/cloud/types";

@@ -48,6 +48,7 @@ export function useAppState() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [googleLoginPending, setGoogleLoginPending] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
@@ -124,7 +125,8 @@ export function useAppState() {
     importOpen, setImportOpen, libraryOpen, setLibraryOpen, sidebarCollapsed, setSidebarCollapsed,
     dashboardOpen, setDashboardOpen, profilesOpen, setProfilesOpen, settingsOpen, setSettingsOpen,
     sfxEnabled, setSfxEnabled, accountOpen, setAccountOpen, firebaseUser, setFirebaseUser,
-    authLoading, setAuthLoading, cloudSyncing, setCloudSyncing, lastCloudSyncAt, setLastCloudSyncAt,
+    authLoading, setAuthLoading, googleLoginPending, setGoogleLoginPending,
+    cloudSyncing, setCloudSyncing, lastCloudSyncAt, setLastCloudSyncAt,
     currentGameId, setCurrentGameId, input, setInput, error, setError, loading, setLoading,
     savedGames, setSavedGames, libraryLoading, setLibraryLoading, libraryError, setLibraryError,
     dashboardRecords, setDashboardRecords, dashboardLoading, setDashboardLoading,

@@ -17,6 +17,14 @@ pub(crate) fn list_saved_games(
 }
 
 #[tauri::command]
+pub(crate) fn save_game_previews(
+    database: tauri::State<'_, DatabaseState>,
+    updates: Vec<GamePreviewUpdate>,
+) -> Result<(), String> {
+    crate::save_game_previews(database, updates)
+}
+
+#[tauri::command]
 pub(crate) fn open_saved_game(
     database: tauri::State<'_, DatabaseState>,
     id: String,

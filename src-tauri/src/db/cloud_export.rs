@@ -73,6 +73,33 @@ pub(crate) fn cloud_game_by_id(
         .optional()
 }
 
+pub(crate) fn cloud_training_progress_by_id(
+    connection: &Connection,
+    card_id: &str,
+) -> rusqlite::Result<Option<CloudTrainingProgress>> {
+    connection
+        .query_row(
+            "SELECT id, status, due_at, interval_days, correct_streak, attempts,
+                    starred, suspended, updated_at
+             FROM training_cards WHERE id = ?1",
+            params![card_id],
+            |row| {
+                Ok(CloudTrainingProgress {
+                    card_id: row.get(0)?,
+                    status: row.get(1)?,
+                    due_at: row.get(2)?,
+                    interval_days: row.get(3)?,
+                    correct_streak: row.get(4)?,
+                    attempts: row.get(5)?,
+                    starred: row.get::<_, i64>(6)? != 0,
+                    suspended: row.get::<_, i64>(7)? != 0,
+                    updated_at: row.get(8)?,
+                })
+            },
+        )
+        .optional()
+}
+
 pub(crate) fn pending_rows(
     connection: &Connection,
     entity_type: &str,
@@ -149,5 +176,32 @@ pub(crate) fn export_cloud_changes(
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    Ok(CloudSyncBatch { profiles, games })
+    let training_progress = pending_rows(&connection, "training_progress")?
+        .into_iter()
+        .map(|(document_id, generation, attempts, operation)| {
+            let deleted = operation == "delete";
+            let data = if deleted {
+                None
+            } else {
+                cloud_training_progress_by_id(&connection, &document_id)
+                    .map_err(|_| "Không thể đọc tiến độ luyện đang chờ đồng bộ.".to_string())?
+            };
+            if !deleted && data.is_none() {
+                return Err("Tiến độ luyện trong hàng đợi không còn tồn tại.".to_string());
+            }
+            Ok(CloudPendingTrainingProgressChange {
+                document_id,
+                generation,
+                attempts,
+                deleted,
+                data,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(CloudSyncBatch {
+        profiles,
+        games,
+        training_progress,
+    })
 }

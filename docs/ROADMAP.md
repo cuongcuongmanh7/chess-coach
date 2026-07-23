@@ -1,7 +1,7 @@
 # Chess Coach — Kế hoạch phát triển sản phẩm
 
-> Trạng thái: Hoàn thành Phase 0
-> Mốc hiện tại: v0.6.2
+> Trạng thái: Hoàn thành Mistake Lab
+> Mốc hiện tại: v0.7.0
 > Cập nhật: 2026-07-23
 > Phạm vi: ứng dụng desktop local-first trên Windows
 
@@ -59,7 +59,7 @@ Khoảng trống chính:
 |---|---|---|---:|
 | 0.6.1 ✅ | Code Freeze & Guardrails | Chặn file lớn tiếp tục phình, thêm rule và kiểm tra tự động | Hoàn thành 2026-07-23 |
 | 0.6.2 ✅ | Modularization | Tách frontend, Rust, CSS và chuẩn hóa migration | Hoàn thành 2026-07-23 |
-| 0.7.0 | Mistake Lab | Kho bài tập cá nhân + spaced repetition | 8–12 ngày |
+| 0.7.0 ✅ | Mistake Lab | Kho bài tập cá nhân + spaced repetition | Hoàn thành 2026-07-23 |
 | 0.7.1 | Game Story | Biểu đồ evaluation/thời gian và key moments | 4–6 ngày |
 | 0.8.0 | Ask Coach | Hỏi đáp theo vị trí và so sánh candidate move | 6–9 ngày |
 | 0.8.1 | Tactical Tags | Nhận diện tactic bằng logic cờ, không dựa vào LLM | 6–10 ngày |
@@ -196,6 +196,10 @@ src-tauri/src/
 - Có test cho migration và ít nhất năm PGN fixture.
 
 ## 6. Milestone 0.7.0 — Mistake Lab
+
+**Trạng thái:** Hoàn thành ngày 2026-07-23.
+
+**Ghi chú triển khai:** Training card được tạo local sau phân tích toàn ván, dùng khóa ổn định theo hồ sơ/ván/ply/engine. Lịch ôn, lịch sử làm bài và bộ lọc nằm trong SQLite schema v3; Firestore chỉ nhận tiến độ nhỏ gọn, không nhận FEN, engine line hoặc PGN.
 
 ### Câu chuyện người dùng
 

@@ -1,5 +1,8 @@
 use crate::*;
 
+pub(crate) mod training;
+pub(crate) use training::*;
+
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct ExplainMoveRequest {
     pub(crate) player_elo: Option<String>,
@@ -83,6 +86,13 @@ pub(crate) struct SaveGameRequest {
     pub(crate) time_class: Option<String>,
     pub(crate) source_url: Option<String>,
     pub(crate) source_platform: Option<String>,
+    pub(crate) final_fen: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct GamePreviewUpdate {
+    pub(crate) id: String,
+    pub(crate) final_fen: String,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -136,6 +146,7 @@ pub(crate) struct CloudRemoteGameChange {
 pub(crate) struct MergeCloudChangesRequest {
     pub(crate) profiles: Vec<CloudRemoteProfileChange>,
     pub(crate) games: Vec<CloudRemoteGameChange>,
+    pub(crate) training_progress: Vec<CloudRemoteTrainingProgressChange>,
 }
 
 #[derive(Serialize)]
@@ -160,6 +171,7 @@ pub(crate) struct CloudPendingGameChange {
 pub(crate) struct CloudSyncBatch {
     pub(crate) profiles: Vec<CloudPendingProfileChange>,
     pub(crate) games: Vec<CloudPendingGameChange>,
+    pub(crate) training_progress: Vec<CloudPendingTrainingProgressChange>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -181,6 +193,7 @@ pub(crate) struct CloudSyncCursor {
 pub(crate) struct CloudSyncCursors {
     pub(crate) profiles: CloudSyncCursor,
     pub(crate) games: CloudSyncCursor,
+    pub(crate) training_progress: CloudSyncCursor,
 }
 
 #[derive(Serialize)]
@@ -189,6 +202,7 @@ pub(crate) struct CloudMergeResult {
     pub(crate) games_added: usize,
     pub(crate) profiles_deleted: usize,
     pub(crate) games_deleted: usize,
+    pub(crate) training_progress_merged: usize,
 }
 
 #[derive(Serialize)]
@@ -215,6 +229,8 @@ pub(crate) struct SavedGameSummary {
     pub(crate) source_url: Option<String>,
     pub(crate) source_platform: Option<String>,
     pub(crate) analysis_complete: bool,
+    pub(crate) final_fen: Option<String>,
+    pub(crate) preview_pgn: Option<String>,
     pub(crate) created_at: String,
     pub(crate) last_opened_at: String,
 }

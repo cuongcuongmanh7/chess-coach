@@ -22,6 +22,7 @@ export const localCloudRepository = {
   merge(request: {
     profiles: unknown[];
     games: unknown[];
+    training_progress: unknown[];
   }) {
     return invokeCommand<CloudMergeResult>("merge_cloud_changes", { request });
   },
@@ -32,9 +33,9 @@ export const localCloudRepository = {
     return invokeCommand<CloudSyncBatch>("export_cloud_changes");
   },
   acknowledge(changes: CloudAckToken[]) {
-    return invokeCommand<number>("acknowledge_cloud_changes", { changes });
+    return invokeCommand<number>("acknowledge_cloud_changes", { tokens: changes });
   },
   markFailed(changes: CloudAckToken[], error: string) {
-    return invokeCommand<void>("mark_cloud_changes_failed", { changes, error });
+    return invokeCommand<void>("mark_cloud_changes_failed", { tokens: changes, error });
   },
 };

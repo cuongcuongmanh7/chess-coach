@@ -3,15 +3,12 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
   ClipboardPaste,
   Clock,
-  Cloud,
   CloudOff,
   Database,
   Download,
@@ -58,6 +55,7 @@ import {
   GameCoachSummaryView,
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
+import { BrandIcon } from "../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../AppControllerContext";
 
 export function AnalysisWorkspace() {
@@ -93,6 +91,7 @@ export function AnalysisWorkspace() {
     headers,
     currentOpening,
     totalMoves,
+    provider,
     providerLabel,
     whiteEvaluationPercent,
     evaluationLeader,
@@ -106,8 +105,7 @@ export function AnalysisWorkspace() {
     beginRetry,
     evaluateRetryMove,
     openVariation,
-    retryBestPiece,
-    chessboardOptions,
+    retryBestPiece, chessboardOptions, handleBoardMouseDown,
   } = useAppControllerContext();
   return (
     <>
@@ -163,7 +161,7 @@ export function AnalysisWorkspace() {
                   {engineLoading ? "…" : engine?.evaluation || "0.00"}
                 </span>
               </div>
-              <div className="board-wrap">
+              <div className="board-wrap" onMouseDownCapture={handleBoardMouseDown}>
                 {boardInteractionMode !== "main" && (
                   <div className={`board-mode-badge ${boardInteractionMode}`}>
                     {boardInteractionMode === "retry" ? <><Dumbbell size={13} /> Chế độ thử lại</> : <><Eye size={13} /> {variationState?.title}</>}
@@ -245,7 +243,8 @@ export function AnalysisWorkspace() {
           </div>
 
           <aside className="coach-panel">
-            <div className="coach-scroll-content" ref={coachScrollerRef}>
+            <div className="coach-scroll-content">
+            <div className="coach-fixed-content">
             <div className="coach-progress">
               <span>PHÂN TÍCH NƯỚC ĐI</span>
               <span className={`coach-engine-inline ${engineLoading ? "working" : ""}`} title={engineError || `Stockfish 18 Lite${engine ? ` · depth ${engine.depth} · CPL ${Math.round(engine.centipawnLoss)}` : " đang tính"}`}>
@@ -328,16 +327,18 @@ export function AnalysisWorkspace() {
               </div>
             )}
 
+            </div>
+            <div className="coach-insight-scroll" ref={coachScrollerRef} role="region" aria-label="Góc nhìn HLV">
             <div className={`insight-card ${aiExplanation ? "ai-ready" : ""}`}>
               <div className="insight-title">
-                <BrainCircuit size={17} /> {aiExplanation ? `${providerLabel} · ${model}` : "Góc nhìn HLV"}
+                <BrandIcon brand={provider} size={17} /> {aiExplanation ? `${providerLabel} · ${model}` : "Góc nhìn HLV"}
                 {aiExplanation?.cached && <span className="saved-badge">Đã lưu</span>}
               </div>
               {aiExplanation ? <CoachExplanation text={aiExplanation.text} /> : <p>{step.insight}</p>}
               {aiError && <div className="inline-error">{aiError}</div>}
               {!aiExplanation && (
                 <button className="ai-button" onClick={() => void explainWithAi(false)} disabled={!engine || aiLoading}>
-                  {aiLoading ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />}
+                  {aiLoading ? <LoaderCircle className="spin" size={16} /> : <BrandIcon brand={provider} size={16} />}
                   {aiLoading ? `${providerLabel} đang giải thích…` : `Giải thích bằng ${providerLabel}`}
                 </button>
               )}
@@ -353,6 +354,7 @@ export function AnalysisWorkspace() {
               {engine && <span className="engine-tag">Stockfish xác thực</span>}
             </div>
             <div className="coach-spacer" />
+            </div>
             </div>
 
             <div className="step-controls">

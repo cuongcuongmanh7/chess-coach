@@ -9,9 +9,12 @@ import type { AiProvider } from "../../shared/types/tauri";
 import type { useCloudController } from "./useCloudController";
 import type { useDataController } from "./useDataController";
 import type { AppState } from "./useAppState";
+import type { useTrainingController } from "../../features/training/hooks/useTrainingController";
 
 type CloudController = ReturnType<typeof useCloudController>;
 type DataController = ReturnType<typeof useDataController>;
+type TrainingController = ReturnType<typeof useTrainingController>;
+
 type CoachDependencies = {
   step: AnalysisStep;
   engine: EngineMoveAnalysis | undefined;
@@ -23,8 +26,8 @@ type CoachDependencies = {
   gameSummaryRequest: DataController["gameSummaryRequest"];
   persistEngineResult: DataController["persistEngineResult"];
   refreshSavedGames: CloudController["refreshSavedGames"];
+  generateCardsForGame: TrainingController["generateCardsForGame"];
 };
-
 export function useCoachController(
   state: AppState,
   {
@@ -38,6 +41,7 @@ export function useCoachController(
     gameSummaryRequest,
     persistEngineResult,
     refreshSavedGames,
+    generateCardsForGame,
   }: CoachDependencies,
 ) {
   const {
@@ -85,11 +89,13 @@ export function useCoachController(
     fullAnalysisAbortRef.current = controller;
     setFullAnalysis({ running: true, complete: false, completed: 0, total: analysis.steps.length, error: "" });
     const persistenceTasks: Promise<void>[] = [];
+    const completedEngineCache: Record<number, EngineMoveAnalysis> = {};
 
     try {
       await analyzeGameWithStockfish(
         analysis.steps,
         (ply, result, completed, total) => {
+          completedEngineCache[ply] = result;
           setEngineCache((cache) => {
             if ((cache[ply]?.depth || 0) >= result.depth) return cache;
             return { ...cache, [ply]: result };
@@ -106,6 +112,11 @@ export function useCoachController(
         if (persistenceTasks.length) await Promise.allSettled(persistenceTasks);
         if (currentGameId && isTauri()) {
           await analysisRepository.markComplete(currentGameId);
+          await generateCardsForGame(
+            currentGameId,
+            analysis.steps,
+            completedEngineCache,
+          ).catch(() => ({ created: 0, eligible: 0 }));
           void refreshSavedGames();
         }
         setFullAnalysis({ running: false, complete: true, completed: analysis.steps.length, total: analysis.steps.length, error: "" });
@@ -275,8 +286,6 @@ export function useCoachController(
       })
       .catch((reason) => setAiError(reason instanceof Error ? reason.message : String(reason)));
   }, [aiCache, aiCacheKey, aiLoading, aiRequest, autoExplainMode, engine, explainWithAi, hasApiKey, model, provider, quality]);
-
-
   return {
     startFullGameAnalysis,
     saveApiSettings,

@@ -61,6 +61,7 @@ import { useAppEffects } from "./useAppEffects";
 import { useLibraryController } from "./useLibraryController";
 import { useCoachController } from "./useCoachController";
 import { useBoardController } from "./useBoardController";
+import { useTrainingController } from "../../features/training/hooks/useTrainingController";
 
 export function useAppController() {
   const appState = useAppState();
@@ -150,6 +151,10 @@ export function useAppController() {
     refreshSavedGames,
     syncCloud,
   } = cloudController;
+  const syncTrainingProgress = useCallback(() => {
+    if (firebaseUser) void syncCloud(firebaseUser, false);
+  }, [firebaseUser, syncCloud]);
+  const trainingController = useTrainingController(activeProfileId, syncTrainingProgress);
   const toggleSfx = () => {
     const next = !sfxEnabled;
     if (!next) playSfx("tap");
@@ -171,6 +176,7 @@ export function useAppController() {
     refreshSavedGames,
     gameOpening,
     headers,
+    generateCardsForGame: trainingController.generateCardsForGame,
   });
   const {
     persistEngineResult,
@@ -203,6 +209,7 @@ export function useAppController() {
     gameSummaryRequest,
     persistEngineResult,
     refreshSavedGames,
+    generateCardsForGame: trainingController.generateCardsForGame,
   });
   const boardController = useBoardController(appState, {
     step,
@@ -218,6 +225,7 @@ export function useAppController() {
     ...libraryController,
     ...coachController,
     ...boardController,
+    ...trainingController,
     step,
     engine,
     aiCacheKey,
