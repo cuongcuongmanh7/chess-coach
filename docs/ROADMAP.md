@@ -1,7 +1,7 @@
 # Chess Coach — Kế hoạch phát triển sản phẩm
 
-> Trạng thái: Hoàn thành Mistake Lab
-> Mốc hiện tại: v0.7.0
+> Trạng thái: Hoàn thành Game Story
+> Mốc hiện tại: v0.7.1
 > Cập nhật: 2026-07-23
 > Phạm vi: ứng dụng desktop local-first trên Windows
 
@@ -36,8 +36,8 @@ App hiện đã có:
 - Nạp PGN, link Chess.com và đồng bộ các ván gần đây từ Chess.com/Lichess.
 - Kho ván SQLite, nhiều hồ sơ người chơi và đồng bộ hồ sơ/PGN qua Firestore.
 - Stockfish 18 Lite local, MultiPV 2, cache theo từng ply và phân tích toàn ván.
-- Phân loại Best, Tốt, Thiếu chính xác, Sai lầm và Blunder.
-- ACPL, tỷ lệ Best/Tốt, thống kê theo màu quân, giai đoạn, khai cuộc và thời gian suy nghĩ.
+- Phân loại theo mức giảm Expected Points: Brilliant, Best, Tốt, Thiếu chính xác, Sai lầm và Blunder; Brilliant dùng tiêu chí Kỳ Phổ gần với mô tả công khai của Chess.com, không sao chép thuật toán độc quyền.
+- ACPL, tỷ lệ Brilliant/Best/Tốt, thống kê theo màu quân, giai đoạn, khai cuộc và thời gian suy nghĩ.
 - OpenAI/Gemini, cache lời giải thích và tổng kết AI.
 - Timeline, evaluation bar, best line, phương án thứ hai và phát lại biến trên bàn cờ.
 - Chế độ Thử lại với kéo quân, chấm điểm và ba cấp gợi ý.
@@ -60,7 +60,7 @@ Khoảng trống chính:
 | 0.6.1 ✅ | Code Freeze & Guardrails | Chặn file lớn tiếp tục phình, thêm rule và kiểm tra tự động | Hoàn thành 2026-07-23 |
 | 0.6.2 ✅ | Modularization | Tách frontend, Rust, CSS và chuẩn hóa migration | Hoàn thành 2026-07-23 |
 | 0.7.0 ✅ | Mistake Lab | Kho bài tập cá nhân + spaced repetition | Hoàn thành 2026-07-23 |
-| 0.7.1 | Game Story | Biểu đồ evaluation/thời gian và key moments | 4–6 ngày |
+| 0.7.1 ✅ | Game Story | Biểu đồ evaluation/thời gian và key moments | Hoàn thành 2026-07-23 |
 | 0.8.0 | Ask Coach | Hỏi đáp theo vị trí và so sánh candidate move | 6–9 ngày |
 | 0.8.1 | Tactical Tags | Nhận diện tactic bằng logic cờ, không dựa vào LLM | 6–10 ngày |
 | 0.9.0 | Opening Trainer | Repertoire cá nhân và luyện nước đi lệch theory | 10–15 ngày |
@@ -328,6 +328,10 @@ CREATE TABLE training_attempts (
 - Có thể dùng Mistake Lab hoàn toàn offline.
 
 ## 7. Milestone 0.7.1 — Biểu đồ diễn biến ván
+
+**Trạng thái:** Hoàn thành ngày 2026-07-23.
+
+**Ghi chú triển khai:** Game Story dùng Recharts được lazy-load trong Tổng kết ván đấu, đọc trực tiếp cache phân tích theo ply và giữ dữ liệu evaluation chuẩn theo góc nhìn Trắng. Góc nhìn mặc định tự theo màu quân của hồ sơ hiện tại khi username khớp header PGN; người dùng vẫn có thể đổi Trắng/Đen mà không sửa cache. Mate được ghim ở biên ±8 tốt nhưng giữ ký hiệu mate trong tooltip; tối đa sáu key moment mạnh nhất được chọn theo evaluation swing, đổi trạng thái lợi thế, mate, phong cấp và tốt thông. Overlay thời gian tự vô hiệu hóa khi PGN không có `%clk`. Kho ván lưu thêm số ply ở schema v5 và tự backfill một lần từ PGN cũ để sidebar hiển thị số nước mà không chạy Stockfish.
 
 ### Phạm vi
 
@@ -611,7 +615,7 @@ Có thể thêm giọng “ngắn gọn”, “nghiêm khắc” hoặc “giả
 ## 13. Ngoài phạm vi hiện tại
 
 - Huấn luyện hoặc fine-tune engine riêng.
-- Gắn nhãn Brilliant/Great chỉ để tạo hiệu ứng.
+- Sao chép tuyệt đối thuật toán phân loại độc quyền của nền tảng khác hoặc gắn nhãn Great chỉ để tạo hiệu ứng.
 - So sánh nhiều engine trong cùng một vị trí.
 - Tournament/server multiplayer.
 - Mobile app chính thức.

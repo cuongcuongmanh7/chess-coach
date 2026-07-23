@@ -230,7 +230,7 @@ export function ImportSettingsModals() {
 
       <footer>
         <span className="footer-services">
-          Chess Coach v0.7.0 · Stockfish 18 Lite ·
+          Chess Coach v0.7.1 · Stockfish 18 Lite ·
           <BrandIcon brand="openai" size={11} /> OpenAI +
           <BrandIcon brand="gemini" size={11} /> Gemini
         </span>

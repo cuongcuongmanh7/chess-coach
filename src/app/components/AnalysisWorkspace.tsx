@@ -1,7 +1,5 @@
 import { Chessboard } from "react-chessboard";
 import {
-  ArrowRight,
-  BarChart3,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
@@ -46,9 +44,10 @@ import {
   OPENAI_MODELS,
   PROVIDER_LABELS,
   QUALITY_LABELS,
-  QUALITY_ORDER,
 } from "../constants";
 import { BOARD_MOVE_BADGES } from "../../features/analysis/boardUtils";
+import { FullGameAnalysisAction } from "../../features/analysis/components/FullGameAnalysisAction";
+import { GameTimeline } from "../../features/analysis/components/GameTimeline";
 import { GameLibraryList } from "../../features/library/components/GameLibraryList";
 import {
   CoachExplanation,
@@ -56,6 +55,7 @@ import {
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
 import { BrandIcon } from "../../shared/components/BrandIdentity";
+import { ChessTerm } from "../../shared/components/ChessTerm";
 import { useAppControllerContext } from "../AppControllerContext";
 
 export function AnalysisWorkspace() {
@@ -120,7 +120,14 @@ export function AnalysisWorkspace() {
             <div className="matchup-center">
               <span className="match-result">{headers.Result || "*"}</span>
               <div className="match-context">
-                <span className="match-opening" title={currentOpening?.name}>{currentOpening ? `${currentOpening.eco} · ${currentOpening.name}` : headers.ECO || "ECO —"}</span>
+                <span className="match-opening-context">
+                  <ChessTerm term="eco">{currentOpening?.eco || headers.ECO || "ECO —"}</ChessTerm>
+                  {currentOpening && (
+                    <span className="match-opening" title={currentOpening.name}>
+                      {currentOpening.name}
+                    </span>
+                  )}
+                </span>
                 <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
               </div>
             </div>
@@ -136,8 +143,9 @@ export function AnalysisWorkspace() {
             <div className="board-toolbar">
               <div className="board-status"><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span>{currentOpening && <span className="opening-live" title={`${currentOpening.eco} · ${currentOpening.name}`}><BookOpen size={12} /><b>{currentOpening.family}</b>{currentOpening.variation && <em>: {currentOpening.variation}</em>}</span>}</div>
               <div className="board-tools">
-                <div className="evaluation-chip" title="Đánh giá theo phía Trắng">
-                  <CircleGauge size={15} /> {engineLoading ? "…" : engine?.evaluation || "—"}
+                <div className="evaluation-chip">
+                  <CircleGauge size={15} />
+                  <ChessTerm term="evaluation">{engineLoading ? "…" : engine?.evaluation || "—"}</ChessTerm>
                 </div>
                 <button className="icon-button" onClick={() => setOrientation((value) => (value === "white" ? "black" : "white"))} aria-label="Xoay bàn cờ" title="Xoay bàn cờ">
                   <RotateCcw size={17} />
@@ -250,15 +258,24 @@ export function AnalysisWorkspace() {
               <span className={`coach-engine-inline ${engineLoading ? "working" : ""}`} title={engineError || `Stockfish 18 Lite${engine ? ` · depth ${engine.depth} · CPL ${Math.round(engine.centipawnLoss)}` : " đang tính"}`}>
                 <Cpu size={13} /> STOCKFISH 18 LITE
                 {engineLoading && <LoaderCircle size={12} />}
-                {engine && <i>CPL {Math.round(engine.centipawnLoss)}</i>}
+                {engine && <i><ChessTerm term="cpl">CPL</ChessTerm> {Math.round(engine.centipawnLoss)}</i>}
               </span>
               <span>{currentIndex + 1} / {analysis.steps.length}</span>
             </div>
             <div className="progress-track"><div style={{ width: `${((currentIndex + 1) / analysis.steps.length) * 100}%` }} /></div>
+            <FullGameAnalysisAction
+              analysis={fullAnalysis}
+              onAnalyze={startFullGameAnalysis}
+            />
 
             <div className="move-hero">
               <div className="move-badges">
-                <div className={`quality-badge ${quality}`}><span className="quality-icon">{quality === "best" ? "★" : quality === "good" ? "✓" : "!"}</span>{QUALITY_LABELS[quality]}</div>
+                <div className={`quality-badge ${quality}`}>
+                  <span className="quality-icon">
+                    {quality === "brilliant" ? "!!" : quality === "best" ? "★" : quality === "good" ? "✓" : "!"}
+                  </span>
+                  <ChessTerm term={quality}>{QUALITY_LABELS[quality]}</ChessTerm>
+                </div>
                 <div className={`turn-badge ${step.color === "w" ? "white-turn" : "black-turn"}`}>
                   {step.color === "w" ? "Trắng" : "Đen"} · {step.color === "w" ? headers.White || "Người chơi" : headers.Black || "Người chơi"}
                 </div>
@@ -271,8 +288,10 @@ export function AnalysisWorkspace() {
                   <>
                     <Cpu size={13} />
                     <strong>Stockfish:</strong>
-                    <span>{quality === "best"
-                      ? "nước tốt nhất"
+                    <span>{quality === "brilliant"
+                      ? "nước hy sinh gần tối ưu theo tiêu chí Kỳ Phổ"
+                      : quality === "best"
+                        ? "nước tốt nhất"
                       : quality === "good"
                         ? `nước tốt · mất ${Math.round(engine.centipawnLoss)} cp`
                         : `mất ${Math.round(engine.centipawnLoss)} cp · tốt nhất ${engine.bestMoveSan}`}</span>
@@ -365,42 +384,17 @@ export function AnalysisWorkspace() {
           </aside>
         </section>
 
-        <section className="timeline-section">
-          <div className="timeline-header">
-            <div><BookOpen size={17} /><strong>Timeline nước đi</strong><span>{totalMoves} nước · {analysis.steps.length} lượt</span></div>
-            <div className="timeline-summary-actions">
-              <button className={`summary-button ${fullAnalysis.complete ? "complete" : ""}`} onClick={() => void startFullGameAnalysis()} disabled={fullAnalysis.running} title={fullAnalysis.error || undefined}>
-                {fullAnalysis.running ? <LoaderCircle className="spin" size={13} /> : <BarChart3 size={13} />}
-                {fullAnalysis.running ? `Đang phân tích ${fullAnalysis.completed}/${fullAnalysis.total}` : fullAnalysis.complete ? "Xem tổng kết" : fullAnalysis.error ? "Thử lại phân tích" : "Phân tích toàn ván"}
-              </button>
-              <div className="timeline-key">
-                <span><i className="dot best" /> Best</span>
-                <span><i className="dot good" /> Tốt</span>
-                <span><i className="dot inaccuracy" /> Thiếu CX</span>
-                <span><i className="dot mistake" /> Sai</span>
-                <span><i className="dot blunder" /> Blunder</span>
-              </div>
-            </div>
-          </div>
-          <div className="timeline-scroller" ref={timelineScrollerRef}>
-            {movePairs.map((pair) => (
-              <div className="move-pair" key={pair.number}>
-                <span className="move-number">{pair.number}.</span>
-                {[pair.white, pair.black].map((stepIndex, colorIndex) => {
-                  if (stepIndex === undefined) return null;
-                  const item = analysis.steps[stepIndex];
-                  const itemQuality = engineCache[item.ply]?.quality || item.quality;
-                  return (
-                    <button key={stepIndex} data-step-index={stepIndex} className={`timeline-move ${itemQuality} ${currentIndex === stepIndex ? "active" : ""}`} onClick={() => setCurrentIndex(stepIndex)} title={`${QUALITY_LABELS[itemQuality]} — ${item.title}`}>
-                      <i className={`piece-dot ${colorIndex === 0 ? "white-piece" : "black-piece"}`} />
-                      {item.san}<i className={`status-dot ${itemQuality}`} />
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </section>
+        <GameTimeline
+          steps={analysis.steps}
+          engineCache={engineCache}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          movePairs={movePairs}
+          totalMoves={totalMoves}
+          scrollerRef={timelineScrollerRef}
+          fullAnalysis={fullAnalysis}
+          qualityLabels={QUALITY_LABELS}
+        />
       </main>
     </>
   );

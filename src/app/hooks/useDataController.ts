@@ -1,11 +1,16 @@
 import { useCallback, useMemo } from "react";
-import type { AnalysisStep, GameAnalysis, MoveQuality } from "../../analysis";
+import type { AnalysisStep, GameAnalysis } from "../../analysis";
 import { buildDashboardStats } from "../../dashboard";
 import type { OpeningInfo } from "../../openings";
 import type { EngineMoveAnalysis } from "../../stockfish";
 import { QUALITY_LABELS } from "../constants";
 import type { PlayerSummary } from "../types";
 import { analysisRepository } from "../../features/analysis/services/analysisRepository";
+import {
+  normalizeEngineAnalysis,
+  playerEloForColor,
+  type DisplayMoveQuality,
+} from "../../features/analysis/moveClassification";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { PlayerProfile } from "../../shared/types/tauri";
@@ -85,11 +90,30 @@ export function useDataController(
     if (!isTauri()) return;
     try {
       const stored = await analysisRepository.list(gameId);
+      const classificationUpdates: Promise<void>[] = [];
       const cache = stored.reduce<Record<number, EngineMoveAnalysis>>((values, item) => {
-        if (item.result && item.result.depth >= item.depth) values[item.ply] = item.result;
+        const step = next.steps[item.ply - 1];
+        if (item.result && item.result.depth >= item.depth && step) {
+          const result = normalizeEngineAnalysis(
+            step,
+            item.result,
+            playerEloForColor(next.headers, step.color),
+          );
+          values[item.ply] = result;
+          if (
+            item.result.quality !== result.quality
+            || item.result.displayQuality !== result.displayQuality
+            || item.result.expectedPointsLoss === undefined
+          ) {
+            classificationUpdates.push(persistEngineResult(gameId, step, result));
+          }
+        }
         return values;
       }, {});
       setEngineCache(cache);
+      if (classificationUpdates.length) {
+        void Promise.allSettled(classificationUpdates);
+      }
       const complete = next.steps.length > 0 && next.steps.every((item) => Boolean(cache[item.ply]));
       if (complete) void analysisRepository.markComplete(gameId).catch(() => undefined);
       if (complete) void generateCardsForGame(gameId, next.steps, cache).catch(() => undefined);
@@ -103,7 +127,7 @@ export function useDataController(
     } catch (reason) {
       setEngineError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [generateCardsForGame]);
+  }, [generateCardsForGame, persistEngineResult]);
 
   const openDashboard = useCallback(async () => {
     setDashboardOpen(true);
@@ -168,21 +192,28 @@ export function useDataController(
     const buildPlayerSummary = (color: "w" | "b"): PlayerSummary => {
       const results = analysis.steps
         .filter((item) => item.color === color)
-        .map((item) => engineCache[item.ply])
-        .filter((item): item is EngineMoveAnalysis => Boolean(item));
-      const counts: Record<MoveQuality, number> = {
+        .flatMap((item) => {
+          const engine = engineCache[item.ply];
+          return engine ? [{ item, engine }] : [];
+        });
+      const counts: Record<DisplayMoveQuality, number> = {
+        brilliant: 0,
         best: 0,
         good: 0,
         inaccuracy: 0,
         mistake: 0,
         blunder: 0,
       };
-      results.forEach((item) => { counts[item.quality] += 1; });
-      const totalLoss = results.reduce((sum, item) => sum + item.centipawnLoss, 0);
+      results.forEach(({ engine }) => {
+        counts[engine.displayQuality || engine.quality] += 1;
+      });
+      const totalLoss = results.reduce((sum, { engine }) => sum + engine.centipawnLoss, 0);
       return {
         moves: results.length,
         acpl: results.length ? Math.round(totalLoss / results.length) : 0,
-        bestGoodRate: results.length ? Math.round(((counts.best + counts.good) / results.length) * 100) : 0,
+        bestGoodRate: results.length
+          ? Math.round(((counts.brilliant + counts.best + counts.good) / results.length) * 100)
+          : 0,
         counts,
       };
     };

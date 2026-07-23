@@ -1,11 +1,12 @@
 import type { MoveQuality } from "../analysis";
+import type { DisplayMoveQuality } from "../features/analysis/moveClassification";
 
 export type AutoExplainMode = "off" | "mistakes" | "visited";
 export type PlayerSummary = {
   moves: number;
   acpl: number;
   bestGoodRate: number;
-  counts: Record<MoveQuality, number>;
+  counts: Record<DisplayMoveQuality, number>;
 };
 
 export type RetryState = {

@@ -8,10 +8,14 @@ import "@fontsource/be-vietnam-pro/700.css";
 import "./styles.css";
 import "./app/chrome.css";
 import "./features/analysis/analysis.css";
+import "./features/analysis/components/fullGameAnalysis.css";
+import "./features/analysis/components/timeline.css";
+import "./features/game-story/game-story.css";
 import "./features/library/library.css";
 import "./features/modals/modals.css";
 import "./features/training/training.css";
 import "./shared/components/brandIdentity.css";
+import "./shared/components/chessTerm.css";
 import "./app/responsive.css";
 
 createRoot(document.getElementById("root")!).render(

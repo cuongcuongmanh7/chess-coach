@@ -86,6 +86,9 @@ pub(crate) fn save_game(
                 }
             })
         });
+    if request.ply_count.is_some_and(|count| count <= 0) {
+        return Err("Số nước đi của ván cờ không hợp lệ.".to_string());
+    }
     let connection = database
         .0
         .lock()
@@ -95,9 +98,9 @@ pub(crate) fn save_game(
             "INSERT INTO saved_games
              (id, pgn, white, black, white_elo, black_elo, result, event, game_date, played_at,
               eco, opening, time_control, time_class, source_url, source_platform, final_fen,
-              created_at, last_opened_at)
+              ply_count, created_at, last_opened_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                     ?17, datetime('now'), datetime('now'))
+                     ?17, ?18, datetime('now'), datetime('now'))
              ON CONFLICT(id) DO UPDATE SET
                pgn = excluded.pgn,
                white = excluded.white,
@@ -115,6 +118,7 @@ pub(crate) fn save_game(
                source_url = COALESCE(excluded.source_url, saved_games.source_url),
                source_platform = COALESCE(excluded.source_platform, saved_games.source_platform),
                final_fen = COALESCE(excluded.final_fen, saved_games.final_fen),
+               ply_count = COALESCE(excluded.ply_count, saved_games.ply_count),
                last_opened_at = datetime('now')",
             params![
                 &id,
@@ -134,6 +138,7 @@ pub(crate) fn save_game(
                 &request.source_url,
                 &source_platform,
                 &request.final_fen,
+                &request.ply_count,
             ],
         )
         .map_err(|_| "Không thể lưu ván cờ vào máy.".to_string())?;
@@ -167,7 +172,9 @@ pub(crate) fn list_saved_games(
             "SELECT id, white, black, white_elo, black_elo, result, event, game_date, played_at, eco,
                     opening, time_control, time_class, source_url, source_platform,
                     analysis_complete, created_at, last_opened_at, final_fen,
-                    CASE WHEN final_fen IS NULL OR final_fen = '' THEN pgn ELSE NULL END
+                    ply_count,
+                    CASE WHEN final_fen IS NULL OR final_fen = '' OR ply_count IS NULL
+                         THEN pgn ELSE NULL END
              FROM saved_games sg
              WHERE ?1 IS NULL OR EXISTS (
                SELECT 1 FROM game_profiles gp WHERE gp.game_id = sg.id AND gp.profile_id = ?1
@@ -198,7 +205,8 @@ pub(crate) fn list_saved_games(
                 created_at: row.get(16)?,
                 last_opened_at: row.get(17)?,
                 final_fen: row.get(18)?,
-                preview_pgn: row.get(19)?,
+                ply_count: row.get(19)?,
+                preview_pgn: row.get(20)?,
             })
         })
         .map_err(|_| "Không thể đọc danh sách ván đã lưu.".to_string())?;

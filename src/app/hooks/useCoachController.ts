@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo } from "react";
-import type { AnalysisStep, GameAnalysis, MoveQuality } from "../../analysis";
+import type { AnalysisStep, GameAnalysis } from "../../analysis";
 import { analyzeGameWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
 import { DEFAULT_MODELS } from "../constants";
 import { analysisRepository } from "../../features/analysis/services/analysisRepository";
+import { playerEloForColor } from "../../features/analysis/moveClassification";
+import type { DisplayMoveQuality } from "../../features/analysis/moveClassification";
 import { coachRepository } from "../../features/coach/services/coachRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { AiProvider } from "../../shared/types/tauri";
@@ -19,7 +21,7 @@ type CoachDependencies = {
   step: AnalysisStep;
   engine: EngineMoveAnalysis | undefined;
   headers: GameAnalysis["headers"];
-  quality: MoveQuality;
+  quality: DisplayMoveQuality;
   aiCacheKey: string;
   hasApiKey: boolean;
   providerLabel: string;
@@ -107,6 +109,10 @@ export function useCoachController(
           setFullAnalysis({ running: true, complete: false, completed, total, error: "" });
         },
         controller.signal,
+        {
+          w: playerEloForColor(headers, "w"),
+          b: playerEloForColor(headers, "b"),
+        },
       );
       if (!controller.signal.aborted) {
         if (persistenceTasks.length) await Promise.allSettled(persistenceTasks);

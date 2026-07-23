@@ -5,6 +5,10 @@ import {
   type User as FirebaseUser,
 } from "../../firebase";
 import { coachRepository } from "../../features/coach/services/coachRepository";
+import {
+  normalizeEngineAnalysis,
+  playerEloForColor,
+} from "../../features/analysis/moveClassification";
 import { isTauri } from "../../shared/services/tauriClient";
 import { playSfx } from "../../sfx";
 import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
@@ -208,8 +212,16 @@ export function useAppEffects(
     setEngineLoading(true);
     setEngineError("");
 
-    analyzeMoveWithStockfish(step.fenBefore, step.fenAfter, step.lan, controller.signal)
-      .then((result) => {
+    const playerElo = playerEloForColor(analysis.headers, step.color);
+    analyzeMoveWithStockfish(
+      step.fenBefore,
+      step.fenAfter,
+      step.lan,
+      controller.signal,
+      playerElo,
+    )
+      .then((rawResult) => {
+        const result = normalizeEngineAnalysis(step, rawResult, playerElo);
         setEngineCache((cache) => {
           if ((cache[step.ply]?.depth || 0) >= result.depth) return cache;
           return { ...cache, [step.ply]: result };
@@ -227,7 +239,14 @@ export function useAppEffects(
       });
 
     return () => controller.abort();
-  }, [currentGameId, engine?.depth, persistEngineResult, step]);
+  }, [
+    analysis.headers.BlackElo,
+    analysis.headers.WhiteElo,
+    currentGameId,
+    engine?.depth,
+    persistEngineResult,
+    step,
+  ]);
 
   useEffect(() => () => fullAnalysisAbortRef.current?.abort(), []);
 

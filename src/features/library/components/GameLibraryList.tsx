@@ -52,6 +52,11 @@ export function GameLibraryList({
                   </div>
                   <div className="library-game-meta">
                     <span>{game.event || "Ván cờ đã nhập"}</span>
+                    {variant === "sidebar" && game.ply_count != null && (
+                      <span className="library-move-count">
+                        {Math.ceil(game.ply_count / 2)} nước
+                      </span>
+                    )}
                     {(game.played_at || game.date) && <span>{formatVietnamDate(game.played_at || game.date)}</span>}
                     {game.eco && <span>{game.eco}</span>}
                     {game.opening && <span className="library-opening" title={game.opening}>{game.opening}</span>}

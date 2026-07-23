@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Chessboard } from "react-chessboard";
 import {
   ArrowRight,
@@ -56,15 +57,22 @@ import {
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
 import { BrandIcon } from "../../shared/components/BrandIdentity";
+import { ChessTerm } from "../../shared/components/ChessTerm";
 import { useAppControllerContext } from "../AppControllerContext";
 import { DEMO_PGN } from "../../demo";
 import { firebaseConfigured } from "../../firebase";
 import type { AutoExplainMode } from "../types";
 import type { AiProvider } from "../../shared/types/tauri";
+import { resolveStoryPerspective } from "../../features/game-story/model";
+
+const GameStoryPanel = lazy(() => import(
+  "../../features/game-story/components/GameStoryPanel"
+).then((module) => ({ default: module.GameStoryPanel })));
 
 export function GameInsightsModals() {
   const {
     analysis,
+    currentIndex,
     setCurrentIndex,
     setImportOpen,
     dashboardOpen,
@@ -81,6 +89,7 @@ export function GameInsightsModals() {
     provider,
     model,
     engine,
+    engineCache,
     quality,
     headers,
     gameOpening,
@@ -103,7 +112,7 @@ export function GameInsightsModals() {
               <div className="summary-heading">
                 <div className="modal-icon"><BarChart3 size={24} /></div>
                 <div>
-                  <div className="eyebrow">STOCKFISH · DEPTH 11 · TOÀN VÁN</div>
+                  <div className="eyebrow">STOCKFISH · <ChessTerm term="depth">DEPTH 11</ChessTerm> · TOÀN VÁN</div>
                   <h2 id="summary-title">Tổng kết ván đấu</h2>
                   <p>{gameOpening ? `${gameOpening.eco} · ${gameOpening.name}` : headers.ECO || "Không rõ khai cuộc"} · {analysis.steps.length} lượt</p>
                 </div>
@@ -118,12 +127,18 @@ export function GameInsightsModals() {
                 <article className={`summary-player ${player.side}`} key={player.side}>
                   <div className="summary-player-name"><i className={`side-badge ${player.side === "white" ? "white-side" : "black-side"}`}>{player.label}</i><strong>{player.name}</strong><span>{player.elo ? `Elo ${player.elo}` : "Elo —"}</span></div>
                   <div className="summary-metrics">
-                    <div><strong>{player.stats.acpl}</strong><span>ACPL</span></div>
-                    <div><strong>{player.stats.bestGoodRate}%</strong><span>Best / Tốt</span></div>
+                    <div><strong>{player.stats.acpl}</strong><span><ChessTerm term="acpl" /></span></div>
+                    <div><strong>{player.stats.bestGoodRate}%</strong><span><ChessTerm term="bestGood" /></span></div>
                     <div><strong>{player.stats.moves}</strong><span>Nước đã tính</span></div>
                   </div>
                   <div className="quality-counts">
-                    {QUALITY_ORDER.map((item) => <span className={item} key={item}><i className={`dot ${item}`} />{QUALITY_LABELS[item]} <strong>{player.stats.counts[item]}</strong></span>)}
+                    {QUALITY_ORDER.map((item) => (
+                      <span className={item} key={item}>
+                        <i className={`dot ${item}`} />
+                        <ChessTerm term={item}>{QUALITY_LABELS[item]}</ChessTerm>
+                        <strong>{player.stats.counts[item]}</strong>
+                      </span>
+                    ))}
                   </div>
                 </article>
               ))}
@@ -137,6 +152,24 @@ export function GameInsightsModals() {
                 <span><strong>{fullGameSummary.time.pressureErrors}</strong> lỗi dưới áp lực thời gian</span>
               </div>
             )}
+
+            <Suspense fallback={<div className="game-story-loading"><LoaderCircle className="spin" size={18} /> Đang mở Game Story…</div>}>
+              <GameStoryPanel
+                steps={analysis.steps}
+                engineCache={engineCache}
+                initialPerspective={resolveStoryPerspective(
+                  activeProfile?.username,
+                  headers.White,
+                  headers.Black,
+                )}
+                currentIndex={currentIndex}
+                onSelectIndex={setCurrentIndex}
+                onOpenIndex={(index) => {
+                  setCurrentIndex(index);
+                  setSummaryOpen(false);
+                }}
+              />
+            </Suspense>
 
             <div className={`game-coach-card ${gameCoachSummary ? "ready" : ""}`}>
               <div className="game-coach-heading">
@@ -208,13 +241,13 @@ export function GameInsightsModals() {
               <div className="dashboard-content">
                 <div className="dashboard-metrics">
                   <div><strong>{dashboardStats.games}</strong><span>Ván đã phân tích</span></div>
-                  <div><strong>{dashboardStats.acpl}</strong><span>ACPL cá nhân</span></div>
-                  <div><strong>{dashboardStats.bestGoodRate}%</strong><span>Best / Tốt</span></div>
+                  <div><strong>{dashboardStats.acpl}</strong><span><ChessTerm term="acpl">ACPL cá nhân</ChessTerm></span></div>
+                  <div><strong>{dashboardStats.bestGoodRate}%</strong><span><ChessTerm term="bestGood" /></span></div>
                   <div><strong>{dashboardStats.errors}</strong><span>Sai lầm / Blunder</span></div>
                 </div>
 
                 <section className="dashboard-section">
-                  <h3>ACPL theo 20 ván gần nhất</h3>
+                  <h3><ChessTerm term="acpl">ACPL theo 20 ván gần nhất</ChessTerm></h3>
                   <div className="acpl-chart">
                     {dashboardStats.timeline.map((item) => {
                       const max = Math.max(1, ...dashboardStats.timeline.map((point) => point.acpl));

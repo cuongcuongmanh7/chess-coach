@@ -1,4 +1,5 @@
 import type { MoveQuality, Phase } from "../../analysis";
+import type { DisplayMoveQuality } from "../../features/analysis/moveClassification";
 import type { DashboardMoveRecord } from "../../dashboard";
 import type { EngineMoveAnalysis } from "../../stockfish";
 
@@ -29,6 +30,7 @@ export type SavedGameSummary = {
   source_platform: SyncPlatform | null;
   analysis_complete: boolean;
   final_fen: string | null;
+  ply_count: number | null;
   preview_pgn: string | null;
   created_at: string;
   last_opened_at: string;
@@ -86,9 +88,14 @@ export type SaveGameRequest = {
   source_url: string | null;
   source_platform: SyncPlatform | null;
   final_fen: string | null;
+  ply_count: number | null;
 };
 
-export type GamePreviewUpdate = { id: string; final_fen: string };
+export type GamePreviewUpdate = {
+  id: string;
+  final_fen: string;
+  ply_count: number;
+};
 
 export type SaveEngineAnalysisRequest = {
   game_id: string;
@@ -139,7 +146,7 @@ export type ExplainGameRequest = {
     moves: number;
     acpl: number;
     best_good_rate: number;
-    counts: Record<MoveQuality, number>;
+    counts: Record<DisplayMoveQuality, number>;
   };
   black: {
     name: string;
@@ -147,7 +154,7 @@ export type ExplainGameRequest = {
     moves: number;
     acpl: number;
     best_good_rate: number;
-    counts: Record<MoveQuality, number>;
+    counts: Record<DisplayMoveQuality, number>;
   };
   critical_positions: Array<{
     move_number: number;

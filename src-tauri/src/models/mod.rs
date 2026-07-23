@@ -23,6 +23,7 @@ pub(crate) struct ExplainMoveRequest {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct SummaryQualityCounts {
+    pub(crate) brilliant: u32,
     pub(crate) best: u32,
     pub(crate) good: u32,
     pub(crate) inaccuracy: u32,
@@ -87,12 +88,14 @@ pub(crate) struct SaveGameRequest {
     pub(crate) source_url: Option<String>,
     pub(crate) source_platform: Option<String>,
     pub(crate) final_fen: Option<String>,
+    pub(crate) ply_count: Option<i64>,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct GamePreviewUpdate {
     pub(crate) id: String,
     pub(crate) final_fen: String,
+    pub(crate) ply_count: i64,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -230,6 +233,7 @@ pub(crate) struct SavedGameSummary {
     pub(crate) source_platform: Option<String>,
     pub(crate) analysis_complete: bool,
     pub(crate) final_fen: Option<String>,
+    pub(crate) ply_count: Option<i64>,
     pub(crate) preview_pgn: Option<String>,
     pub(crate) created_at: String,
     pub(crate) last_opened_at: String,

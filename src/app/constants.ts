@@ -1,7 +1,8 @@
-import type { MoveQuality } from "../analysis";
+import type { DisplayMoveQuality } from "../features/analysis/moveClassification";
 import type { AiProvider } from "../shared/types/tauri";
 
-export const QUALITY_LABELS: Record<MoveQuality, string> = {
+export const QUALITY_LABELS: Record<DisplayMoveQuality, string> = {
+  brilliant: "Brilliant",
   best: "Best move",
   good: "Nước tốt",
   inaccuracy: "Thiếu chính xác",
@@ -9,7 +10,8 @@ export const QUALITY_LABELS: Record<MoveQuality, string> = {
   blunder: "Blunder",
 };
 
-export const QUALITY_ORDER: MoveQuality[] = [
+export const QUALITY_ORDER: DisplayMoveQuality[] = [
+  "brilliant",
   "best",
   "good",
   "inaccuracy",

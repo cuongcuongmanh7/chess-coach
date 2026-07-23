@@ -39,12 +39,13 @@
 .sidebar-library .library-player small, .sidebar-library .library-player .side-badge { display: none; }
 .sidebar-library .library-outcome { min-width: 54px; grid-area: outcome; align-self: stretch; justify-content: center; padding: 4px 6px; }
 .sidebar-library .library-outcome strong { font-size: 9px; }
-.sidebar-library .library-outcome small { font-size: 6px; }
-.sidebar-library .library-game-meta { margin-top: 8px; padding-top: 7px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 7px; font-size: 7px; }
+.sidebar-library .library-outcome small { font-size: 7px; }
+.sidebar-library .library-game-meta { margin-top: 8px; padding-top: 7px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 7px; font-size: 8px; }
 .sidebar-library .library-game-meta > span { display: none; }
-.sidebar-library .library-game-meta > span:first-child, .sidebar-library .library-game-meta > .library-opened { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-library .library-game-meta > span:first-child, .sidebar-library .library-game-meta > .library-move-count, .sidebar-library .library-game-meta > .library-opened { display: block; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-library .library-game-meta > span::before { display: none; }
-.sidebar-library .library-opened { width: auto; margin: 0; }
+.sidebar-library .library-move-count { white-space: nowrap; }
+.sidebar-library .library-opened { width: auto; margin: 0; grid-column: 1 / -1; }
 .sidebar-library .library-delete { width: 34px; opacity: 0; pointer-events: none; transform: translateX(4px); transition: opacity .16s ease, transform .16s ease, color .18s ease, background .18s ease; }
 .sidebar-library .library-game:hover .library-delete, .sidebar-library .library-game:focus-within .library-delete { opacity: 1; pointer-events: auto; transform: translateX(0); }
 .sidebar-library .library-empty { min-height: 150px; padding: 18px 12px; font-size: 9px; }

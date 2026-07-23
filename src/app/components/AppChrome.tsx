@@ -55,6 +55,7 @@ import {
 } from "../../features/coach/components/CoachExplanation";
 import { formatSeconds, formatVietnamDate } from "../../shared/utils/format";
 import { AccountAvatar, BrandIcon } from "../../shared/components/BrandIdentity";
+import { ChessTerm } from "../../shared/components/ChessTerm";
 import { useAppControllerContext } from "../AppControllerContext";
 
 export function AppChrome() {
@@ -111,7 +112,7 @@ export function AppChrome() {
             <div className="brand">
               <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
               <div className="brand-copy">
-                <div className="brand-name">Chess Coach <span className="version-badge">v0.7.0</span></div>
+                <div className="brand-name">Chess Coach <span className="version-badge">v0.7.1</span></div>
                 <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
               </div>
             </div>
@@ -200,7 +201,7 @@ export function AppChrome() {
         <div className="brand mobile-brand">
           <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
           <div className="brand-copy">
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.7.0</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v0.7.1</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>
@@ -211,7 +212,10 @@ export function AppChrome() {
             {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
           </button>
           <div className={`service-pill ${engine ? "online" : "working"}`}>
-            <Cpu size={14} /> {engine ? `Stockfish d${engine.depth}` : "Stockfish đang tính"}
+            <Cpu size={14} />
+            {engine
+              ? <ChessTerm term="depth">{`Stockfish d${engine.depth}`}</ChessTerm>
+              : "Stockfish đang tính"}
           </div>
           <div className={`service-pill ${hasApiKey ? "online" : ""}`}>
             <BrandIcon brand={provider} size={14} /> {hasApiKey ? `${providerLabel} sẵn sàng` : `${providerLabel}: chưa có key`}

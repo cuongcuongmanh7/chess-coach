@@ -22,13 +22,14 @@ pub(crate) fn save_game_previews(
                 .all(|character| character.is_ascii_hexdigit())
             || update.final_fen.len() > 120
             || update.final_fen.split_whitespace().count() != 6
+            || update.ply_count <= 0
         {
             return Err("Dữ liệu thumbnail bàn cờ không hợp lệ.".to_string());
         }
         transaction
             .execute(
-                "UPDATE saved_games SET final_fen = ?1 WHERE id = ?2",
-                params![update.final_fen, update.id],
+                "UPDATE saved_games SET final_fen = ?1, ply_count = ?2 WHERE id = ?3",
+                params![update.final_fen, update.ply_count, update.id],
             )
             .map_err(|_| "Không thể lưu thumbnail bàn cờ.".to_string())?;
     }

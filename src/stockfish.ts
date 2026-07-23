@@ -1,5 +1,10 @@
 import { Chess } from "chess.js";
 import type { AnalysisStep, MoveQuality } from "./analysis";
+import {
+  classifyExpectedPoints,
+  normalizeEngineAnalysis,
+  type DisplayMoveQuality,
+} from "./features/analysis/moveClassification";
 
 type ScoreType = "cp" | "mate";
 
@@ -20,6 +25,7 @@ type RawSearch = {
 export type EngineVariation = {
   rank: number;
   evaluation: string;
+  whiteScoreCp: number;
   moveUci: string;
   moveSan: string;
   lineSan: string[];
@@ -30,7 +36,11 @@ export type EngineMoveAnalysis = {
   evaluation: string;
   whiteScoreCp: number;
   centipawnLoss: number;
+  moverScoreBeforeCp: number;
+  moverScoreAfterCp: number;
+  expectedPointsLoss: number;
   quality: MoveQuality;
+  displayQuality?: DisplayMoveQuality;
   bestMoveUci: string;
   bestMoveSan: string;
   bestLineSan: string[];
@@ -114,14 +124,6 @@ function formatWhiteEvaluation(result: RawVariation, rootColor: "w" | "b") {
   const whiteCp = result.scoreValue * multiplier;
   const pawns = Math.abs(whiteCp / 100).toFixed(2);
   return whiteCp >= 0 ? `+${pawns}` : `−${pawns}`;
-}
-
-function classifyLoss(centipawnLoss: number, playedMove: string, bestMove: string): MoveQuality {
-  if (playedMove === bestMove || centipawnLoss <= 10) return "best";
-  if (centipawnLoss <= 35) return "good";
-  if (centipawnLoss <= 90) return "inaccuracy";
-  if (centipawnLoss <= 180) return "mistake";
-  return "blunder";
 }
 
 function terminalSearch(fen: string, depth: number): RawSearch {
@@ -209,6 +211,7 @@ function buildMoveAnalysis(
   playedMoveUci: string,
   before: RawSearch,
   after: RawSearch,
+  playerElo = 1200,
 ): EngineMoveAnalysis {
   const beforeTurn = new Chess(fenBefore).turn();
   const afterTurn = new Chess(fenAfter).turn();
@@ -223,6 +226,7 @@ function buildMoveAnalysis(
     return {
       rank: variation.rank,
       evaluation: formatWhiteEvaluation(variation, beforeTurn),
+      whiteScoreCp: scoreAsCp(variation) * (beforeTurn === "w" ? 1 : -1),
       moveUci,
       moveSan: lineSan[0] || moveUci,
       lineSan,
@@ -231,6 +235,7 @@ function buildMoveAnalysis(
   const best = variations[0] || {
     rank: 1,
     evaluation: formatWhiteEvaluation(beforeTop, beforeTurn),
+    whiteScoreCp: scoreAsCp(beforeTop) * (beforeTurn === "w" ? 1 : -1),
     moveUci: before.bestMove,
     moveSan: before.bestMove,
     lineSan: [],
@@ -239,13 +244,23 @@ function buildMoveAnalysis(
   const replyLineUci = afterTop.pv.length ? afterTop.pv : bestReplyUci ? [bestReplyUci] : [];
   const replyLineSan = lineToSan(fenAfter, replyLineUci);
   const whiteScoreCp = scoreAsCp(afterTop) * (afterTurn === "w" ? 1 : -1);
+  const classification = classifyExpectedPoints(
+    beforeForMover,
+    afterForMover,
+    playedMoveUci === best.moveUci,
+    playerElo,
+  );
 
   return {
     depth: Math.min(before.depth, after.depth),
     evaluation: formatWhiteEvaluation(afterTop, afterTurn),
     whiteScoreCp,
     centipawnLoss,
-    quality: classifyLoss(centipawnLoss, playedMoveUci, best.moveUci),
+    moverScoreBeforeCp: beforeForMover,
+    moverScoreAfterCp: afterForMover,
+    expectedPointsLoss: classification.expectedPointsLoss,
+    quality: classification.quality,
+    displayQuality: classification.quality,
     bestMoveUci: best.moveUci,
     bestMoveSan: best.moveSan,
     bestLineSan: best.lineSan,
@@ -262,6 +277,7 @@ export async function analyzeMoveWithStockfish(
   fenAfter: string,
   playedMoveUci: string,
   signal?: AbortSignal,
+  playerElo = 1200,
 ): Promise<EngineMoveAnalysis> {
   const engine = await createEngine(signal);
   try {
@@ -270,7 +286,7 @@ export async function analyzeMoveWithStockfish(
     const after = afterPosition.isGameOver()
       ? terminalSearch(fenAfter, before.depth)
       : await engine.search(fenAfter, CURRENT_MOVE_DEPTH, 1);
-    return buildMoveAnalysis(fenBefore, fenAfter, playedMoveUci, before, after);
+    return buildMoveAnalysis(fenBefore, fenAfter, playedMoveUci, before, after, playerElo);
   } finally {
     engine.worker.terminate();
   }
@@ -280,6 +296,7 @@ export async function analyzeGameWithStockfish(
   steps: AnalysisStep[],
   onProgress: (ply: number, result: EngineMoveAnalysis, completed: number, total: number) => void,
   signal?: AbortSignal,
+  playerElos: Partial<Record<"w" | "b", number>> = {},
 ) {
   if (!steps.length) return;
   const engine = await createEngine(signal);
@@ -292,7 +309,19 @@ export async function analyzeGameWithStockfish(
       const after = afterPosition.isGameOver()
         ? terminalSearch(step.fenAfter, before.depth)
         : await engine.search(step.fenAfter, FULL_GAME_DEPTH, 2);
-      const result = buildMoveAnalysis(step.fenBefore, step.fenAfter, step.lan, before, after);
+      const rawResult = buildMoveAnalysis(
+        step.fenBefore,
+        step.fenAfter,
+        step.lan,
+        before,
+        after,
+        playerElos[step.color],
+      );
+      const result = normalizeEngineAnalysis(
+        step,
+        rawResult,
+        playerElos[step.color],
+      );
       onProgress(step.ply, result, index + 1, steps.length);
       before = after;
     }

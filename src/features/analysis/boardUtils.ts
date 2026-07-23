@@ -1,9 +1,10 @@
-import { Chess, type PieceSymbol, type Square } from "chess.js";
-import type { AnalysisStep, MoveQuality } from "../../analysis";
+import { Chess } from "chess.js";
+import type { AnalysisStep } from "../../analysis";
 import type { EngineMoveAnalysis } from "../../stockfish";
 import type { VariationState } from "../../app/types";
+import type { DisplayMoveQuality } from "./moveClassification";
 
-export type BoardMoveBadge = Exclude<MoveQuality, "good"> | "brilliant";
+export type BoardMoveBadge = Exclude<DisplayMoveQuality, "good">;
 
 export const BOARD_MOVE_BADGES: Record<
   BoardMoveBadge,
@@ -14,15 +15,6 @@ export const BOARD_MOVE_BADGES: Record<
   inaccuracy: { symbol: "?!", label: "Thiếu chính xác" },
   mistake: { symbol: "?", label: "Sai lầm" },
   blunder: { symbol: "??", label: "Blunder" },
-};
-
-const BOARD_PIECE_VALUES: Record<PieceSymbol, number> = {
-  p: 1,
-  n: 3,
-  b: 3,
-  r: 5,
-  q: 9,
-  k: 0,
 };
 
 export function buildVariation(
@@ -51,31 +43,13 @@ export function buildVariation(
     : null;
 }
 
-function isBrilliantMove(step: AnalysisStep, engine: EngineMoveAnalysis) {
-  if (engine.quality !== "best" || engine.centipawnLoss > 10) return false;
-  const before = new Chess(step.fenBefore);
-  const after = new Chess(step.fenAfter);
-  const movedPiece = after.get(step.to as Square);
-  if (!movedPiece || BOARD_PIECE_VALUES[movedPiece.type] < 3) return false;
-  const capturedPiece = before.get(step.to as Square);
-  const capturedValue = capturedPiece ? BOARD_PIECE_VALUES[capturedPiece.type] : 0;
-  const movedValue = BOARD_PIECE_VALUES[movedPiece.type];
-  if (capturedValue >= movedValue) return false;
-  const canBeCaptured = after.moves({ verbose: true }).some(
-    (reply) => reply.to === step.to && reply.captured === movedPiece.type,
-  );
-  if (!canBeCaptured) return false;
-  const moverScoreCp = engine.whiteScoreCp * (step.color === "w" ? 1 : -1);
-  return moverScoreCp >= -100;
-}
-
 export function getBoardMoveBadge(
-  step: AnalysisStep,
+  _step: AnalysisStep,
   engine?: EngineMoveAnalysis,
 ): BoardMoveBadge | null {
-  if (!engine || engine.quality === "good") return null;
-  if (isBrilliantMove(step, engine)) return "brilliant";
-  return engine.quality;
+  const quality = engine?.displayQuality || engine?.quality;
+  if (!quality || quality === "good") return null;
+  return quality;
 }
 
 export function getBoardBadgePosition(

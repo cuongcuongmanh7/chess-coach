@@ -1,7 +1,7 @@
 {
   "name": "chess-coach-vn",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,8 @@
     "test:board-hints": "node --test tests/board-hints.test.mjs",
     "test:game-previews": "node --test tests/game-previews.test.mjs",
     "test:training-timeline": "node --test tests/training-timeline.test.mjs",
+    "test:game-story": "node --test tests/game-story.test.mjs",
+    "test:move-classification": "node --test tests/move-classification.test.mjs",
     "test:pgn": "node --test tests/pgn-fixtures.test.mjs",
     "update-openings": "node scripts/update-openings.mjs",
     "preview": "vite preview",
@@ -24,7 +26,8 @@
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-chessboard": "5.10.0",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "recharts": "^3.10.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4",

@@ -1,0 +1,6 @@
+.chess-term { position: relative; display: inline-flex; align-items: center; gap: 3px; color: inherit; cursor: help; text-transform: none; letter-spacing: normal; outline: none; }
+.chess-term > svg { flex: 0 0 auto; opacity: .56; }
+.chess-term-label { border-bottom: 1px dotted currentColor; }
+.chess-term-tooltip { width: max-content; max-width: min(280px,calc(100vw - 16px)); padding: 9px 10px; position: fixed; z-index: 1000; display: grid; gap: 3px; border: 1px solid #42594e; border-radius: 7px; color: #a9bbb2; background: rgba(7,14,11,.98); box-shadow: 0 12px 32px rgba(0,0,0,.42); font-family: "Be Vietnam Pro",sans-serif; font-size: 10px; font-weight: 500; line-height: 1.45; text-align: left; text-transform: none; letter-spacing: normal; white-space: normal; pointer-events: none; }
+.chess-term-tooltip strong { color: #e3eee8; font-size: 10px; }
+.chess-term:focus-visible { border-radius: 3px; box-shadow: 0 0 0 2px rgba(103,167,255,.42); }

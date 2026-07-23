@@ -49,12 +49,20 @@ fn upgrades_v061_data_without_losing_games_or_caches() {
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    let game: (String, String, String, Option<String>) = connection
+    let game: (String, String, String, Option<String>, Option<i64>) = connection
         .query_row(
-            "SELECT pgn, played_at, source_platform, final_fen
+            "SELECT pgn, played_at, source_platform, final_fen, ply_count
              FROM saved_games WHERE id = 'game-1'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .unwrap();
     let explanation: String = connection
@@ -77,6 +85,7 @@ fn upgrades_v061_data_without_losing_games_or_caches() {
     assert_eq!(game.1, "2026-07-23");
     assert_eq!(game.2, "lichess");
     assert_eq!(game.3, None);
+    assert_eq!(game.4, None);
     assert_eq!(explanation, "Giải thích cũ");
     assert_eq!(engine, (11, 2));
     initialize_database(&connection, false).expect("migration must be idempotent");
@@ -178,6 +187,55 @@ fn creates_separate_backup_before_preview_cache_migration() {
             .unwrap(),
         CURRENT_SCHEMA_VERSION
     );
+    drop(connection);
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn upgrades_v4_with_nullable_ply_count_and_creates_release_backup() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "chess-coach-ply-count-migration-test-{}-{unique}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let database_path = directory.join("current.sqlite3");
+    {
+        let connection = Connection::open(&database_path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE saved_games (
+                    id TEXT PRIMARY KEY,
+                    pgn TEXT NOT NULL,
+                    final_fen TEXT
+                 );
+                 INSERT INTO saved_games (id, pgn)
+                 VALUES ('game-v4', '1. e4 e5');
+                 PRAGMA user_version = 4;",
+            )
+            .unwrap();
+    }
+
+    let connection = open_database(&database_path, false).unwrap();
+    let ply_count: Option<i64> = connection
+        .query_row(
+            "SELECT ply_count FROM saved_games WHERE id = 'game-v4'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(ply_count, None);
+    assert!(directory.join("current.sqlite3.pre-v0.7.1.bak").exists());
+    assert_eq!(
+        connection
+            .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+            .unwrap(),
+        CURRENT_SCHEMA_VERSION
+    );
+
     drop(connection);
     fs::remove_dir_all(directory).unwrap();
 }

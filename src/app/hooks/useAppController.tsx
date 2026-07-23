@@ -97,7 +97,7 @@ export function useAppController() {
   const engine = engineCache[step.ply];
   const aiCacheKey = `${provider}:${model}:${step.fenAfter}`;
   const aiExplanation = aiCache[aiCacheKey];
-  const quality = engine?.quality || step.quality;
+  const quality = engine?.displayQuality || engine?.quality || step.quality;
   const headers = analysis.headers;
   const openingsByPly = useMemo(() => openingTimeline(analysis.steps), [analysis.steps]);
   const currentOpening = openingsByPly[currentIndex] || openingFromHeaders(headers);
