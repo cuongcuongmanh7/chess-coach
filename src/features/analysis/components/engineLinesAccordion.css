@@ -1,0 +1,9 @@
+.engine-lines-accordion { margin-top: 9px; border: 1px solid #22322c; border-radius: 8px; background: #0c1512; }
+.engine-lines-toggle { width: 100%; min-height: 31px; padding: 0 8px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 6px; border: 0; color: #82978e; background: transparent; font-size: 9px; font-weight: 800; text-align: left; }
+.engine-lines-toggle:hover:not(:disabled) { color: #c8d8d0; background: rgba(255,255,255,.025); }
+.engine-lines-toggle:disabled { cursor: wait; opacity: .65; }
+.engine-lines-toggle svg { transition: transform .16s ease; }
+.engine-lines-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.engine-lines-toggle small { color: #a8bbb2; font-family: "Cascadia Mono",Consolas,monospace; font-size: 8px; }
+.engine-lines-accordion .variation-list { margin: 0; padding: 0 7px 7px; display: grid; gap: 4px; border-top: 1px solid #213028; }
+.engine-lines-accordion .variation-row:first-child { margin-top: 5px; }

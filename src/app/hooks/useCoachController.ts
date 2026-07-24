@@ -31,6 +31,7 @@ type CoachDependencies = {
   refreshSavedGames: CloudController["refreshSavedGames"];
   syncCloud: CloudController["syncCloud"];
   generateCardsForGame: TrainingController["generateCardsForGame"];
+  fullAnalysisBlocked: boolean;
 };
 export function useCoachController(
   state: AppState,
@@ -47,6 +48,7 @@ export function useCoachController(
     refreshSavedGames,
     syncCloud,
     generateCardsForGame,
+    fullAnalysisBlocked,
   }: CoachDependencies,
 ) {
   const {
@@ -84,7 +86,7 @@ export function useCoachController(
     fullAnalysisAbortRef,
   } = state;
   const startFullGameAnalysis = async () => {
-    if (fullAnalysis.running) return;
+    if (fullAnalysis.running || fullAnalysisBlocked) return;
     if (fullAnalysis.complete) {
       setSummaryOpen(true);
       return;

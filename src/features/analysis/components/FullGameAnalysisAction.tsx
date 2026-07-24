@@ -9,17 +9,19 @@ type FullGameAnalysisActionProps = {
     error: string;
   };
   onAnalyze: () => Promise<void>;
+  disabled?: boolean;
 };
 
 export function FullGameAnalysisAction({
   analysis,
   onAnalyze,
+  disabled = false,
 }: FullGameAnalysisActionProps) {
   return (
     <button
       className={`full-analysis-action ${analysis.complete ? "complete" : analysis.error ? "error" : ""}`}
       onClick={() => void onAnalyze()}
-      disabled={analysis.running}
+      disabled={analysis.running || disabled}
       title={analysis.error || undefined}
     >
       <i>

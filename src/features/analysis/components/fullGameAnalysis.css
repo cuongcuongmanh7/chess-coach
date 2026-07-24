@@ -13,3 +13,10 @@
 .full-analysis-action.error > i { color: #ffaaa3; background: rgba(55,16,13,.65); }
 .full-analysis-action.error small { color: #d9a29d; }
 .full-analysis-action:disabled { cursor: wait; opacity: .82; transform: none; }
+.analysis-primary-actions { margin-top: 8px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.analysis-primary-actions .full-analysis-action { min-height: 38px; padding: 5px 8px; grid-template-columns: 25px minmax(0,1fr) auto; gap: 7px; }
+.analysis-primary-actions .full-analysis-action > i { width: 25px; height: 25px; border-radius: 6px; }
+.analysis-primary-actions .full-analysis-action > i svg { width: 15px; height: 15px; }
+.analysis-primary-actions .full-analysis-action strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-primary-actions .full-analysis-action small { display: none; }
+.analysis-primary-actions .candidate-launch { min-width: 0; min-height: 38px; margin-top: 0; padding: 0 8px; font-size: 9px; }

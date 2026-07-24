@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
 import {
+  APP_VERSION,
   GEMINI_MODELS,
   OPENAI_MODELS,
   PROVIDER_LABELS,
@@ -230,7 +231,7 @@ export function ImportSettingsModals() {
 
       <footer>
         <span className="footer-services">
-          Chess Coach v0.8.0 · Stockfish 18 Lite ·
+          Chess Coach v{APP_VERSION} · Stockfish 18 Lite ·
           <BrandIcon brand="openai" size={11} /> OpenAI +
           <BrandIcon brand="gemini" size={11} /> Gemini
         </span>

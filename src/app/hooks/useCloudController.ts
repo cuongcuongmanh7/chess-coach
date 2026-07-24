@@ -156,6 +156,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
         if (activation.changed) {
           activeProfileStorageKeyRef.current = `kypho-active-profile-id:${targetUser.uid}`;
           resetForDatabaseSwitch();
+          await refreshProfiles();
         }
         if (rounds === 0) {
           const preferences = await syncCloudPreferences(targetUser.uid);

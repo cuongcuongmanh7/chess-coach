@@ -1,0 +1,7 @@
+.checked-king-square { box-shadow: inset 0 0 0 999px rgba(225,55,55,.42), inset 0 0 0 3px rgba(255,173,166,.9); }
+.checked-king-square::after { content: ""; position: absolute; inset: 7%; z-index: 5; border: 2px solid rgba(255,103,94,.9); border-radius: 50%; pointer-events: none; animation: checked-king-pulse 1.15s ease-in-out infinite; }
+.checked-king-square.check-warning-active { animation: checked-king-shake .5s cubic-bezier(.36,.07,.19,.97) both; }
+.checked-king-square.check-warning-active::after { border-width: 3px; border-color: #fff1ef; animation: check-warning-flash .5s ease-out both; }
+@keyframes checked-king-pulse { 0%,100% { opacity: .48; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes checked-king-shake { 10%,90% { transform: translateX(-2px); } 20%,80% { transform: translateX(3px); } 30%,50%,70% { transform: translateX(-4px); } 40%,60% { transform: translateX(4px); } }
+@keyframes check-warning-flash { 0% { opacity: 1; transform: scale(.7); } 60% { opacity: 1; transform: scale(1.08); } 100% { opacity: .25; transform: scale(.9); } }

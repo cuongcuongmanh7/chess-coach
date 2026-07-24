@@ -3,6 +3,7 @@ import { Chess, type Square } from "chess.js";
 import type { AnalysisStep } from "../../analysis";
 import { buildVariation } from "../../features/analysis/boardUtils";
 import { useInteractiveBoardHints } from "../../shared/chess/useInteractiveBoardHints";
+import { useCheckWarning } from "../../shared/chess/useCheckWarning";
 import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
 import type { AppState } from "./useAppState";
 
@@ -10,10 +11,19 @@ type BoardDependencies = {
   step: AnalysisStep;
   engine: EngineMoveAnalysis | undefined;
   boardPosition: string;
-  boardInteractionMode: "main" | "retry" | "variation";
+  boardInteractionMode: "main" | "retry" | "variation" | "candidate";
   variationMoveSquares: { from: string; to: string } | null;
+  candidateMoveSquares: { from: string; to: string } | null;
   threatViewEnabled: boolean;
   threatSquareStyles: Record<string, CSSProperties>;
+  candidateCanMove: boolean;
+  candidateCanStartFromMainline: boolean;
+  candidateControlledColor: "w" | "b";
+  handleCandidateDrop: (move: {
+    sourceSquare: string;
+    targetSquare: string | null;
+  }) => boolean;
+  exitCandidateLab: () => void;
 };
 
 export function useBoardController(
@@ -24,8 +34,14 @@ export function useBoardController(
     boardPosition,
     boardInteractionMode,
     variationMoveSquares,
+    candidateMoveSquares,
     threatViewEnabled,
     threatSquareStyles,
+    candidateCanMove,
+    candidateCanStartFromMainline,
+    candidateControlledColor,
+    handleCandidateDrop,
+    exitCandidateLab,
   }: BoardDependencies,
 ) {
   const {
@@ -42,9 +58,16 @@ export function useBoardController(
   } = state;
   const boardHints = useInteractiveBoardHints({
     fen: boardPosition,
-    controlledColor: step.color,
-    enabled: Boolean(retryState && !retryState.loading && !retryState.feedback),
+    controlledColor: boardInteractionMode === "retry"
+      ? step.color
+      : candidateControlledColor,
+    enabled: Boolean(
+      (retryState && !retryState.loading && !retryState.feedback)
+      || candidateCanMove
+      || (boardInteractionMode === "main" && candidateCanStartFromMainline),
+    ),
   });
+  const checkWarning = useCheckWarning(boardPosition);
   const arrows = useMemo(() => {
     const result = [...step.arrows];
     engine?.variations.slice(0, 2).forEach((variation, index) => {
@@ -67,6 +90,7 @@ export function useBoardController(
 
   const beginRetry = () => {
     if (!engine) return;
+    exitCandidateLab();
     setVariationState(null);
     setVariationPlaying(false);
     setOrientation(step.color === "w" ? "white" : "black");
@@ -130,6 +154,7 @@ export function useBoardController(
   const openVariation = (rank: number, lineSan: string[]) => {
     const next = buildVariation(step.fenBefore, lineSan, rank, rank === 1 ? "Phương án tốt nhất" : "Phương án số 2");
     if (!next) return;
+    exitCandidateLab();
     setRetryState(null);
     setVariationPlaying(false);
     setVariationState(next);
@@ -146,16 +171,23 @@ export function useBoardController(
     id: "analysis-board",
     position: boardPosition,
     boardOrientation: orientation,
-    allowDragging: Boolean(retryState && !retryState.loading && !retryState.feedback),
+    allowDragging: Boolean(
+      (retryState && !retryState.loading && !retryState.feedback)
+      || candidateCanMove
+      || (boardInteractionMode === "main" && candidateCanStartFromMainline),
+    ),
     canDragPiece: boardHints.canDragPiece,
     onPieceClick: boardHints.onPieceClick,
     onPieceDrag: boardHints.onPieceDrag,
     onSquareClick: boardHints.onSquareClick,
     onSquareRightClick: boardHints.onSquareRightClick,
     onPieceDrop: (move: { sourceSquare: string; targetSquare: string | null }) => {
-      const moved = handleRetryDrop(move);
+      const moved = candidateCanMove
+        || (boardInteractionMode === "main" && candidateCanStartFromMainline)
+        ? handleCandidateDrop(move)
+        : handleRetryDrop(move);
       if (moved) boardHints.clearSelection();
-      return moved;
+      return checkWarning.handleDropResult(move, moved);
     },
     squareStyles,
     allowDrawingArrows: false,
@@ -171,7 +203,7 @@ export function useBoardController(
     lightSquareStyle: { backgroundColor: "#d9d4c4" },
     squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
       <div
-        className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}`}
+        className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.from ? " candidate-move-from" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.to ? " candidate-move-to" : ""}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
         style={squareStyles[square]}
       >
         {children}

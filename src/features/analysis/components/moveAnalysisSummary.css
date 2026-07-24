@@ -1,0 +1,39 @@
+.move-summary { margin-top: 9px; padding: 9px 10px; border: 1px solid #26372f; border-radius: 9px; background: rgba(12,20,18,.72); }
+.move-summary-top { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.move-badges { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.quality-badge { width: max-content; padding: 4px 7px; display: flex; align-items: center; gap: 5px; border-radius: 6px; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.quality-badge .move-quality-badge { --move-quality-size: 17px; }
+.quality-badge.brilliant { color: #82fff0; background: rgba(80,227,209,.13); }
+.quality-badge.best { color: #82edd5; background: rgba(96,224,191,.11); }
+.quality-badge.good { color: #6ce1b6; background: rgba(67,217,163,.1); }
+.quality-badge.inaccuracy { color: #d8cf75; background: rgba(216,207,117,.1); }
+.quality-badge.mistake { color: #f4bf5f; background: rgba(246,190,73,.1); }
+.quality-badge.blunder { color: #f58a82; background: rgba(240,113,103,.1); }
+.turn-badge { min-width: 0; max-width: 170px; padding: 4px 7px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight: 700; }
+.white-turn { background: #dfe7e2; color: #17231f; }
+.black-turn { background: #0c1210; color: #b9c6c0; border: 1px solid #34423c; }
+.move-summary-toggle { min-height: 25px; flex: 0 0 auto; padding: 0 6px; display: inline-flex; align-items: center; gap: 3px; border: 1px solid #30433a; border-radius: 6px; color: #8fa198; background: #111d18; font-size: 8px; font-weight: 750; }
+.move-summary-toggle:hover { color: #d8e5de; border-color: #486056; }
+.move-summary-toggle svg { transition: transform .16s ease; }
+.move-summary-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.move-summary-main { margin-top: 8px; display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 9px; }
+.move-summary-san { color: var(--gold); font-size: 25px; line-height: 1; letter-spacing: -.04em; white-space: nowrap; }
+.move-summary-main > span { min-width: 0; display: grid; gap: 2px; }
+.move-summary-main b { overflow: hidden; color: #e3ece7; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.move-summary-main small { overflow: hidden; color: #8fa198; font-family: "Cascadia Mono",Consolas,monospace; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.move-summary-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid #26362f; }
+.move-summary-details > p { margin: 0; color: #9cada4; font-size: 10px; line-height: 1.5; }
+.engine-verdict { min-height: 29px; margin-top: 7px; padding: 0 8px; display: flex; align-items: center; gap: 6px; border: 1px solid #2a3b34; border-radius: 7px; color: #8fa198; background: #0d1714; font-size: 8px; white-space: nowrap; }
+.engine-verdict > svg { flex: 0 0 auto; color: #6cd7b0; }
+.engine-verdict strong { color: #a7bbb2; font-size: 8px; }
+.engine-verdict span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.engine-verdict i { margin-left: auto; padding-left: 7px; border-left: 1px solid #2c3c35; color: #d7e4de; font-family: "Cascadia Mono",Consolas,monospace; font-size: 8px; font-style: normal; font-weight: 800; }
+.engine-verdict.brilliant { color: #8df8e8; border-color: rgba(80,227,209,.28); background: rgba(80,227,209,.06); }
+.engine-verdict.best, .engine-verdict.good { color: #83dcb9; border-color: rgba(67,217,163,.2); background: rgba(67,217,163,.045); }
+.engine-verdict.inaccuracy { color: #d5cd7c; border-color: rgba(216,207,117,.2); }
+.engine-verdict.mistake { color: #efc16c; border-color: rgba(246,190,73,.22); background: rgba(246,190,73,.045); }
+.engine-verdict.blunder { color: #ed918a; border-color: rgba(240,113,103,.22); background: rgba(240,113,103,.045); }
+.engine-verdict.loading { color: #75887e; }
+.move-time-strip { margin-top: 7px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: #7f9389; font-size: 8px; }
+.move-time-strip span { display: inline-flex; align-items: center; gap: 4px; }
+.move-time-strip i { padding: 3px 5px; border-radius: 4px; color: #e0bb6e; background: rgba(246,190,73,.09); font-style: normal; font-weight: 700; }

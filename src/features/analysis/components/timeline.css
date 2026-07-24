@@ -8,20 +8,14 @@
 .timeline-analysis-status.complete { color: #81dcb9; border-color: rgba(67,217,163,.22); background: rgba(67,217,163,.06); }
 .timeline-analysis-status.error { color: #e8938c; border-color: rgba(240,113,103,.22); background: rgba(240,113,103,.06); }
 .timeline-key { display: flex; align-items: center; gap: 10px !important; }
-.timeline-key span { display: flex; align-items: center; gap: 5px; }
-.dot, .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.dot.brilliant, .status-dot.brilliant { background: #50e3d1; box-shadow: 0 0 6px rgba(80,227,209,.65); }
-.dot.best, .status-dot.best { background: #79e4cf; }
-.dot.good, .status-dot.good { background: var(--green); }
-.dot.inaccuracy, .status-dot.inaccuracy { background: #d8cf75; }
-.dot.mistake, .status-dot.mistake { background: var(--gold); }
-.dot.blunder, .status-dot.blunder { background: var(--red); }
+.timeline-key > span { display: flex; align-items: center; gap: 5px; }
+.timeline-key .move-quality-badge { --move-quality-size: 16px; }
 .timeline-scroller { height: 36px; display: flex; align-items: center; overflow-x: auto; padding: 3px 8px 4px; scrollbar-width: thin; scrollbar-color: #31443c transparent; }
 .move-pair { display: grid; grid-template-columns: 24px minmax(73px,auto) minmax(73px,auto); align-items: center; padding: 0 5px; border-right: 1px solid #24312c; flex: 0 0 auto; }
 .move-number { color: #5f7068; font-size: 9px; font-weight: 700; }
 .timeline-move { min-width: 68px; height: 27px; padding: 0 8px; border: 1px solid transparent; background: transparent; border-radius: 6px; display: flex; align-items: center; gap: 6px; color: #85968e; font-family: "Cascadia Mono", Consolas, monospace; font-size: 9px; }
+.timeline-move .move-quality-badge { --move-quality-size: 16px; margin-left: auto; }
 .timeline-move:hover { background: #18241f; }
 .timeline-move.active { background: #255b49; color: white; border-color: #337a62; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .piece-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #77877f; }
 .white-piece { background: #dfe6e2; } .black-piece { background: #18221e; }
-.status-dot { margin-left: auto; }

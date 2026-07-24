@@ -51,13 +51,13 @@
 .sidebar-library .library-empty { min-height: 150px; padding: 18px 12px; font-size: 9px; }
 .library-inline-error { margin: 0 0 1px; }
 .sidebar-library-footer { padding: 10px 12px 12px; flex: 0 0 auto; display: grid; grid-template-columns: minmax(0,1fr) 38px 38px; align-items: center; gap: 7px; border-top: 1px solid #22312b; background: rgba(9,16,14,.94); }
-.sidebar-cloud-account { min-width: 0; position: relative; overflow: hidden; border-radius: 9px; transition: color .16s ease, background .16s ease; }
-.sidebar-library-footer .sidebar-cloud-account .sidebar-cloud-button { min-width: 0; border: 0; background: transparent; transition: padding .16s ease, opacity .16s ease, color .16s ease; }
-.sidebar-cloud-account.signed-in:hover, .sidebar-cloud-account.signed-in:focus-within { background: rgba(240,113,103,.1); }
+.sidebar-cloud-account { min-width: 0; height: 38px; position: relative; overflow: hidden; border: 1px solid #304139; border-radius: 9px; background: #15211d; transition: color .16s ease, border-color .16s ease, background .16s ease; }
+.sidebar-library-footer .sidebar-cloud-account .sidebar-cloud-button { min-width: 0; height: 36px; border: 0; background: transparent; transition: padding .16s ease, opacity .16s ease, color .16s ease; }
+.sidebar-cloud-account.signed-in:hover, .sidebar-cloud-account.signed-in:focus-within { border-color: rgba(240,113,103,.42); background: rgba(240,113,103,.1); }
 .sidebar-cloud-account.signed-in:hover .sidebar-cloud-button, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-button { color: #f1aaa4; background: transparent; }
-.sidebar-cloud-logout { width: 28px; height: 28px; position: absolute; top: 5px; right: 5px; z-index: 2; display: grid; place-items: center; border: 0; border-radius: 7px; color: #f1aaa4; background: rgba(240,113,103,.1); opacity: 0; pointer-events: none; transform: translateX(4px); transition: opacity .16s ease, transform .16s ease, background .16s ease; }
+.sidebar-cloud-logout { width: 28px; height: 28px; position: absolute; top: 50%; right: 4px; z-index: 2; display: grid; place-items: center; border: 0; border-radius: 7px; color: #f1aaa4; background: rgba(240,113,103,.1); opacity: 0; pointer-events: none; transform: translate(4px,-50%); transition: opacity .16s ease, transform .16s ease, background .16s ease; }
 .sidebar-cloud-account.signed-in:hover .sidebar-cloud-button, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-button { padding-right: 39px; }
-.sidebar-cloud-account.signed-in:hover .sidebar-cloud-logout, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-logout { opacity: 1; pointer-events: auto; transform: translateX(0); }
+.sidebar-cloud-account.signed-in:hover .sidebar-cloud-logout, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-logout { opacity: 1; pointer-events: auto; transform: translate(0,-50%); }
 .sidebar-cloud-logout:hover:not(:disabled) { color: #ffd3cf; background: rgba(240,113,103,.2); }
 .sidebar-cloud-account.signed-in:hover .sidebar-cloud-logout:disabled, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-logout:disabled { opacity: .35; pointer-events: none; cursor: not-allowed; }
 .sidebar-add-button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(246,190,73,.35); border-radius: 9px; color: #f7c968; background: rgba(246,190,73,.09); }
@@ -76,7 +76,7 @@
 .sidebar-collapsed .sidebar-cloud-button { width: 40px; padding: 0; justify-content: center; }
 .sidebar-collapsed .sidebar-cloud-button > span:last-child { display: none; }
 .sidebar-collapsed .sidebar-cloud-account.signed-in:hover .sidebar-cloud-button, .sidebar-collapsed .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-button { padding: 0; opacity: 0; }
-.sidebar-collapsed .sidebar-cloud-logout { top: 5px; right: 6px; }
+.sidebar-collapsed .sidebar-cloud-logout { right: 5px; }
 .sidebar-collapsed .sidebar-settings-button { width: 40px; }
 .sidebar-collapsed .sidebar-library-footer { width: 100%; margin-top: auto; padding: 10px 9px 12px; grid-template-columns: 1fr; justify-items: center; }
 .sidebar-collapsed .sidebar-add-button { width: 40px; }
