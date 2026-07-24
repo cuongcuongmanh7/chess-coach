@@ -18,6 +18,13 @@
   --red: #e0684b;
   --line: #3d3a37;          /* subtle borders */
   --font-heading: "Montserrat", "Be Vietnam Pro", "Segoe UI", sans-serif;
+  /* Màu phân loại nước đi — chuẩn chess.com */
+  --mc-brilliant: #26c2a3;
+  --mc-best: #96bc4b;
+  --mc-good: #96af8b;
+  --mc-inaccuracy: #f0c15c;
+  --mc-mistake: #e58f2a;
+  --mc-blunder: #fa412d;
 }
 
 * { box-sizing: border-box; }
