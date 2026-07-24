@@ -82,13 +82,15 @@ pub(crate) fn merge_cloud_changes_connection(
         profiles_added += transaction
             .execute(
                 "INSERT OR IGNORE INTO player_profiles
-                 (platform, username, last_sync_at, created_at)
-                 VALUES (?1, ?2, ?3, COALESCE(NULLIF(?4, ''), datetime('now')))",
+                 (platform, username, last_sync_at, created_at, sync_watermark, sync_gap)
+                 VALUES (?1, ?2, ?3, COALESCE(NULLIF(?4, ''), datetime('now')), ?5, ?6)",
                 params![
                     platform,
                     username,
                     &profile.last_sync_at,
-                    &profile.created_at
+                    &profile.created_at,
+                    &profile.sync_watermark,
+                    profile.sync_gap as i64
                 ],
             )
             .map_err(|_| "Không thể nhập hồ sơ từ cloud.".to_string())?;
@@ -96,11 +98,22 @@ pub(crate) fn merge_cloud_changes_connection(
             .execute(
                 "UPDATE player_profiles
                  SET last_sync_at = CASE
-                   WHEN ?3 IS NOT NULL AND (last_sync_at IS NULL OR ?3 > last_sync_at) THEN ?3
-                   ELSE last_sync_at
-                 END
+                       WHEN ?3 IS NOT NULL AND (last_sync_at IS NULL OR ?3 > last_sync_at) THEN ?3
+                       ELSE last_sync_at
+                     END,
+                     sync_gap = CASE
+                       WHEN sync_gap = 1 OR ?5 = 1
+                         OR (sync_watermark IS NOT NULL AND ?4 IS NOT NULL AND sync_watermark <> ?4)
+                       THEN 1 ELSE sync_gap
+                     END,
+                     sync_watermark = CASE
+                       WHEN sync_watermark IS NULL THEN ?4
+                       WHEN ?4 IS NULL THEN sync_watermark
+                       WHEN ?4 < sync_watermark THEN ?4
+                       ELSE sync_watermark
+                     END
                  WHERE platform = ?1 AND username = ?2 COLLATE NOCASE",
-                params![platform, username, &profile.last_sync_at],
+                params![platform, username, &profile.last_sync_at, &profile.sync_watermark, profile.sync_gap as i64],
             )
             .map_err(|_| "Không thể cập nhật hồ sơ từ cloud.".to_string())?;
         if change.needs_upgrade {

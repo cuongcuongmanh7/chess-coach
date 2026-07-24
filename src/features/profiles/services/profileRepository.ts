@@ -17,4 +17,7 @@ export const profileRepository = {
   markSynced(profileId: number) {
     return invokeCommand<void>("mark_profile_synced", { profileId });
   },
+  setSyncState(profileId: number, watermark: string | null, gap: boolean) {
+    return invokeCommand<void>("set_profile_sync_state", { profileId, watermark, gap });
+  },
 };

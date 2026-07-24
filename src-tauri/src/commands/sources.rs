@@ -8,7 +8,7 @@ pub(crate) async fn fetch_chess_com_game(game_url: String) -> Result<String, Str
 #[tauri::command]
 pub(crate) async fn fetch_recent_games(
     request: FetchRecentGamesRequest,
-) -> Result<Vec<String>, String> {
+) -> Result<FetchRecentGamesResult, String> {
     crate::fetch_recent_games(request).await
 }
 

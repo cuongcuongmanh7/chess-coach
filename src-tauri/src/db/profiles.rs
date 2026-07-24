@@ -92,7 +92,8 @@ pub(crate) fn list_player_profiles(
         .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
     let mut statement = connection
         .prepare(
-            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at
+            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at,
+                    pp.sync_watermark, pp.sync_gap
              FROM player_profiles pp
              LEFT JOIN game_profiles gp ON gp.profile_id = pp.id
              GROUP BY pp.id
@@ -108,6 +109,8 @@ pub(crate) fn list_player_profiles(
                 game_count: row.get(3)?,
                 last_sync_at: row.get(4)?,
                 created_at: row.get(5)?,
+                sync_watermark: row.get(6)?,
+                sync_gap: row.get::<_, i64>(7)? != 0,
             })
         })
         .map_err(|_| "Không thể đọc hồ sơ người chơi.".to_string())?;
@@ -163,7 +166,8 @@ pub(crate) fn add_player_profile(
         .map_err(|_| "Không thể cập nhật hàng đợi ván của hồ sơ.".to_string())?;
     connection
         .query_row(
-            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at
+            "SELECT pp.id, pp.platform, pp.username, COUNT(gp.game_id), pp.last_sync_at, pp.created_at,
+                    pp.sync_watermark, pp.sync_gap
              FROM player_profiles pp LEFT JOIN game_profiles gp ON gp.profile_id = pp.id
              WHERE pp.id = ?1 GROUP BY pp.id",
             params![profile_id],
@@ -175,6 +179,8 @@ pub(crate) fn add_player_profile(
                     game_count: row.get(3)?,
                     last_sync_at: row.get(4)?,
                     created_at: row.get(5)?,
+                    sync_watermark: row.get(6)?,
+                    sync_gap: row.get::<_, i64>(7)? != 0,
                 })
             },
         )
@@ -250,6 +256,39 @@ pub(crate) fn mark_profile_synced(
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|_| "Không thể đọc hồ sơ vừa đồng bộ.".to_string())?;
+    queue_cloud_change(
+        &connection,
+        "profile",
+        &profile_cloud_key(&platform, &username),
+        "upsert",
+    )
+    .map_err(|_| "Không thể xếp hồ sơ vào hàng đợi cloud.".to_string())?;
+    Ok(())
+}
+
+pub(crate) fn set_profile_sync_state(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: i64,
+    watermark: Option<String>,
+    gap: bool,
+) -> Result<(), String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở danh sách hồ sơ.".to_string())?;
+    connection
+        .execute(
+            "UPDATE player_profiles SET sync_watermark = ?2, sync_gap = ?3 WHERE id = ?1",
+            params![profile_id, watermark, gap as i64],
+        )
+        .map_err(|_| "Không thể cập nhật mốc đồng bộ.".to_string())?;
+    let (platform, username): (String, String) = connection
+        .query_row(
+            "SELECT platform, username FROM player_profiles WHERE id = ?1",
+            params![profile_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| "Không thể đọc hồ sơ vừa cập nhật.".to_string())?;
     queue_cloud_change(
         &connection,
         "profile",

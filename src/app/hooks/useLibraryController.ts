@@ -53,6 +53,8 @@ export function useLibraryController(
     setLibraryLoading,
     setLibraryError,
     syncTimeClass,
+    syncMode,
+    syncLimit,
     setSyncStatus,
     setSyncNotice,
     setSyncProgress,
@@ -157,28 +159,37 @@ export function useLibraryController(
     setError("");
     setSyncStatus("");
     setSyncNotice(null);
-    setSyncProgress({ phase: "fetching", completed: 0, total: 20 });
+    setSyncProgress({ phase: "fetching", completed: 0, total: syncLimit });
     setLoading(true);
     try {
       if (!activeProfile) throw new Error("Hãy chọn một hồ sơ người chơi.");
       const username = activeProfile.username;
-      const pgns = await gameRepository.fetchRecent({
+      const incremental = syncMode === "incremental";
+      const priorWatermark = activeProfile.sync_watermark;
+      const sinceMs = incremental && priorWatermark
+        ? Date.parse(`${priorWatermark.replace(" ", "T")}Z`)
+        : Number.NaN;
+      const result = await gameRepository.fetchRecent({
           platform: activeProfile.platform,
           username,
-          limit: 20,
+          limit: syncLimit,
           time_class: syncTimeClass === "all" ? null : syncTimeClass,
+          since_ms: Number.isNaN(sinceMs) ? null : sinceMs,
       });
-      if (!pgns.length) throw new Error("Không tìm thấy ván phù hợp với bộ lọc.");
-      setSyncProgress({ phase: "saving", completed: 0, total: pgns.length });
+      const pgns = result.pgns;
+      setSyncProgress({ phase: "saving", completed: 0, total: Math.max(1, pgns.length) });
 
       const knownIds = new Set(savedGames.map((game) => game.id));
       let imported = 0;
       let skipped = 0;
+      let newestPlayed: string | null = null;
       for (const [index, pgn] of pgns.entries()) {
         try {
           const parsed = analyzePgn(pgn);
           const inferredOpening = lastKnownOpening(parsed.steps);
           const sourceUrl = parsed.headers.Link || parsed.headers.Site || null;
+          const playedAt = getPgnPlayedAt(parsed.headers);
+          if (playedAt && (!newestPlayed || playedAt > newestPlayed)) newestPlayed = playedAt;
           const id = await gameRepository.save({
               pgn: parsed.rawPgn,
               white: parsed.headers.White || "Trắng",
@@ -188,7 +199,7 @@ export function useLibraryController(
               result: parsed.headers.Result || null,
               event: parsed.headers.Event || null,
               date: parsed.headers.UTCDate || parsed.headers.Date || null,
-              played_at: getPgnPlayedAt(parsed.headers),
+              played_at: playedAt,
               eco: inferredOpening?.eco || parsed.headers.ECO || null,
               opening: inferredOpening?.name || parsed.headers.Opening || null,
               time_control: parsed.headers.TimeControl || null,
@@ -208,18 +219,26 @@ export function useLibraryController(
         } catch {
           skipped += 1;
         } finally {
-          setSyncProgress({ phase: "saving", completed: index + 1, total: pgns.length });
+          setSyncProgress({ phase: "saving", completed: index + 1, total: Math.max(1, pgns.length) });
         }
       }
+
+      const gap = !result.reached_watermark;
+      const nextWatermark = newestPlayed && (!priorWatermark || newestPlayed > priorWatermark)
+        ? newestPlayed
+        : priorWatermark;
       await profileRepository.markSynced(activeProfile.id);
+      await profileRepository.setSyncState(activeProfile.id, nextWatermark, gap);
       await refreshProfiles(activeProfile.id);
       await refreshSavedGames();
       if (firebaseUser) void syncCloud(firebaseUser, false);
-      const message = imported > 0
-        ? `Đồng bộ hoàn tất: đã thêm ${imported} ván mới${skipped ? `, bỏ qua ${skipped} ván đã có hoặc không hợp lệ` : ""}.`
-        : `Đồng bộ hoàn tất: không có ván mới${skipped ? `; ${skipped} ván đã có hoặc không hợp lệ` : ""}.`;
+      const message = gap
+        ? `Đã lưu ${imported} ván mới nhưng chưa nối liền dữ liệu cũ — còn khoảng trống. Tăng "Tối đa mỗi lần" rồi đồng bộ tiếp.`
+        : imported > 0
+          ? `Đồng bộ hoàn tất: thêm ${imported} ván mới${skipped ? `, bỏ qua ${skipped} ván đã có` : ""}, đã nối liền dữ liệu.`
+          : "Đã cập nhật: không có ván mới.";
       setSyncStatus(message);
-      setSyncNotice({ type: imported > 0 ? "success" : "info", message });
+      setSyncNotice({ type: gap ? "info" : imported > 0 ? "success" : "info", message });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       setError(message);

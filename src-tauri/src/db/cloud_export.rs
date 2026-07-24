@@ -6,7 +6,7 @@ pub(crate) fn cloud_profile_by_key(
 ) -> rusqlite::Result<Option<CloudPlayerProfile>> {
     connection
         .query_row(
-            "SELECT platform, username, last_sync_at, created_at
+            "SELECT platform, username, last_sync_at, created_at, sync_watermark, sync_gap
              FROM player_profiles
              WHERE platform || '_' || lower(username) = ?1",
             params![document_id],
@@ -16,6 +16,8 @@ pub(crate) fn cloud_profile_by_key(
                     username: row.get(1)?,
                     last_sync_at: row.get(2)?,
                     created_at: row.get(3)?,
+                    sync_watermark: row.get(4)?,
+                    sync_gap: row.get::<_, i64>(5)? != 0,
                 })
             },
         )

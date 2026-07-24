@@ -31,3 +31,13 @@ pub(crate) fn mark_profile_synced(
 ) -> Result<(), String> {
     crate::mark_profile_synced(database, profile_id)
 }
+
+#[tauri::command]
+pub(crate) fn set_profile_sync_state(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: i64,
+    watermark: Option<String>,
+    gap: bool,
+) -> Result<(), String> {
+    crate::set_profile_sync_state(database, profile_id, watermark, gap)
+}

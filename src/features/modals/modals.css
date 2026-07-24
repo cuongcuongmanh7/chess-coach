@@ -173,3 +173,8 @@
 footer { height: 28px; min-height: 28px; grid-column: 2; grid-row: 3; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; color: #596a62; background: #0a100e; border-top: 1px solid #1c2823; font-size: 7px; text-transform: uppercase; letter-spacing: .1em; }
 .footer-services, .footer-account-status { display: flex; align-items: center; gap: 5px; }
 .footer-account-avatar { width: 16px; height: 16px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: #173229; background: var(--green); font-size: 6px; font-weight: 900; }
+
+.sync-watermark-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 2px; font-size: 12px; color: var(--muted); }
+.sync-gap-badge { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; font-style: normal; font-size: 11px; color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); padding: 2px 8px; border-radius: 6px; }
+.sync-mode { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.sync-mode label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }

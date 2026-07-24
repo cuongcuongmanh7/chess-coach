@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 7;
 const ENGINE_MULTIPV: i64 = 2;
 
 pub(crate) fn open_database(
@@ -24,8 +24,10 @@ pub(crate) fn open_database(
             "v0.7.0-preview"
         } else if version < 5 {
             "v0.7.1"
-        } else {
+        } else if version < 6 {
             "v0.8.0"
+        } else {
+            "v0.10.0"
         };
         let backup_path = path.with_file_name(format!("{file_name}.pre-{release}.bak"));
         if !backup_path.exists() {
@@ -63,7 +65,21 @@ pub(crate) fn initialize_database(
     if schema_version(connection)? < 6 {
         migrate_to_v6(connection)?;
     }
+    if schema_version(connection)? < 7 {
+        migrate_to_v7(connection)?;
+    }
     Ok(())
+}
+
+fn migrate_to_v7(connection: &Connection) -> rusqlite::Result<()> {
+    add_column_if_missing(connection, "player_profiles", "sync_watermark", "TEXT")?;
+    add_column_if_missing(
+        connection,
+        "player_profiles",
+        "sync_gap",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    connection.execute_batch("PRAGMA user_version = 7;")
 }
 
 fn schema_version(connection: &Connection) -> rusqlite::Result<i64> {

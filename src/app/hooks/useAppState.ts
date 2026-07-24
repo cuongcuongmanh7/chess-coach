@@ -83,6 +83,8 @@ export function useAppState() {
   const [newProfileUsername, setNewProfileUsername] = useState("");
   const [importMode, setImportMode] = useState<"single" | "sync">("single");
   const [syncTimeClass, setSyncTimeClass] = useState("all");
+  const [syncMode, setSyncMode] = useState<"incremental" | "count">("incremental");
+  const [syncLimit, setSyncLimit] = useState(50);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
@@ -151,7 +153,8 @@ export function useAppState() {
     dashboardError, setDashboardError, profiles, setProfiles, profilesLoading, setProfilesLoading,
     profilesError, setProfilesError, activeProfileId, setActiveProfileId,
     newProfilePlatform, setNewProfilePlatform, newProfileUsername, setNewProfileUsername,
-    importMode, setImportMode, syncTimeClass, setSyncTimeClass, syncStatus, setSyncStatus,
+    importMode, setImportMode, syncTimeClass, setSyncTimeClass,
+    syncMode, setSyncMode, syncLimit, setSyncLimit, syncStatus, setSyncStatus,
     syncNotice, setSyncNotice, syncProgress, setSyncProgress, engineCache, setEngineCache,
     engineLoading, setEngineLoading, engineError, setEngineError, retryState, setRetryState,
     promotionPending, setPromotionPending, variationState, setVariationState,

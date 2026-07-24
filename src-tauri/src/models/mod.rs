@@ -106,6 +106,10 @@ pub(crate) struct CloudPlayerProfile {
     pub(crate) username: String,
     pub(crate) last_sync_at: Option<String>,
     pub(crate) created_at: String,
+    #[serde(default)]
+    pub(crate) sync_watermark: Option<String>,
+    #[serde(default)]
+    pub(crate) sync_gap: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -275,6 +279,8 @@ pub(crate) struct PlayerProfileSummary {
     pub(crate) game_count: u32,
     pub(crate) last_sync_at: Option<String>,
     pub(crate) created_at: String,
+    pub(crate) sync_watermark: Option<String>,
+    pub(crate) sync_gap: bool,
 }
 
 #[derive(Deserialize)]
@@ -324,4 +330,13 @@ pub(crate) struct FetchRecentGamesRequest {
     pub(crate) username: String,
     pub(crate) limit: usize,
     pub(crate) time_class: Option<String>,
+    #[serde(default)]
+    pub(crate) since_ms: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct FetchRecentGamesResult {
+    pub(crate) pgns: Vec<String>,
+    // true nếu đã kéo tới watermark (liền mạch); false nếu dừng do chạm cận trên.
+    pub(crate) reached_watermark: bool,
 }

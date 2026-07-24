@@ -149,7 +149,8 @@ pub(crate) async fn fetch_recent_chess_com_games(
     username: &str,
     limit: usize,
     time_class: Option<&str>,
-) -> Result<Vec<String>, String> {
+    since_ms: Option<i64>,
+) -> Result<(Vec<String>, bool), String> {
     let archives_url = format!("https://api.chess.com/pub/player/{username}/games/archives");
     let response = client
         .get(archives_url)
@@ -171,7 +172,8 @@ pub(crate) async fn fetch_recent_chess_com_games(
         .and_then(Value::as_array)
         .ok_or_else(|| "Tài khoản chưa có kho ván công khai.".to_string())?;
     let mut games: Vec<(i64, String)> = Vec::new();
-    for archive in archive_urls.iter().rev() {
+    let mut reached = true;
+    'outer: for archive in archive_urls.iter().rev() {
         let Some(url) = archive.as_str() else {
             continue;
         };
@@ -187,6 +189,7 @@ pub(crate) async fn fetch_recent_chess_com_games(
             .json()
             .await
             .map_err(|_| "Dữ liệu tháng Chess.com không hợp lệ.".to_string())?;
+        let mut month_games: Vec<(i64, String)> = Vec::new();
         if let Some(items) = month.get("games").and_then(Value::as_array) {
             for game in items {
                 if text_field(game, "rules").unwrap_or("chess") != "chess" {
@@ -198,19 +201,30 @@ pub(crate) async fn fetch_recent_chess_com_games(
                     }
                 }
                 if let Some(pgn) = text_field(game, "pgn") {
-                    games.push((
+                    month_games.push((
                         game.get("end_time").and_then(Value::as_i64).unwrap_or(0),
                         pgn.to_string(),
                     ));
                 }
             }
         }
-        if games.len() >= limit {
-            break;
+        month_games.sort_by(|left, right| right.0.cmp(&left.0));
+        for (end_time, pgn) in month_games {
+            if let Some(since) = since_ms {
+                if end_time * 1000 <= since {
+                    reached = true;
+                    break 'outer;
+                }
+            }
+            games.push((end_time, pgn));
+            if games.len() >= limit {
+                reached = false;
+                break 'outer;
+            }
         }
     }
     games.sort_by(|left, right| right.0.cmp(&left.0));
-    Ok(games.into_iter().take(limit).map(|(_, pgn)| pgn).collect())
+    Ok((games.into_iter().map(|(_, pgn)| pgn).collect(), reached))
 }
 
 pub(crate) async fn fetch_recent_lichess_games(
@@ -218,7 +232,8 @@ pub(crate) async fn fetch_recent_lichess_games(
     username: &str,
     limit: usize,
     time_class: Option<&str>,
-) -> Result<Vec<String>, String> {
+    since_ms: Option<i64>,
+) -> Result<(Vec<String>, bool), String> {
     let mut url = Url::parse(&format!("https://lichess.org/api/games/user/{username}"))
         .map_err(|_| "Không thể tạo đường dẫn Lichess.".to_string())?;
     {
@@ -230,6 +245,9 @@ pub(crate) async fn fetch_recent_lichess_games(
         query.append_pair("sort", "dateDesc");
         if let Some(filter) = time_class {
             query.append_pair("perfType", filter);
+        }
+        if let Some(since) = since_ms {
+            query.append_pair("since", &since.to_string());
         }
     }
     let response = client
@@ -248,10 +266,14 @@ pub(crate) async fn fetch_recent_lichess_games(
         .text()
         .await
         .map_err(|_| "Không đọc được PGN từ Lichess.".to_string())?;
-    Ok(split_multi_pgn(&text).into_iter().take(limit).collect())
+    let pgns: Vec<String> = split_multi_pgn(&text).into_iter().take(limit).collect();
+    let reached = pgns.len() < limit;
+    Ok((pgns, reached))
 }
 
-pub(crate) async fn fetch_recent_games(request: FetchRecentGamesRequest) -> Result<Vec<String>, String> {
+pub(crate) async fn fetch_recent_games(
+    request: FetchRecentGamesRequest,
+) -> Result<FetchRecentGamesResult, String> {
     let username = request.username.trim().to_ascii_lowercase();
     if !valid_username(&username) {
         return Err("Username chỉ được chứa chữ, số, gạch ngang hoặc gạch dưới.".to_string());
@@ -263,9 +285,17 @@ pub(crate) async fn fetch_recent_games(request: FetchRecentGamesRequest) -> Resu
         .user_agent("ChessCoachVN/0.5.0 (local desktop app)")
         .build()
         .map_err(|_| "Không thể khởi tạo kết nối mạng.".to_string())?;
-    match request.platform.as_str() {
-        "chesscom" => fetch_recent_chess_com_games(&client, &username, limit, time_class).await,
-        "lichess" => fetch_recent_lichess_games(&client, &username, limit, time_class).await,
-        _ => Err("Nền tảng đồng bộ không hợp lệ.".to_string()),
-    }
+    let (pgns, reached_watermark) = match request.platform.as_str() {
+        "chesscom" => {
+            fetch_recent_chess_com_games(&client, &username, limit, time_class, request.since_ms).await?
+        }
+        "lichess" => {
+            fetch_recent_lichess_games(&client, &username, limit, time_class, request.since_ms).await?
+        }
+        _ => return Err("Nền tảng đồng bộ không hợp lệ.".to_string()),
+    };
+    Ok(FetchRecentGamesResult {
+        pgns,
+        reached_watermark,
+    })
 }

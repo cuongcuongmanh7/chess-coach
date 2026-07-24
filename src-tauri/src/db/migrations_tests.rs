@@ -303,3 +303,33 @@ fn creates_training_schema_and_keeps_it_idempotent() {
     assert_eq!(attempt_table, 1);
     initialize_database(&connection, false).expect("v3 migration must be idempotent");
 }
+
+#[test]
+fn v7_adds_profile_sync_watermark_columns_with_defaults() {
+    let connection = legacy_connection();
+    initialize_database(&connection, false).expect("migrate database");
+
+    let version: i64 = connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, CURRENT_SCHEMA_VERSION);
+
+    connection
+        .execute(
+            "INSERT INTO player_profiles (platform, username, created_at)
+             VALUES ('lichess', 'legacy_user', '2026-07-23')",
+            [],
+        )
+        .expect("insert profile without new columns");
+    let (watermark, gap): (Option<String>, i64) = connection
+        .query_row(
+            "SELECT sync_watermark, sync_gap FROM player_profiles WHERE username = 'legacy_user'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(watermark, None);
+    assert_eq!(gap, 0);
+
+    initialize_database(&connection, false).expect("v7 migration must be idempotent");
+}

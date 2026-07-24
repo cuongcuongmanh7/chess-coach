@@ -50,6 +50,8 @@ export type PlayerProfile = {
   game_count: number;
   last_sync_at: string | null;
   created_at: string;
+  sync_watermark: string | null;
+  sync_gap: boolean;
 };
 
 export type CloudMergeResult = {
@@ -128,6 +130,12 @@ export type FetchRecentGamesRequest = {
   username: string;
   limit: number;
   time_class: string | null;
+  since_ms?: number | null;
+};
+
+export type FetchRecentGamesResult = {
+  pgns: string[];
+  reached_watermark: boolean;
 };
 
 export type ExplainMoveRequest = {

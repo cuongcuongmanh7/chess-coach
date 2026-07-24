@@ -1,6 +1,7 @@
 import { invokeCommand } from "../../../shared/services/tauriClient";
 import type {
   FetchRecentGamesRequest,
+  FetchRecentGamesResult,
   GamePreviewUpdate,
   SaveGameRequest,
   SavedGameDetail,
@@ -31,6 +32,6 @@ export const gameRepository = {
     return invokeCommand<string>("fetch_chess_com_game", { gameUrl });
   },
   fetchRecent(request: FetchRecentGamesRequest) {
-    return invokeCommand<string[]>("fetch_recent_games", { request });
+    return invokeCommand<FetchRecentGamesResult>("fetch_recent_games", { request });
   },
 };

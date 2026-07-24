@@ -82,6 +82,10 @@ export function ImportSettingsModals() {
     setImportMode,
     syncTimeClass,
     setSyncTimeClass,
+    syncMode,
+    setSyncMode,
+    syncLimit,
+    setSyncLimit,
     syncStatus,
     syncProgress,
     hasApiKeys,
@@ -130,7 +134,7 @@ export function ImportSettingsModals() {
               </>
             ) : (
               <div className="sync-form">
-                <p>Tải 20 ván cờ tiêu chuẩn gần nhất từ hồ sơ công khai. Ván trùng sẽ tự động được bỏ qua.</p>
+                <p>Đồng bộ ván mới từ hồ sơ công khai. Ván trùng tự động bỏ qua.</p>
                 <label className="field-label" htmlFor="sync-profile">Hồ sơ cần đồng bộ</label>
                 <div className="sync-profile-row">
                   <select id="sync-profile" value={activeProfileId || ""} onChange={(event) => changeActiveProfile(Number(event.target.value))}>
@@ -138,6 +142,23 @@ export function ImportSettingsModals() {
                   </select>
                   <button className="ghost-button" onClick={() => { setImportOpen(false); setProfilesOpen(true); }}><UserPlus size={14} /> Quản lý</button>
                 </div>
+
+                <div className="sync-watermark-row">
+                  <span>{activeProfile?.sync_watermark ? `Đã đồng bộ tới: ${activeProfile.sync_watermark}` : "Chưa từng đồng bộ hồ sơ này"}</span>
+                  {activeProfile?.sync_gap && <em className="sync-gap-badge"><TriangleAlert size={12} /> còn khoảng trống</em>}
+                </div>
+
+                <label className="field-label">Chế độ</label>
+                <div className="sync-mode" role="radiogroup" aria-label="Chế độ đồng bộ">
+                  <label><input type="radio" name="sync-mode" checked={syncMode === "incremental"} onChange={() => setSyncMode("incremental")} /> Ván mới kể từ lần trước</label>
+                  <label><input type="radio" name="sync-mode" checked={syncMode === "count"} onChange={() => setSyncMode("count")} /> Số lượng cụ thể</label>
+                </div>
+
+                <label className="field-label" htmlFor="sync-limit">{syncMode === "incremental" ? "Tối đa mỗi lần" : "Số lượng"}</label>
+                <select id="sync-limit" value={syncLimit} onChange={(event) => setSyncLimit(Number(event.target.value))}>
+                  {[20, 50, 100].map((value) => <option value={value} key={value}>{value} ván</option>)}
+                </select>
+
                 <label className="field-label" htmlFor="sync-time-class">Thể loại</label>
                 <select id="sync-time-class" value={syncTimeClass} onChange={(event) => setSyncTimeClass(event.target.value)}>
                   <option value="all">Tất cả thể loại</option>
@@ -166,7 +187,7 @@ export function ImportSettingsModals() {
               {importMode === "single" ? (
                 <button className="primary-button large" onClick={handleImport} disabled={loading || !input.trim()}>{loading ? "Đang tải ván…" : "Phân tích ngay"} <ArrowRight size={17} /></button>
               ) : (
-                <button className="primary-button large" onClick={() => void syncRecentGames()} disabled={loading || !activeProfile}>{syncProgress?.phase === "saving" ? `Đang lưu ${syncProgress.completed}/${syncProgress.total}` : loading ? "Đang đồng bộ…" : "Đồng bộ 20 ván"} {loading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button>
+                <button className="primary-button large" onClick={() => void syncRecentGames()} disabled={loading || !activeProfile}>{syncProgress?.phase === "saving" ? `Đang lưu ${syncProgress.completed}/${syncProgress.total}` : loading ? "Đang đồng bộ…" : syncMode === "incremental" ? "Đồng bộ ván mới" : `Đồng bộ ${syncLimit} ván`} {loading ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}</button>
               )}
             </div>
           </section>

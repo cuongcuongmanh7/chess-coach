@@ -3,6 +3,8 @@ export type CloudPlayerProfile = {
   username: string;
   last_sync_at: string | null;
   created_at: string;
+  sync_watermark?: string | null;
+  sync_gap?: boolean;
 };
 
 export type CloudSavedGame = {

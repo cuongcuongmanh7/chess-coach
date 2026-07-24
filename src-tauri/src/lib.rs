@@ -131,6 +131,7 @@ pub fn run() {
             commands::profiles::add_player_profile,
             commands::profiles::delete_player_profile,
             commands::profiles::mark_profile_synced,
+            commands::profiles::set_profile_sync_state,
             commands::cloud::export_cloud_changes,
             commands::cloud::merge_cloud_changes,
             commands::cloud::get_cloud_sync_cursors,
