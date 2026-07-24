@@ -2,14 +2,13 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.9.0**.
+Phiên bản hiện tại: **0.9.1**.
 
-## Điểm mới trong v0.9.0
+## Điểm mới trong v0.9.1
 
-- Candidate Lab cho phép kéo một nước khác từ vị trí trước nước đang xem và so sánh trực tiếp với best move.
-- Stockfish phân tích candidate hoàn toàn offline ở đúng depth của kết quả gốc, hiển thị evaluation trước/sau, CPL, best reply và biến kiểm chứng.
-- Tactical detector hiện có gắn motif có bằng chứng vào candidate mà không gọi OpenAI hoặc Gemini.
-- Tác vụ candidate cũ được huỷ khi thử nước khác, đổi ply, đổi ván hoặc thoát; kết quả trễ không thể ghi vào sai vị trí.
+- Bộ icon ứng dụng mới dùng quân mã vàng lớn trên nền bàn cờ xanh, được tối ưu cho các kích thước hệ điều hành.
+- Panel Phân tích nước đi luôn hiển thị sẵn phương án Best của Stockfish; phương án #2 có thể mở thêm khi cần.
+- Chế độ xem biến Stockfish tự co bàn cờ theo chiều cao để cụm nút điều khiển luôn nằm trong panel chính.
 
 ## Chạy trên Windows
 

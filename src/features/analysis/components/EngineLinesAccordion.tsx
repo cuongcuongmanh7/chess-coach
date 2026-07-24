@@ -13,22 +13,24 @@ export function EngineLinesAccordion({
   activeIndex?: number;
   onOpenVariation: (rank: number, moves: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [showAlternative, setShowAlternative] = useState(false);
+  const variations = engine?.variations.slice(0, 2) || [];
+  const visibleVariations = showAlternative ? variations : variations.slice(0, 1);
   return (
     <section className="engine-lines-accordion">
       <button
         className="engine-lines-toggle"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setShowAlternative((value) => !value)}
         disabled={!engine}
-        aria-expanded={open}
+        aria-expanded={showAlternative}
       >
         {engine ? <ChevronDown size={14} /> : <LoaderCircle className="spin" size={13} />}
-        <span>{engine ? "2 phương án Stockfish" : "Stockfish đang tìm phương án…"}</span>
+        <span>{engine ? (variations.length > 1 ? "Best · thêm phương án #2" : "Phương án Best") : "Stockfish đang tìm phương án…"}</span>
         {engine && <small>{engine.variations[0]?.evaluation || engine.evaluation}</small>}
       </button>
-      {open && engine && (
+      {engine && (
         <div className="variation-list">
-          {engine.variations.slice(0, 2).map((variation) => (
+          {visibleVariations.map((variation) => (
             <button className="variation-row" key={`${variation.rank}-${variation.moveUci}`} onClick={() => onOpenVariation(variation.rank, variation.lineSan)}>
               <span className={`variation-rank rank-${variation.rank}`}>{variation.rank === 1 ? "BEST" : "#2"}</span>
               <span className="variation-eval">{variation.evaluation}</span>
