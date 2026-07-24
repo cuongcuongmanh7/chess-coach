@@ -1,12 +1,13 @@
 import type { DisplayMoveQuality } from "../analysis/moveClassification";
 
+// Bảng màu phân loại nước đi theo chuẩn chess.com
 export const STORY_QUALITY_COLORS: Record<DisplayMoveQuality, string> = {
-  brilliant: "#50e3d1",
-  best: "#79e4cf",
-  good: "#43d9a3",
-  inaccuracy: "#d8cf75",
-  mistake: "#f6be49",
-  blunder: "#f07167",
+  brilliant: "#26c2a3",
+  best: "#95bb4a",
+  good: "#96af8b",
+  inaccuracy: "#f0c15c",
+  mistake: "#e58f2a",
+  blunder: "#fa412d",
 };
 
 export const STORY_QUALITY_LABELS: Record<DisplayMoveQuality, string> = {

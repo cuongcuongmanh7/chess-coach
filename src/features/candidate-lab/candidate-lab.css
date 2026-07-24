@@ -1,5 +1,5 @@
-.candidate-launch { width: 100%; min-height: 38px; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(181,140,255,.38); border-radius: 7px; color: #d9c4ff; background: rgba(181,140,255,.1); font-size: 10px; font-weight: 800; }
-.candidate-launch:hover:not(:disabled) { border-color: rgba(205,177,255,.72); background: rgba(181,140,255,.17); }
+.candidate-launch { width: 100%; min-height: 38px; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 6px; color: #d3d1ce; background: rgba(255,255,255,.06); font-size: 10px; font-weight: 800; }
+.candidate-launch:hover:not(:disabled) { border-color: #57534e; color: #fff; background: rgba(255,255,255,.11); }
 .candidate-launch:disabled { opacity: .38; cursor: not-allowed; }
 .board-mode-badge.candidate { color: #dfcaff; border-color: rgba(181,140,255,.48); }
 .candidate-focus-mode .app-sidebar, .candidate-focus-mode .topbar, .candidate-focus-mode .coach-scroll-content, .candidate-focus-mode .board-status, .candidate-focus-mode .evaluation-chip { opacity: .34; filter: saturate(.55); }

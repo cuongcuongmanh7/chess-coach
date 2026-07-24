@@ -39,6 +39,14 @@ h1, h2, h3, h4,
 .sidebar-library-heading h2 {
   font-family: var(--font-heading);
 }
+
+/* Nhãn số (eval, Elo) dùng Montserrat cho đồng bộ với heading */
+.evaluation-chip,
+.player-details,
+.summary-player-name span,
+.match-result {
+  font-family: var(--font-heading);
+}
 button, textarea, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(246,190,73,.46); outline-offset: 2px; }

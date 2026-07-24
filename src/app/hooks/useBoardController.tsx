@@ -75,7 +75,7 @@ export function useBoardController(
       result.push({
         startSquare: variation.moveUci.slice(0, 2),
         endSquare: variation.moveUci.slice(2, 4),
-        color: index === 0 ? "#43d9a3" : "#67a7ff",
+        color: index === 0 ? "#81b64c" : "#67a7ff",
       });
     });
     if (threatViewEnabled && engine?.tactics?.threat.arrow) {

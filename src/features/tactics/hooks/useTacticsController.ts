@@ -12,7 +12,7 @@ export function useTacticsController(engine: EngineMoveAnalysis | undefined) {
     const styles: Record<string, CSSProperties> = {};
     threat.defenderSquares.forEach((square) => {
       styles[square] = {
-        boxShadow: "inset 0 0 0 4px rgba(67, 217, 163, .82)",
+        boxShadow: "inset 0 0 0 4px rgba(232, 168, 54, .85)",
       };
     });
     threat.dangerSquares.forEach((square) => {
