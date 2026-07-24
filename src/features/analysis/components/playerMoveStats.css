@@ -1,5 +1,5 @@
 .player-move-stats {
-  width: min(100%, calc(100vh - 335px), 640px);
+  width: var(--board-w, min(100%, calc(100vh - 335px), 640px));
   min-height: 38px;
   margin: 7px auto 0;
   padding: 6px 8px;
@@ -38,9 +38,6 @@
 }
 .player-move-stat em { color: currentColor; font-style: normal; font-weight: 700; }
 .player-move-stat-label-short { display: none; }
-.board-column:has(.retry-panel) .player-move-stats {
-  width: min(100%, clamp(360px, calc(100vh - 430px), 560px));
-}
 
 @container player-stats (max-width: 580px) {
   .player-move-stats-track { gap: 5px; }
