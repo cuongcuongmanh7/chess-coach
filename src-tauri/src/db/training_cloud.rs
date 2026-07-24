@@ -25,7 +25,9 @@ pub(crate) fn merge_training_progress(
     let mut merged = 0usize;
     for change in changes {
         if !valid_cloud_document_id(&change.document_id) || change.document_id.len() != 64 {
-            return Err("Mã tiến độ luyện cloud không hợp lệ.".to_string());
+            // Bỏ qua doc có mã không hợp lệ (artifact cũ trên cloud) thay vì
+            // abort cả batch — tránh "poison pill" khiến sync kẹt vĩnh viễn.
+            continue;
         }
         if change.deleted {
             transaction
@@ -43,12 +45,14 @@ pub(crate) fn merge_training_progress(
                 .map_err(|_| "Không thể xoá tiến độ cloud đang chờ.".to_string())?;
             continue;
         }
-        let progress = change
-            .data
-            .as_ref()
-            .ok_or_else(|| "Tiến độ luyện cloud bị thiếu dữ liệu.".to_string())?;
+        let Some(progress) = change.data.as_ref() else {
+            // Doc không xoá nhưng thiếu dữ liệu: bỏ qua thay vì làm hỏng cả batch.
+            continue;
+        };
         if !valid_progress(progress, &change.document_id) {
-            return Err("Dữ liệu tiến độ luyện cloud không hợp lệ.".to_string());
+            // Doc cũ/không hợp lệ trên cloud: bỏ qua để cursor tiến tiếp,
+            // tránh retry vô hạn cùng một doc lỗi.
+            continue;
         }
         if pending_cloud_operation(transaction, "training_progress", &change.document_id)
             .map_err(|_| "Không thể kiểm tra xung đột tiến độ local.".to_string())?
@@ -189,6 +193,51 @@ mod tests {
             .unwrap();
         assert_eq!(merged, 1);
         assert_eq!(stored, "review");
+    }
+
+    #[test]
+    fn skips_invalid_remote_progress_without_aborting_batch() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        initialize_database(&connection, false).unwrap();
+        let good_id = "a".repeat(64);
+        let bad_id = "c".repeat(64);
+        let mut bad = progress(&bad_id);
+        bad.interval_days = 999; // vượt ngưỡng hợp lệ (<=90)
+        let transaction = connection.transaction().unwrap();
+        let merged = merge_training_progress(
+            &transaction,
+            &[
+                CloudRemoteTrainingProgressChange {
+                    document_id: bad_id.clone(),
+                    deleted: false,
+                    data: Some(bad),
+                },
+                CloudRemoteTrainingProgressChange {
+                    document_id: good_id.clone(),
+                    deleted: false,
+                    data: Some(progress(&good_id)),
+                },
+            ],
+        )
+        .unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(merged, 1);
+        let good_stored: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM training_progress_inbox WHERE card_id = ?1",
+                params![good_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let bad_stored: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM training_progress_inbox WHERE card_id = ?1",
+                params![bad_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(good_stored, 1);
+        assert_eq!(bad_stored, 0);
     }
 
     #[test]
