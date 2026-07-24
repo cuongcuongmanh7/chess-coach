@@ -131,7 +131,7 @@ export function GameStoryChart({
           <defs>
             <linearGradient id="whiteAdvantage" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#e7eee9" stopOpacity={0.22} />
-              <stop offset="100%" stopColor="#43d9a3" stopOpacity={0.02} />
+              <stop offset="100%" stopColor="#81b64c" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="#26372f" strokeDasharray="3 5" />

@@ -199,8 +199,8 @@ export function useBoardController(
       boxShadow: "0 30px 80px rgba(0, 0, 0, 0.42)",
       overflow: "hidden",
     },
-    darkSquareStyle: { backgroundColor: "#315f50" },
-    lightSquareStyle: { backgroundColor: "#d9d4c4" },
+    darkSquareStyle: { backgroundColor: "#769656" },
+    lightSquareStyle: { backgroundColor: "#eeeed2" },
     squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
       <div
         className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.from ? " candidate-move-from" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.to ? " candidate-move-to" : ""}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
@@ -209,8 +209,8 @@ export function useBoardController(
         {children}
       </div>
     ),
-    darkSquareNotationStyle: { color: "#d9d4c4", fontSize: "11px", fontWeight: 700 },
-    lightSquareNotationStyle: { color: "#315f50", fontSize: "11px", fontWeight: 700 },
+    darkSquareNotationStyle: { color: "#eeeed2", fontSize: "11px", fontWeight: 700 },
+    lightSquareNotationStyle: { color: "#769656", fontSize: "11px", fontWeight: 700 },
     alphaNotationStyle: { zIndex: 50, right: "3px", bottom: "2px", fontSize: "11px", fontWeight: 900, lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,.95), 0 0 2px rgba(255,255,255,.38)", pointerEvents: "none" },
     numericNotationStyle: { zIndex: 50, top: "3px", left: "3px", fontSize: "11px", fontWeight: 900, lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,.95), 0 0 2px rgba(255,255,255,.38)", pointerEvents: "none" },
   } as const;

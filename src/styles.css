@@ -1,24 +1,26 @@
 :root {
-  font-family: "Be Vietnam Pro", "Segoe UI", sans-serif;
-  color: #e7eee9;
-  background: #0b1110;
+  font-family: "Be Vietnam Pro", "Montserrat", "Segoe UI", sans-serif;
+  color: #e9e8e6;
+  background: #302e2c;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg: #0b1110;
-  --surface: #111a17;
-  --surface-2: #16231f;
-  --surface-3: #1b2b26;
-  --ink: #edf4ef;
-  --muted: #87978f;
-  --green: #43d9a3;
-  --green-deep: #173f34;
-  --gold: #f6be49;
-  --red: #f07167;
-  --line: #26342f;
+  /* chess.com dark-mode palette */
+  --bg: #302e2c;            /* content background */
+  --surface: #262421;       /* cards / panels */
+  --surface-2: #21201d;     /* darker wells */
+  --surface-3: #3c3936;     /* hover / raised */
+  --ink: #f0efed;
+  --muted: #9c9a96;
+  --green: #81b64c;         /* chess.com brand green */
+  --green-deep: #4b7c34;    /* button 3D lip / deep green */
+  --green-soft: #a3d160;    /* hover green */
+  --gold: #f6be49;          /* highlight / premium yellow */
+  --red: #e0684b;
+  --line: #3d3a37;          /* subtle borders */
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 70% -15%, #183229 0, transparent 34%), var(--bg); }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; background: var(--bg); }
 button, textarea, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(246,190,73,.46); outline-offset: 2px; }

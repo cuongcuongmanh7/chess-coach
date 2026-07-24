@@ -81,8 +81,8 @@ export function TrainingBoard({
             animationDurationInMs: 220,
             arrows: bestArrow,
             boardStyle: { borderRadius: "10px", overflow: "hidden" },
-            darkSquareStyle: { backgroundColor: "#315f50" },
-            lightSquareStyle: { backgroundColor: "#d9d4c4" },
+            darkSquareStyle: { backgroundColor: "#769656" },
+            lightSquareStyle: { backgroundColor: "#eeeed2" },
           }}
         />
       </div>
