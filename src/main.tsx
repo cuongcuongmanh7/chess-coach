@@ -13,6 +13,7 @@ import "./features/analysis/components/gameHeading.css";
 import "./features/analysis/components/fullGameAnalysis.css";
 import "./features/analysis/components/moveAnalysisSummary.css";
 import "./features/analysis/components/gameReportCard.css";
+import "./features/analysis/components/insightsPanels.css";
 import "./features/analysis/components/engineLinesAccordion.css";
 import "./features/analysis/components/playerMoveStats.css";
 import "./features/analysis/components/timeline.css";

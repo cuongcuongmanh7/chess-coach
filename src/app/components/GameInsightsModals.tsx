@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import {
   ArrowRight,
@@ -65,6 +65,7 @@ import type { AutoExplainMode } from "../types";
 import type { AiProvider } from "../../shared/types/tauri";
 import { resolveStoryPerspective } from "../../features/game-story/model";
 import { GameReportCard } from "../../features/analysis/components/GameReportCard";
+import { InsightsResultsPanel, InsightsRhythmPanel } from "../../features/analysis/components/InsightsPanels";
 import { playerColorForUsername } from "../../features/analysis/playerMoveStats";
 
 const GameStoryPanel = lazy(() => import(
@@ -97,6 +98,7 @@ export function GameInsightsModals() {
     hasApiKey,
     providerLabel,
     dashboardStats,
+    savedGames,
     activeProfile,
     activeProfileLabel,
     fullGameSummary,
@@ -104,6 +106,7 @@ export function GameInsightsModals() {
     summarizeGameWithAi,
   } = useAppControllerContext();
   const reportColor = playerColorForUsername(headers, activeProfile?.username);
+  const [insightsTab, setInsightsTab] = useState<"quality" | "results" | "rhythm">("quality");
   return (
     <>
       {summaryOpen && (
@@ -251,6 +254,12 @@ export function GameInsightsModals() {
               </div>
             ) : (
               <div className="dashboard-content">
+                <div className="insights-tabs" role="tablist" aria-label="Nhóm thống kê">
+                  <button className={insightsTab === "quality" ? "active" : ""} onClick={() => setInsightsTab("quality")}>Chất lượng</button>
+                  <button className={insightsTab === "results" ? "active" : ""} onClick={() => setInsightsTab("results")}>Kết quả</button>
+                  <button className={insightsTab === "rhythm" ? "active" : ""} onClick={() => setInsightsTab("rhythm")}>Nhịp độ</button>
+                </div>
+                {insightsTab === "quality" && (<>
                 <div className="dashboard-metrics">
                   <div><strong>{dashboardStats.games}</strong><span>Ván đã phân tích</span></div>
                   <div><strong>{dashboardStats.acpl}</strong><span><ChessTerm term="acpl">ACPL cá nhân</ChessTerm></span></div>
@@ -300,6 +309,9 @@ export function GameInsightsModals() {
                     </section>
                   )}
                 </div>
+                </>)}
+                {insightsTab === "results" && <InsightsResultsPanel games={savedGames} username={activeProfile?.username} />}
+                {insightsTab === "rhythm" && <InsightsRhythmPanel games={savedGames} username={activeProfile?.username} />}
               </div>
             )}
           </section>

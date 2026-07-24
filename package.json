@@ -19,6 +19,7 @@
     "test:pgn": "node --test tests/pgn-fixtures.test.mjs",
     "test:report-card": "node --test tests/report-card.test.mjs",
     "test:batch-analysis": "node --test tests/batch-analysis.test.mjs",
+    "test:insights": "node --test tests/insights.test.mjs",
     "update-openings": "node scripts/update-openings.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
