@@ -3,6 +3,7 @@ import type { AnalysisStep } from "../../../analysis";
 import type { EngineMoveAnalysis } from "../../../stockfish";
 import { isTauri } from "../../../shared/services/tauriClient";
 import { trainingRepository } from "../services/trainingRepository";
+import { markSyncedPreferencesChanged } from "../../cloud/services/cloudPreferences";
 import type {
   TrainingCard,
   TrainingFilters,
@@ -41,6 +42,16 @@ export function useTrainingController(
   const [includeInaccuracies, setIncludeInaccuraciesState] = useState(
     () => localStorage.getItem("kypho-training-inaccuracies") === "true",
   );
+  useEffect(() => {
+    const applyCloudPreferences = (event: Event) => {
+      const detail = (event as CustomEvent<{ include_inaccuracies?: boolean }>).detail;
+      if (typeof detail?.include_inaccuracies === "boolean") {
+        setIncludeInaccuraciesState(detail.include_inaccuracies);
+      }
+    };
+    window.addEventListener("kypho-cloud-preferences", applyCloudPreferences);
+    return () => window.removeEventListener("kypho-cloud-preferences", applyCloudPreferences);
+  }, []);
 
   const filteredTrainingCards = useMemo(
     () => filterTrainingCards(trainingCards, trainingFilters),
@@ -124,8 +135,10 @@ export function useTrainingController(
 
   const setIncludeInaccuracies = useCallback((value: boolean) => {
     localStorage.setItem("kypho-training-inaccuracies", String(value));
+    markSyncedPreferencesChanged();
     setIncludeInaccuraciesState(value);
-  }, []);
+    onProgressChanged();
+  }, [onProgressChanged]);
 
   return {
     trainingOpen,

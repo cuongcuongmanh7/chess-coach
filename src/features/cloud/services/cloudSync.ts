@@ -1,17 +1,12 @@
 import {
   collection,
-  deleteField,
-  doc,
   documentId,
   getDocs,
   limit,
   orderBy,
   query,
-  serverTimestamp,
-  setDoc,
   startAfter,
   Timestamp,
-  writeBatch,
   type DocumentData,
   type Query,
   type QueryDocumentSnapshot,
@@ -19,14 +14,18 @@ import {
 } from "firebase/firestore";
 import type {
   CloudDownloadResult,
+  CloudAiExplanation,
+  CloudAnalysisManifest,
+  CloudEngineAnalysis,
   CloudPlayerProfile,
   CloudSavedGame,
+  CloudTrainingAttempt,
   CloudTrainingProgress,
-  CloudSyncBatch,
   CloudSyncCursor,
   CloudSyncCursors,
 } from "../types";
 import { requireFirestore } from "./firebaseClient";
+export { uploadCloudChanges } from "./cloudUpload";
 
 function cursorTimestamp(cursor: CloudSyncCursor) {
   if (
@@ -68,13 +67,20 @@ function laterCursor(
 
 async function downloadCollectionChanges<T>(
   uid: string,
-  collectionName: "profiles" | "games" | "trainingProgress",
+  collectionName:
+    | "profiles"
+    | "games"
+    | "trainingProgress"
+    | "engineAnalyses"
+    | "analysisManifests"
+    | "trainingAttempts"
+    | "aiExplanations",
   cursor: CloudSyncCursor,
   maximumDocuments: number,
+  expectedSchemaVersion: number,
 ) {
   const db = requireFirestore();
   const reference = collection(db, "users", uid, collectionName);
-  const expectedSchemaVersion = collectionName === "trainingProgress" ? 1 : 2;
   const incrementalTimestamp = cursorTimestamp(cursor);
   let pageCursor = cursor;
   let initialPageAfter: string | null = null;
@@ -154,14 +160,51 @@ export async function downloadCloudChanges(
   uid: string,
   cursors: CloudSyncCursors,
 ): Promise<CloudDownloadResult> {
-  const [profiles, games, trainingProgress] = await Promise.all([
-    downloadCollectionChanges<CloudPlayerProfile>(uid, "profiles", cursors.profiles, 1_000),
-    downloadCollectionChanges<CloudSavedGame>(uid, "games", cursors.games, 10_000),
+  const [
+    profiles,
+    games,
+    trainingProgress,
+    engineAnalyses,
+    analysisManifests,
+    trainingAttempts,
+    aiExplanations,
+  ] = await Promise.all([
+    downloadCollectionChanges<CloudPlayerProfile>(uid, "profiles", cursors.profiles, 1_000, 2),
+    downloadCollectionChanges<CloudSavedGame>(uid, "games", cursors.games, 10_000, 2),
     downloadCollectionChanges<CloudTrainingProgress>(
       uid,
       "trainingProgress",
       cursors.training_progress,
       50_000,
+      2,
+    ),
+    downloadCollectionChanges<CloudEngineAnalysis>(
+      uid,
+      "engineAnalyses",
+      cursors.engine_analyses,
+      500_000,
+      1,
+    ),
+    downloadCollectionChanges<CloudAnalysisManifest>(
+      uid,
+      "analysisManifests",
+      cursors.analysis_manifests,
+      10_000,
+      1,
+    ),
+    downloadCollectionChanges<CloudTrainingAttempt>(
+      uid,
+      "trainingAttempts",
+      cursors.training_attempts,
+      200_000,
+      1,
+    ),
+    downloadCollectionChanges<CloudAiExplanation>(
+      uid,
+      "aiExplanations",
+      cursors.ai_explanations,
+      100_000,
+      1,
     ),
   ]);
   return {
@@ -169,59 +212,19 @@ export async function downloadCloudChanges(
       profiles: profiles.changes,
       games: games.changes,
       training_progress: trainingProgress.changes,
+      engine_analyses: engineAnalyses.changes,
+      analysis_manifests: analysisManifests.changes,
+      training_attempts: trainingAttempts.changes,
+      ai_explanations: aiExplanations.changes,
     },
     cursors: {
       profiles: profiles.cursor,
       games: games.cursor,
       training_progress: trainingProgress.cursor,
+      engine_analyses: engineAnalyses.cursor,
+      analysis_manifests: analysisManifests.cursor,
+      training_attempts: trainingAttempts.cursor,
+      ai_explanations: aiExplanations.cursor,
     },
   };
-}
-
-export async function uploadCloudChanges(uid: string, changes: CloudSyncBatch) {
-  const db = requireFirestore();
-  const writes = [
-    ...changes.profiles.map((change) => ({
-      reference: doc(db, "users", uid, "profiles", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
-    })),
-    ...changes.games.map((change) => ({
-      reference: doc(db, "users", uid, "games", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
-    })),
-    ...changes.training_progress.map((change) => ({
-      reference: doc(db, "users", uid, "trainingProgress", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
-    })),
-  ];
-
-  let batch = writeBatch(db);
-  let batchCount = 0;
-  let estimatedBatchBytes = 0;
-  for (const { reference, value } of writes) {
-    const estimatedBytes = JSON.stringify(value).length;
-    if (batchCount > 0 && (batchCount >= 400 || estimatedBatchBytes + estimatedBytes > 8_000_000)) {
-      await batch.commit();
-      batch = writeBatch(db);
-      batchCount = 0;
-      estimatedBatchBytes = 0;
-    }
-    batch.set(reference, value);
-    batchCount += 1;
-    estimatedBatchBytes += estimatedBytes;
-  }
-  if (batchCount) await batch.commit();
-
-  await setDoc(doc(db, "users", uid), {
-    schemaVersion: 3,
-    profileCount: deleteField(),
-    gameCount: deleteField(),
-    lastSyncAt: serverTimestamp(),
-  }, { merge: true });
 }

@@ -223,6 +223,7 @@ export function useAppController() {
     gameSummaryRequest,
     persistEngineResult,
     refreshSavedGames,
+    syncCloud,
     generateCardsForGame: trainingController.generateCardsForGame,
   });
   const tacticsController = useTacticsController(engine);

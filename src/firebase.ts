@@ -14,6 +14,9 @@ export {
 } from "./features/cloud/services/cloudSync";
 export type {
   CloudDownloadResult,
+  CloudAiExplanation,
+  CloudAnalysisManifest,
+  CloudEngineAnalysis,
   CloudPendingGameChange,
   CloudPendingProfileChange,
   CloudPlayerProfile,
@@ -24,6 +27,7 @@ export type {
   CloudSyncCursor,
   CloudSyncCursors,
   CloudTrainingProgress,
+  CloudTrainingAttempt,
   CloudPendingTrainingProgressChange,
   CloudRemoteTrainingProgressChange,
 } from "./features/cloud/types";

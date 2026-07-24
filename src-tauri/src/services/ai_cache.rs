@@ -149,7 +149,11 @@ pub(crate) fn validate_model(provider: &str, model: &str) -> Result<(), String> 
     }
 }
 
-pub(crate) fn explanation_cache_key(provider: &str, model: &str, request: &ExplainMoveRequest) -> String {
+pub(crate) fn explanation_cache_key(
+    provider: &str,
+    model: &str,
+    request: &ExplainMoveRequest,
+) -> String {
     let mut hasher = Sha256::new();
     hasher.update(PROMPT_VERSION.as_bytes());
     hasher.update(provider.as_bytes());
@@ -158,58 +162,17 @@ pub(crate) fn explanation_cache_key(provider: &str, model: &str, request: &Expla
     format!("{:x}", hasher.finalize())
 }
 
-pub(crate) fn game_summary_cache_key(provider: &str, model: &str, request: &ExplainGameRequest) -> String {
+pub(crate) fn game_summary_cache_key(
+    provider: &str,
+    model: &str,
+    request: &ExplainGameRequest,
+) -> String {
     let mut hasher = Sha256::new();
     hasher.update(GAME_SUMMARY_PROMPT_VERSION.as_bytes());
     hasher.update(provider.as_bytes());
     hasher.update(model.as_bytes());
     hasher.update(serde_json::to_vec(request).unwrap_or_default());
     format!("{:x}", hasher.finalize())
-}
-
-pub(crate) fn read_cached_explanation(
-    database: &tauri::State<'_, DatabaseState>,
-    cache_key: &str,
-) -> Result<Option<String>, String> {
-    let connection = database
-        .0
-        .lock()
-        .map_err(|_| "Không thể đọc bộ nhớ lời giải thích.".to_string())?;
-    connection
-        .query_row(
-            "SELECT explanation FROM ai_explanations WHERE cache_key = ?1",
-            params![cache_key],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|_| "Không thể đọc lời giải thích đã lưu.".to_string())
-}
-
-pub(crate) fn write_cached_explanation(
-    database: &tauri::State<'_, DatabaseState>,
-    expected_generation: u64,
-    cache_key: &str,
-    provider: &str,
-    model: &str,
-    prompt_version: &str,
-    text: &str,
-) -> Result<(), String> {
-    let connection = database
-        .0
-        .lock()
-        .map_err(|_| "Không thể ghi bộ nhớ lời giải thích.".to_string())?;
-    if connection.generation != expected_generation {
-        return Ok(());
-    }
-    connection
-        .execute(
-            "INSERT OR REPLACE INTO ai_explanations
-             (cache_key, provider, model, prompt_version, explanation, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
-            params![cache_key, provider, model, prompt_version, text],
-        )
-        .map(|_| ())
-        .map_err(|_| "Không thể lưu lời giải thích xuống máy.".to_string())
 }
 
 pub(crate) fn get_cached_explanation(
@@ -229,17 +192,6 @@ pub(crate) fn get_cached_explanation(
             cached: true,
         }),
     )
-}
-
-pub(crate) fn clear_ai_cache(database: tauri::State<'_, DatabaseState>) -> Result<u64, String> {
-    let connection = database
-        .0
-        .lock()
-        .map_err(|_| "Không thể mở bộ nhớ lời giải thích.".to_string())?;
-    connection
-        .execute("DELETE FROM ai_explanations", [])
-        .map(|count| count as u64)
-        .map_err(|_| "Không thể xoá dữ liệu AI đã lưu.".to_string())
 }
 
 pub(crate) fn move_input(request: &ExplainMoveRequest) -> Value {

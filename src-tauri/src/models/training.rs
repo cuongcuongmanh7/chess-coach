@@ -100,8 +100,12 @@ pub(crate) struct CloudTrainingProgress {
     pub(crate) interval_days: u32,
     pub(crate) correct_streak: u32,
     pub(crate) attempts: u32,
+    #[serde(default)]
+    pub(crate) lapses: u32,
     pub(crate) starred: bool,
     pub(crate) suspended: bool,
+    #[serde(default)]
+    pub(crate) last_correct_at: Option<String>,
     pub(crate) updated_at: String,
 }
 

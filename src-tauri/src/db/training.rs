@@ -93,18 +93,28 @@ pub(crate) fn review_training_card(
     transaction
         .execute(
             "INSERT INTO training_attempts
-             (card_id, attempted_move, result, centipawn_loss, hints_used, duration_ms, attempted_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+             (cloud_id, card_id, attempted_move, result, centipawn_loss, hints_used,
+              failed_attempts, duration_ms, attempted_at)
+             VALUES (lower(hex(randomblob(32))), ?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                     strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
             params![
                 &request.card_id,
                 &request.attempted_move,
                 schedule.result,
                 request.centipawn_loss,
                 request.hints_used,
+                request.failed_attempts,
                 request.duration_ms,
             ],
         )
         .map_err(|_| "Không thể lưu lần luyện.".to_string())?;
+    let attempt_cloud_id: String = transaction
+        .query_row(
+            "SELECT cloud_id FROM training_attempts WHERE id = last_insert_rowid()",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Không thể đọc mã lần luyện.".to_string())?;
     transaction
         .execute(
             "UPDATE training_cards SET
@@ -128,8 +138,20 @@ pub(crate) fn review_training_card(
             ],
         )
         .map_err(|_| "Không thể cập nhật lịch ôn.".to_string())?;
-    queue_cloud_change(&transaction, "training_progress", &request.card_id, "upsert")
-        .map_err(|_| "Không thể xếp hàng đồng bộ tiến độ.".to_string())?;
+    queue_cloud_change(
+        &transaction,
+        "training_progress",
+        &request.card_id,
+        "upsert",
+    )
+    .map_err(|_| "Không thể xếp hàng đồng bộ tiến độ.".to_string())?;
+    queue_cloud_change(
+        &transaction,
+        "training_attempt",
+        &attempt_cloud_id,
+        "upsert",
+    )
+    .map_err(|_| "Không thể xếp lần luyện vào hàng đợi cloud.".to_string())?;
     transaction
         .commit()
         .map_err(|_| "Không thể hoàn tất lưu kết quả.".to_string())?;
@@ -210,7 +232,9 @@ pub(crate) fn get_training_stats(
         )
         .map_err(|_| "Không thể tính lịch sử luyện tập.".to_string())?;
     let today: i64 = connection
-        .query_row("SELECT CAST(julianday('now') AS INTEGER)", [], |row| row.get(0))
+        .query_row("SELECT CAST(julianday('now') AS INTEGER)", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
     let mut statement = connection
         .prepare(

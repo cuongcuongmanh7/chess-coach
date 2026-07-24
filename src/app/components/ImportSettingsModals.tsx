@@ -237,7 +237,7 @@ export function ImportSettingsModals() {
         {firebaseUser ? (
           <span className="footer-account-status">
             <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="footer-account-avatar" />
-            Hồ sơ + PGN được sao lưu Firebase · AI vẫn cục bộ
+            PGN + phân tích + lịch luyện được sao lưu · API key vẫn cục bộ
           </span>
         ) : (
           <span className="footer-account-status">

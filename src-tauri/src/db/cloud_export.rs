@@ -80,7 +80,7 @@ pub(crate) fn cloud_training_progress_by_id(
     connection
         .query_row(
             "SELECT id, status, due_at, interval_days, correct_streak, attempts,
-                    starred, suspended, updated_at
+                    lapses, starred, suspended, last_correct_at, updated_at
              FROM training_cards WHERE id = ?1",
             params![card_id],
             |row| {
@@ -91,9 +91,11 @@ pub(crate) fn cloud_training_progress_by_id(
                     interval_days: row.get(3)?,
                     correct_streak: row.get(4)?,
                     attempts: row.get(5)?,
-                    starred: row.get::<_, i64>(6)? != 0,
-                    suspended: row.get::<_, i64>(7)? != 0,
-                    updated_at: row.get(8)?,
+                    lapses: row.get(6)?,
+                    starred: row.get::<_, i64>(7)? != 0,
+                    suspended: row.get::<_, i64>(8)? != 0,
+                    last_correct_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             },
         )
@@ -129,6 +131,10 @@ pub(crate) fn export_cloud_changes(
         .0
         .lock()
         .map_err(|_| "Không thể mở dữ liệu để đồng bộ.".to_string())?;
+    let engine_analyses = export_engine_analyses(&connection)?;
+    let analysis_manifests = export_analysis_manifests(&connection)?;
+    let training_attempts = export_training_attempts(&connection)?;
+    let ai_explanations = export_ai_explanations(&connection)?;
 
     let profiles = pending_rows(&connection, "profile")?
         .into_iter()
@@ -203,5 +209,9 @@ pub(crate) fn export_cloud_changes(
         profiles,
         games,
         training_progress,
+        engine_analyses,
+        analysis_manifests,
+        training_attempts,
+        ai_explanations,
     })
 }

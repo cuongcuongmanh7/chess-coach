@@ -11,8 +11,15 @@ import {
   uploadCloudChanges,
   type User as FirebaseUser,
 } from "../../firebase";
-import { cloudAckTokens } from "../../features/cloud/utils";
+import {
+  accumulateCloudMerge,
+  cloudAckTokens,
+  cloudBatchMaxAttempts,
+  cloudMergedCount,
+  emptyCloudMergeResult,
+} from "../../features/cloud/utils";
 import { localCloudRepository } from "../../features/cloud/services/localCloudRepository";
+import { syncCloudPreferences } from "../../features/cloud/services/cloudPreferences";
 import { gameRepository } from "../../features/library/services/gameRepository";
 import { hydrateGamePreviews } from "../../features/library/gamePreviews";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
@@ -50,6 +57,9 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     setFullAnalysis,
     setGameCoachSummary,
     setAiCache,
+    setProvider,
+    setModel,
+    setAutoExplainMode,
     fullAnalysisAbortRef,
     cloudSyncInFlightRef,
     cloudSyncPendingRef,
@@ -137,13 +147,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     let activeTokens: CloudAckToken[] = [];
     let activeRetryAttempt = 0;
     let uploaded = 0;
-    const mergedTotal: CloudMergeResult = {
-      profiles_added: 0,
-      games_added: 0,
-      profiles_deleted: 0,
-      games_deleted: 0,
-      training_progress_merged: 0,
-    };
+    const mergedTotal: CloudMergeResult = emptyCloudMergeResult();
     try {
       let rounds = 0;
       do {
@@ -153,24 +157,23 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
           activeProfileStorageKeyRef.current = `kypho-active-profile-id:${targetUser.uid}`;
           resetForDatabaseSwitch();
         }
+        if (rounds === 0) {
+          const preferences = await syncCloudPreferences(targetUser.uid);
+          setProvider(preferences.ai_provider);
+          setModel(preferences.ai_provider === "gemini"
+            ? preferences.gemini_model
+            : preferences.openai_model);
+          setAutoExplainMode(preferences.auto_explain_mode);
+        }
         const cursors = await localCloudRepository.cursors(targetUser.uid);
         const remote = await downloadCloudChanges(targetUser.uid, cursors);
         const merged = await localCloudRepository.merge(remote.changes);
-        mergedTotal.profiles_added += merged.profiles_added;
-        mergedTotal.games_added += merged.games_added;
-        mergedTotal.profiles_deleted += merged.profiles_deleted;
-        mergedTotal.games_deleted += merged.games_deleted;
-        mergedTotal.training_progress_merged += merged.training_progress_merged;
+        accumulateCloudMerge(mergedTotal, merged);
         await localCloudRepository.setCursors(targetUser.uid, remote.cursors);
 
         const localChanges = await localCloudRepository.exportChanges();
         activeTokens = cloudAckTokens(localChanges);
-        activeRetryAttempt = Math.max(
-          0,
-          ...localChanges.profiles.map((change) => change.attempts),
-          ...localChanges.games.map((change) => change.attempts),
-          ...localChanges.training_progress.map((change) => change.attempts),
-        );
+        activeRetryAttempt = cloudBatchMaxAttempts(localChanges);
         if (activeTokens.length) {
           await uploadCloudChanges(targetUser.uid, localChanges);
           uploaded += activeTokens.length;
@@ -187,14 +190,12 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       setLastCloudSyncAt(completedAt);
       await Promise.all([refreshProfiles(), refreshSavedGames()]);
       if (showSuccess) {
-        const imported = mergedTotal.profiles_added
-          + mergedTotal.games_added
-          + mergedTotal.training_progress_merged;
+        const imported = cloudMergedCount(mergedTotal);
         const deleted = mergedTotal.profiles_deleted + mergedTotal.games_deleted;
         setSyncNotice({
           type: "success",
           message: imported || deleted || uploaded
-            ? `Cloud đã cập nhật: nhận ${imported} mục mới, áp dụng ${deleted} mục đã xoá và gửi ${uploaded} thay đổi local.`
+            ? `Cloud đã cập nhật: nhận ${imported} mục, áp dụng ${deleted} mục đã xoá và gửi ${uploaded} thay đổi local.`
             : "Dữ liệu trên máy và Firebase đã đồng bộ.",
         });
       }

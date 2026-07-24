@@ -6,6 +6,7 @@ import { analysisRepository } from "../../features/analysis/services/analysisRep
 import { playerEloForColor } from "../../features/analysis/moveClassification";
 import type { DisplayMoveQuality } from "../../features/analysis/moveClassification";
 import { coachRepository } from "../../features/coach/services/coachRepository";
+import { markSyncedPreferencesChanged } from "../../features/cloud/services/cloudPreferences";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { AiProvider } from "../../shared/types/tauri";
 import type { useCloudController } from "./useCloudController";
@@ -28,6 +29,7 @@ type CoachDependencies = {
   gameSummaryRequest: DataController["gameSummaryRequest"];
   persistEngineResult: DataController["persistEngineResult"];
   refreshSavedGames: CloudController["refreshSavedGames"];
+  syncCloud: CloudController["syncCloud"];
   generateCardsForGame: TrainingController["generateCardsForGame"];
 };
 export function useCoachController(
@@ -43,11 +45,13 @@ export function useCoachController(
     gameSummaryRequest,
     persistEngineResult,
     refreshSavedGames,
+    syncCloud,
     generateCardsForGame,
   }: CoachDependencies,
 ) {
   const {
     analysis,
+    firebaseUser,
     setSettingsOpen,
     currentGameId,
     error,
@@ -124,6 +128,7 @@ export function useCoachController(
             completedEngineCache,
           ).catch(() => ({ created: 0, eligible: 0 }));
           void refreshSavedGames();
+          if (firebaseUser) void syncCloud(firebaseUser, false);
         }
         setFullAnalysis({ running: false, complete: true, completed: analysis.steps.length, total: analysis.steps.length, error: "" });
         setSummaryOpen(true);
@@ -154,7 +159,9 @@ export function useCoachController(
       localStorage.setItem("kypho-ai-provider", provider);
       localStorage.setItem(`kypho-ai-model-${provider}`, model);
       localStorage.setItem("kypho-ai-auto-mode", autoExplainMode);
+      markSyncedPreferencesChanged();
       setSettingsOpen(false);
+      if (firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setSettingsError(reason instanceof Error ? reason.message : String(reason));
     }
@@ -177,6 +184,7 @@ export function useCoachController(
     cacheLookupsRef.current.clear();
     cacheMissesRef.current.clear();
     autoAttemptsRef.current.clear();
+    if (firebaseUser) void syncCloud(firebaseUser, false);
   };
 
   const changeProvider = (nextProvider: AiProvider) => {
@@ -233,13 +241,14 @@ export function useCoachController(
       );
       setAiCache((cache) => ({ ...cache, [aiCacheKey]: response }));
       cacheMissesRef.current.delete(aiCacheKey);
+      if (!response.cached && firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setAiError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       aiInFlightRef.current = false;
       setAiLoading(false);
     }
-  }, [aiCacheKey, aiRequest, engine, hasApiKey, model, provider]);
+  }, [aiCacheKey, aiRequest, engine, firebaseUser, hasApiKey, model, provider, syncCloud]);
 
   const summarizeGameWithAi = useCallback(async (forceRefresh = false) => {
     if (!gameSummaryRequest || gameCoachLoading) return;
@@ -258,12 +267,13 @@ export function useCoachController(
         forceRefresh,
       );
       setGameCoachSummary(response);
+      if (!response.cached && firebaseUser) void syncCloud(firebaseUser, false);
     } catch (reason) {
       setGameCoachError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setGameCoachLoading(false);
     }
-  }, [gameCoachLoading, gameSummaryRequest, hasApiKey, model, provider]);
+  }, [firebaseUser, gameCoachLoading, gameSummaryRequest, hasApiKey, model, provider, syncCloud]);
 
   useEffect(() => {
     if (!isTauri() || !engine || !aiRequest || aiCache[aiCacheKey]) return;

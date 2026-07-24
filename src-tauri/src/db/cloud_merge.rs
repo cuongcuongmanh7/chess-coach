@@ -7,6 +7,10 @@ pub(crate) fn merge_cloud_changes_connection(
     if request.profiles.len() > 1_000
         || request.games.len() > 10_000
         || request.training_progress.len() > 50_000
+        || request.engine_analyses.len() > 500_000
+        || request.analysis_manifests.len() > 10_000
+        || request.training_attempts.len() > 200_000
+        || request.ai_explanations.len() > 100_000
     {
         return Err("Bản đồng bộ vượt quá giới hạn an toàn.".to_string());
     }
@@ -117,10 +121,27 @@ pub(crate) fn merge_cloud_changes_connection(
                 .map_err(|_| "Không thể xác nhận ván đã xoá trên cloud.".to_string())?;
             transaction
                 .execute(
+                    "DELETE FROM cloud_sync_queue
+                     WHERE (entity_type = 'engine_analysis' AND entity_id IN (
+                       SELECT cloud_id FROM engine_analyses WHERE game_id = ?1
+                     )) OR (entity_type = 'analysis_manifest' AND entity_id IN (
+                       SELECT cloud_id FROM analysis_manifests WHERE game_id = ?1
+                     ))",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể dọn hàng đợi phân tích của ván.".to_string())?;
+            transaction
+                .execute(
                     "DELETE FROM engine_analyses WHERE game_id = ?1",
                     params![&change.document_id],
                 )
                 .map_err(|_| "Không thể xoá phân tích của ván từ cloud.".to_string())?;
+            transaction
+                .execute(
+                    "DELETE FROM analysis_manifests WHERE game_id = ?1",
+                    params![&change.document_id],
+                )
+                .map_err(|_| "Không thể xoá manifest phân tích của ván.".to_string())?;
             remove_training_for_game(&transaction, &change.document_id, false)?;
             transaction
                 .execute(
@@ -273,6 +294,7 @@ pub(crate) fn merge_cloud_changes_connection(
 
     let training_progress_merged =
         merge_training_progress(&transaction, &request.training_progress)?;
+    let content = merge_cloud_content(&transaction, &request)?;
 
     transaction
         .commit()
@@ -283,6 +305,10 @@ pub(crate) fn merge_cloud_changes_connection(
         profiles_deleted,
         games_deleted,
         training_progress_merged,
+        engine_analyses_merged: content.engine_analyses,
+        analysis_manifests_merged: content.analysis_manifests,
+        training_attempts_merged: content.training_attempts,
+        ai_explanations_merged: content.ai_explanations,
     })
 }
 

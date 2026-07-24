@@ -211,7 +211,7 @@ export function LibraryAccountModals() {
                   <div><Database size={16} /><span><strong>{profiles.length} hồ sơ · {savedGames.length} ván đang hiển thị</strong><small>Dữ liệu local sẵn sàng khi offline</small></span></div>
                   <div><RefreshCw size={16} /><span><strong>{lastCloudSyncAt ? `Đồng bộ ${formatVietnamDate(lastCloudSyncAt, true)}` : "Chưa đồng bộ lần đầu"}</strong><small>Hợp nhất hai chiều, không tạo ván trùng</small></span></div>
                 </div>
-                <div className="security-note"><ShieldCheck size={15} /> Mỗi Firebase UID có vùng Firestore và file SQLite riêng. API key AI và kết quả Stockfish không được tải lên.</div>
+                <div className="security-note"><ShieldCheck size={15} /> Mỗi Firebase UID có vùng Firestore và file SQLite riêng. Kết quả Stockfish, lịch luyện và cache HLV được hợp nhất; API key AI luôn chỉ nằm trong Credential Manager của máy.</div>
                 <div className="modal-actions account-actions">
                   <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={accountSwitchBusy}><LogOut size={15} /> Đăng xuất</button>
                   <button className="primary-button large" onClick={() => void syncCloud(firebaseUser, true)} disabled={cloudSyncing}>

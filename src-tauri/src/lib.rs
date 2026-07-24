@@ -16,6 +16,14 @@ use tauri::Manager;
 
 mod db {
     pub(crate) mod accounts;
+    pub(crate) mod ai_explanation_store;
+    pub(crate) mod analysis_store;
+    pub(crate) mod cloud_activity_merge;
+    pub(crate) mod cloud_content_export;
+    pub(crate) mod cloud_content_merge;
+    pub(crate) mod cloud_content_schema;
+    #[cfg(test)]
+    pub(crate) mod cloud_content_tests;
     pub(crate) mod cloud_export;
     pub(crate) mod cloud_merge;
     pub(crate) mod cloud_state;
@@ -27,8 +35,8 @@ mod db {
     pub(crate) mod profiles;
     pub(crate) mod training;
     pub(crate) mod training_cards;
-    pub(crate) mod training_cloud;
     pub(crate) mod training_cleanup;
+    pub(crate) mod training_cloud;
     pub(crate) mod training_schema;
 }
 mod commands {
@@ -46,17 +54,23 @@ mod services {
     pub(crate) mod ai_cache_tests;
     pub(crate) mod ai_providers;
     pub(crate) mod ai_summary;
+    pub(crate) mod cloud_validation;
     pub(crate) mod game_sources;
     pub(crate) mod oauth;
     pub(crate) mod secret_store;
     pub(crate) mod training_scheduler;
-    pub(crate) mod cloud_validation;
 }
 mod state;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use db::accounts::*;
+pub(crate) use db::ai_explanation_store::*;
+pub(crate) use db::analysis_store::*;
+pub(crate) use db::cloud_activity_merge::*;
+pub(crate) use db::cloud_content_export::*;
+pub(crate) use db::cloud_content_merge::*;
+pub(crate) use db::cloud_content_schema::*;
 pub(crate) use db::cloud_export::*;
 pub(crate) use db::cloud_merge::*;
 pub(crate) use db::cloud_state::*;
@@ -66,18 +80,18 @@ pub(crate) use db::migrations::*;
 pub(crate) use db::profiles::*;
 pub(crate) use db::training::*;
 pub(crate) use db::training_cards::*;
-pub(crate) use db::training_cloud::*;
 pub(crate) use db::training_cleanup::*;
+pub(crate) use db::training_cloud::*;
 pub(crate) use db::training_schema::*;
 pub(crate) use models::*;
 pub(crate) use services::ai_cache::*;
 pub(crate) use services::ai_providers::*;
 pub(crate) use services::ai_summary::*;
+pub(crate) use services::cloud_validation::*;
 pub(crate) use services::game_sources::*;
 pub(crate) use services::oauth::*;
 pub(crate) use services::secret_store::*;
 pub(crate) use services::training_scheduler::*;
-pub(crate) use services::cloud_validation::*;
 pub(crate) use state::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

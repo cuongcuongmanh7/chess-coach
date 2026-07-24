@@ -58,10 +58,21 @@ export type CloudMergeResult = {
   profiles_deleted: number;
   games_deleted: number;
   training_progress_merged: number;
+  engine_analyses_merged: number;
+  analysis_manifests_merged: number;
+  training_attempts_merged: number;
+  ai_explanations_merged: number;
 };
 
 export type CloudAckToken = {
-  entity_type: "profile" | "game" | "training_progress";
+  entity_type:
+    | "profile"
+    | "game"
+    | "training_progress"
+    | "engine_analysis"
+    | "analysis_manifest"
+    | "training_attempt"
+    | "ai_explanation";
   entity_id: string;
   generation: number;
 };

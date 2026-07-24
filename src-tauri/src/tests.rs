@@ -225,6 +225,10 @@ mod tests {
                     data: None,
                 }],
                 training_progress: Vec::new(),
+                engine_analyses: Vec::new(),
+                analysis_manifests: Vec::new(),
+                training_attempts: Vec::new(),
+                ai_explanations: Vec::new(),
             },
         )
         .unwrap();
@@ -259,6 +263,10 @@ mod tests {
                     data: Some(game),
                 }],
                 training_progress: Vec::new(),
+                engine_analyses: Vec::new(),
+                analysis_manifests: Vec::new(),
+                training_attempts: Vec::new(),
+                ai_explanations: Vec::new(),
             },
         )
         .unwrap();

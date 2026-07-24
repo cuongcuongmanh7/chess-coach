@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 6;
 const ENGINE_MULTIPV: i64 = 2;
 
 pub(crate) fn open_database(
@@ -12,15 +12,20 @@ pub(crate) fn open_database(
     let version = schema_version(&connection)?;
 
     if existed && version < CURRENT_SCHEMA_VERSION {
-        let file_name = path.file_name().and_then(|value| value.to_str()).unwrap_or("database");
+        let file_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("database");
         let release = if version < 2 {
             "v0.6.2"
         } else if version < 3 {
             "v0.7.0"
         } else if version < 4 {
             "v0.7.0-preview"
-        } else {
+        } else if version < 5 {
             "v0.7.1"
+        } else {
+            "v0.8.0"
         };
         let backup_path = path.with_file_name(format!("{file_name}.pre-{release}.bak"));
         if !backup_path.exists() {
@@ -55,6 +60,9 @@ pub(crate) fn initialize_database(
     if schema_version(connection)? < 5 {
         migrate_to_v5(connection)?;
     }
+    if schema_version(connection)? < 6 {
+        migrate_to_v6(connection)?;
+    }
     Ok(())
 }
 
@@ -62,11 +70,7 @@ fn schema_version(connection: &Connection) -> rusqlite::Result<i64> {
     connection.query_row("PRAGMA user_version", [], |row| row.get(0))
 }
 
-fn table_has_column(
-    connection: &Connection,
-    table: &str,
-    column: &str,
-) -> rusqlite::Result<bool> {
+fn table_has_column(connection: &Connection, table: &str, column: &str) -> rusqlite::Result<bool> {
     let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
     let columns = statement.query_map([], |row| row.get::<_, String>(1))?;
     for value in columns {
@@ -77,7 +81,7 @@ fn table_has_column(
     Ok(false)
 }
 
-fn add_column_if_missing(
+pub(crate) fn add_column_if_missing(
     connection: &Connection,
     table: &str,
     column: &str,
@@ -92,10 +96,7 @@ fn add_column_if_missing(
     Ok(())
 }
 
-fn migrate_to_v1(
-    connection: &Connection,
-    seed_default_profiles: bool,
-) -> rusqlite::Result<()> {
+fn migrate_to_v1(connection: &Connection, seed_default_profiles: bool) -> rusqlite::Result<()> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS ai_explanations (
             cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, model TEXT NOT NULL,

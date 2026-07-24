@@ -142,8 +142,10 @@ pub(crate) fn generate_training_cards_connection(
                    interval_days = (SELECT interval_days FROM training_progress_inbox WHERE card_id = ?1),
                    correct_streak = (SELECT correct_streak FROM training_progress_inbox WHERE card_id = ?1),
                    attempts = (SELECT attempts FROM training_progress_inbox WHERE card_id = ?1),
+                   lapses = (SELECT lapses FROM training_progress_inbox WHERE card_id = ?1),
                    starred = (SELECT starred FROM training_progress_inbox WHERE card_id = ?1),
                    suspended = (SELECT suspended FROM training_progress_inbox WHERE card_id = ?1),
+                   last_correct_at = (SELECT last_correct_at FROM training_progress_inbox WHERE card_id = ?1),
                    updated_at = (SELECT updated_at FROM training_progress_inbox WHERE card_id = ?1)
                  WHERE id = ?1 AND EXISTS (
                    SELECT 1 FROM training_progress_inbox inbox
@@ -158,6 +160,24 @@ pub(crate) fn generate_training_cards_connection(
                 params![&id],
             )
             .map_err(|_| "Không thể dọn tiến độ cloud đã áp dụng.".to_string())?;
+        transaction
+            .execute(
+                "UPDATE training_cards SET
+                   attempts = MAX(attempts, (
+                     SELECT COUNT(*) FROM training_attempts WHERE card_id = ?1
+                   )),
+                   lapses = MAX(lapses, (
+                     SELECT COUNT(*) FROM training_attempts
+                     WHERE card_id = ?1 AND result IN ('wrong', 'revealed')
+                   )),
+                   last_correct_at = COALESCE((
+                     SELECT MAX(attempted_at) FROM training_attempts
+                     WHERE card_id = ?1 AND result IN ('clean', 'slow', 'assisted')
+                   ), last_correct_at)
+                 WHERE id = ?1",
+                params![&id],
+            )
+            .map_err(|_| "Không thể hợp nhất lịch sử luyện đã tải.".to_string())?;
     }
     transaction
         .commit()
@@ -263,12 +283,15 @@ mod tests {
             }],
         };
 
-        let first = generate_training_cards_connection(&mut connection, request("Trung tâm")).unwrap();
+        let first =
+            generate_training_cards_connection(&mut connection, request("Trung tâm")).unwrap();
         let second = generate_training_cards_connection(&mut connection, request("fork")).unwrap();
         let (count, tags): (i64, String) = connection
-            .query_row("SELECT COUNT(*), MAX(tags_json) FROM training_cards", [], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
+            .query_row(
+                "SELECT COUNT(*), MAX(tags_json) FROM training_cards",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
             .unwrap();
         assert_eq!((first.created, first.eligible), (1, 1));
         assert_eq!((second.created, second.eligible), (0, 1));

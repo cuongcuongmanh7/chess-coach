@@ -174,7 +174,9 @@ fn creates_separate_backup_before_preview_cache_migration() {
     {
         let connection = Connection::open(&database_path).unwrap();
         initialize_database(&connection, false).unwrap();
-        connection.execute_batch("PRAGMA user_version = 3;").unwrap();
+        connection
+            .execute_batch("PRAGMA user_version = 3;")
+            .unwrap();
     }
 
     let connection = open_database(&database_path, false).unwrap();
@@ -205,15 +207,15 @@ fn upgrades_v4_with_nullable_ply_count_and_creates_release_backup() {
     let database_path = directory.join("current.sqlite3");
     {
         let connection = Connection::open(&database_path).unwrap();
+        initialize_database(&connection, false).unwrap();
         connection
             .execute_batch(
-                "CREATE TABLE saved_games (
-                    id TEXT PRIMARY KEY,
-                    pgn TEXT NOT NULL,
-                    final_fen TEXT
-                 );
-                 INSERT INTO saved_games (id, pgn)
-                 VALUES ('game-v4', '1. e4 e5');
+                "ALTER TABLE saved_games DROP COLUMN ply_count;
+                 DROP TABLE analysis_manifests;
+                 INSERT INTO saved_games
+                 (id, pgn, white, black, created_at, last_opened_at)
+                 VALUES ('game-v4', '1. e4 e5', 'White', 'Black',
+                         datetime('now'), datetime('now'));
                  PRAGMA user_version = 4;",
             )
             .unwrap();

@@ -42,6 +42,14 @@ pub(crate) fn get_cloud_sync_cursors(
             .map_err(|_| "Không thể đọc con trỏ ván cloud.".to_string())?,
         training_progress: load_cloud_cursor(&connection, &uid, "trainingProgress")
             .map_err(|_| "Không thể đọc con trỏ tiến độ luyện cloud.".to_string())?,
+        engine_analyses: load_cloud_cursor(&connection, &uid, "engineAnalyses")
+            .map_err(|_| "Không thể đọc con trỏ phân tích cloud.".to_string())?,
+        analysis_manifests: load_cloud_cursor(&connection, &uid, "analysisManifests")
+            .map_err(|_| "Không thể đọc con trỏ manifest phân tích.".to_string())?,
+        training_attempts: load_cloud_cursor(&connection, &uid, "trainingAttempts")
+            .map_err(|_| "Không thể đọc con trỏ lịch sử luyện.".to_string())?,
+        ai_explanations: load_cloud_cursor(&connection, &uid, "aiExplanations")
+            .map_err(|_| "Không thể đọc con trỏ cache HLV AI.".to_string())?,
     })
 }
 
@@ -95,6 +103,34 @@ pub(crate) fn set_cloud_sync_cursors(
         &cursors.training_progress,
     )
     .map_err(|_| "Không thể lưu con trỏ tiến độ luyện cloud.".to_string())?;
+    save_cloud_cursor(
+        &transaction,
+        &uid,
+        "engineAnalyses",
+        &cursors.engine_analyses,
+    )
+    .map_err(|_| "Không thể lưu con trỏ phân tích cloud.".to_string())?;
+    save_cloud_cursor(
+        &transaction,
+        &uid,
+        "analysisManifests",
+        &cursors.analysis_manifests,
+    )
+    .map_err(|_| "Không thể lưu con trỏ manifest phân tích.".to_string())?;
+    save_cloud_cursor(
+        &transaction,
+        &uid,
+        "trainingAttempts",
+        &cursors.training_attempts,
+    )
+    .map_err(|_| "Không thể lưu con trỏ lịch sử luyện.".to_string())?;
+    save_cloud_cursor(
+        &transaction,
+        &uid,
+        "aiExplanations",
+        &cursors.ai_explanations,
+    )
+    .map_err(|_| "Không thể lưu con trỏ cache HLV AI.".to_string())?;
     transaction
         .commit()
         .map_err(|_| "Không thể hoàn tất lưu con trỏ cloud.".to_string())
@@ -110,7 +146,13 @@ pub(crate) fn acknowledge_cloud_changes_connection(
     for change in changes {
         if !matches!(
             change.entity_type.as_str(),
-            "profile" | "game" | "training_progress"
+            "profile"
+                | "game"
+                | "training_progress"
+                | "engine_analysis"
+                | "analysis_manifest"
+                | "training_attempt"
+                | "ai_explanation"
         ) {
             return Err("Loại thay đổi cloud không hợp lệ.".to_string());
         }

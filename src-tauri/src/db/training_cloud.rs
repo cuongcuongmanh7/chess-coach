@@ -5,8 +5,12 @@ fn valid_progress(progress: &CloudTrainingProgress, document_id: &str) -> bool {
     progress.card_id == document_id
         && document_id.len() == 64
         && document_id.chars().all(|value| value.is_ascii_hexdigit())
-        && matches!(progress.status.as_str(), "new" | "learning" | "review" | "mastered")
+        && matches!(
+            progress.status.as_str(),
+            "new" | "learning" | "review" | "mastered"
+        )
         && progress.interval_days <= 90
+        && progress.lapses <= progress.attempts
         && progress.due_at.len() <= 64
         && progress.updated_at.len() <= 64
 }
@@ -56,8 +60,15 @@ pub(crate) fn merge_training_progress(
             .execute(
                 "UPDATE training_cards SET
                    status = ?2, due_at = ?3, interval_days = ?4, correct_streak = ?5,
-                   attempts = ?6, starred = ?7, suspended = ?8, updated_at = ?9
-                 WHERE id = ?1 AND updated_at < ?9",
+                   attempts = MAX(attempts, ?6), lapses = MAX(lapses, ?7),
+                   starred = ?8, suspended = ?9,
+                   last_correct_at = CASE
+                     WHEN ?10 IS NOT NULL
+                       AND (last_correct_at IS NULL OR ?10 > last_correct_at) THEN ?10
+                     ELSE last_correct_at
+                   END,
+                   updated_at = ?11
+                 WHERE id = ?1 AND updated_at < ?11",
                 params![
                     &progress.card_id,
                     &progress.status,
@@ -65,8 +76,10 @@ pub(crate) fn merge_training_progress(
                     progress.interval_days,
                     progress.correct_streak,
                     progress.attempts,
+                    progress.lapses,
                     progress.starred,
                     progress.suspended,
+                    &progress.last_correct_at,
                     &progress.updated_at,
                 ],
             )
@@ -91,16 +104,24 @@ pub(crate) fn merge_training_progress(
             .execute(
                 "INSERT INTO training_progress_inbox
                  (card_id, status, due_at, interval_days, correct_streak, attempts,
-                  starred, suspended, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                  lapses, starred, suspended, last_correct_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                  ON CONFLICT(card_id) DO UPDATE SET
                    status = excluded.status,
                    due_at = excluded.due_at,
                    interval_days = excluded.interval_days,
                    correct_streak = excluded.correct_streak,
-                   attempts = excluded.attempts,
+                   attempts = MAX(training_progress_inbox.attempts, excluded.attempts),
+                   lapses = MAX(training_progress_inbox.lapses, excluded.lapses),
                    starred = excluded.starred,
                    suspended = excluded.suspended,
+                   last_correct_at = CASE
+                     WHEN excluded.last_correct_at IS NOT NULL
+                       AND (training_progress_inbox.last_correct_at IS NULL
+                            OR excluded.last_correct_at > training_progress_inbox.last_correct_at)
+                     THEN excluded.last_correct_at
+                     ELSE training_progress_inbox.last_correct_at
+                   END,
                    updated_at = excluded.updated_at
                  WHERE excluded.updated_at > training_progress_inbox.updated_at",
                 params![
@@ -110,8 +131,10 @@ pub(crate) fn merge_training_progress(
                     progress.interval_days,
                     progress.correct_streak,
                     progress.attempts,
+                    progress.lapses,
                     progress.starred,
                     progress.suspended,
+                    &progress.last_correct_at,
                     &progress.updated_at,
                 ],
             )
@@ -133,8 +156,10 @@ mod tests {
             interval_days: 7,
             correct_streak: 1,
             attempts: 2,
+            lapses: 0,
             starred: true,
             suspended: false,
+            last_correct_at: None,
             updated_at: "2026-07-23T10:00:00Z".to_string(),
         }
     }

@@ -2,7 +2,14 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.8.0**.
+Phiên bản hiện tại: **0.8.1**.
+
+## Điểm mới trong v0.8.1
+
+- Đồng bộ kết quả phân tích toàn ván giữa các máy đăng nhập cùng tài khoản Google theo cơ chế hợp nhất; dữ liệu chỉ có trên một máy không bị snapshot từ máy khác xóa.
+- Tự động đưa cache Stockfish hiện có vào hàng đợi cloud khi nâng cấp, giữ nhiều mức depth và ưu tiên kết quả sâu nhất.
+- Đồng bộ thêm lịch sử và tiến độ Mistake Lab, cache HLV AI cùng các tùy chọn provider/model/chế độ phân tích; API key và tùy chọn giao diện theo máy vẫn chỉ lưu local.
+- Thêm migration có backup và regression test cho tình huống nhiều thiết bị, nâng cấp dữ liệu cũ và đồng bộ lặp.
 
 ## Chạy trên Windows
 
@@ -40,20 +47,20 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - OpenAI hoặc Gemini viết lời giải thích tiếng Việt dựa trên dữ liệu Stockfish.
 - Tổng kết HLV AI kiểm tra bắt buộc số liệu dạng chữ số, tự thử lại một lần và dùng fallback deterministic nếu output vẫn sai.
 - Chế độ tự động giải thích Mistake/Blunder hoặc mọi nước đã mở xem.
-- Lời giải thích được lưu trong SQLite cục bộ và tái sử dụng khi mở lại vị trí; API key nằm trong Windows Credential Manager, không nằm trong cơ sở dữ liệu.
+- Lời giải thích được lưu trong SQLite, hợp nhất qua Firestore khi đăng nhập và tái sử dụng trên thiết bị khác; API key nằm trong Windows Credential Manager, không nằm trong cơ sở dữ liệu.
 - Badge chỉ rõ người cầm Trắng, người cầm Đen và bên vừa đi ở mỗi bước.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
 - Chế độ Thử lại cho phép kéo quân, nhận chấm điểm Stockfish và mở dần ba cấp gợi ý.
 - Mistake Lab tự tạo bài từ Mistake/Blunder của hồ sơ đang chọn, chống trùng và dùng được hoàn toàn offline.
 - Lịch ôn local hỗ trợ bài đến hạn, bài mới, đã thuộc, đánh dấu sao, tạm ẩn, bộ lọc và thống kê streak.
-- Tiến độ Mistake Lab được đồng bộ nhỏ gọn qua Firestore; FEN, best line và lịch sử engine vẫn chỉ nằm trên máy.
+- Tiến độ và event log của Mistake Lab được đồng bộ qua Firestore; FEN và best line của bài tập vẫn được tạo lại local từ PGN cùng cache engine.
 - Kết quả Stockfish được lưu theo từng nước trong SQLite; mở lại ván có thể tiếp tục phân tích còn dở.
 - Quản lý nhiều hồ sơ Chess.com/Lichess; hồ sơ mặc định là `Chess.com · Cuongkool` và `Lichess · chinsu1409`.
 - Kho ván và Dashboard được lọc theo hồ sơ đang chọn; một ván có thể liên kết với nhiều hồ sơ nếu các tài khoản gặp nhau.
 - Dashboard tiến bộ của từng hồ sơ tổng hợp ACPL, lỗi theo giai đoạn, màu quân, thể loại và khai cuộc.
 - Đồng bộ 20 ván gần nhất cho hồ sơ đang chọn theo thể loại; ván trùng tự bỏ qua.
-- Đăng nhập Google và hợp nhất hồ sơ + PGN giữa SQLite local với Cloud Firestore; API key và kết quả Stockfish không được tải lên.
+- Đăng nhập Google và hợp nhất hồ sơ, PGN, cache Stockfish, lịch luyện, cache HLV AI và cấu hình học giữa SQLite local với Cloud Firestore; API key không được tải lên.
 - Đồng bộ Firebase theo thay đổi tăng dần: SQLite giữ hàng đợi bền vững, tự retry khi Firebase tạm mất kết nối và tiếp tục khi app mở lại hoặc mạng hoạt động trở lại.
 - Thao tác xoá dùng tombstone trên Firestore để truyền sang các thiết bị khác và ngăn thiết bị cũ tải lại ván hoặc hồ sơ đã xoá.
 - Mỗi Firebase UID dùng một file SQLite riêng. Kho local cũ chỉ được chuyển một lần cho tài khoản đầu tiên sở hữu nó; đổi tài khoản không tự động trộn dữ liệu giữa các UID.
@@ -80,7 +87,7 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 
 Rules trong repo chỉ cho phép người dùng đã xác thực đọc/ghi đường dẫn `users/{uid}` của chính họ. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
 
-Schema cloud hiện tại là phiên bản 3. Lần đồng bộ đầu sau khi nâng cấp sẽ đọc dữ liệu schema cũ, đưa các mục local hiện có vào hàng đợi một lần và bổ sung metadata `updatedAt` cần cho các lần đồng bộ tăng dần sau đó. Tombstone được giữ trên Firestore để thiết bị offline lâu ngày vẫn nhận được thao tác xoá.
+Schema cloud gốc hiện tại là phiên bản 3; các collection nội dung mới có schema riêng. Lần đồng bộ đầu sau khi nâng cấp sẽ giữ nguyên SQLite, tạo manifest cho các ván đã phân tích và đưa cache Stockfish, lịch luyện cùng cache HLV AI hiện có vào hàng đợi một lần. Kết quả engine được hợp nhất theo `game + ply + engine version + depth + MultiPV`, nên depth thấp không ghi đè depth cao.
 
 Các kho theo tài khoản được lưu dưới tên băm SHA-256 trong thư mục dữ liệu ứng dụng; Firebase UID không được dùng trực tiếp làm tên file. Khi đăng xuất, app quay về kho local khách, còn kho của tài khoản vẫn được giữ nguyên để mở lại ở lần đăng nhập sau.
 

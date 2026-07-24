@@ -19,6 +19,16 @@ fn remove_training_cards(
     for card_id in card_ids {
         connection
             .execute(
+                "DELETE FROM cloud_sync_queue
+                 WHERE entity_type = 'training_attempt'
+                   AND entity_id IN (
+                     SELECT cloud_id FROM training_attempts WHERE card_id = ?1
+                   )",
+                params![&card_id],
+            )
+            .map_err(|_| "Không thể dọn hàng đợi lịch sử luyện.".to_string())?;
+        connection
+            .execute(
                 "DELETE FROM training_attempts WHERE card_id = ?1",
                 params![&card_id],
             )
@@ -30,7 +40,10 @@ fn remove_training_cards(
             )
             .map_err(|_| "Không thể xoá tiến độ cloud đang chờ.".to_string())?;
         connection
-            .execute("DELETE FROM training_cards WHERE id = ?1", params![&card_id])
+            .execute(
+                "DELETE FROM training_cards WHERE id = ?1",
+                params![&card_id],
+            )
             .map_err(|_| "Không thể xoá training card.".to_string())?;
         if queue_deletes {
             queue_cloud_change(connection, "training_progress", &card_id, "delete")

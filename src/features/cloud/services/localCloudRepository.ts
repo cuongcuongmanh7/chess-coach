@@ -23,6 +23,10 @@ export const localCloudRepository = {
     profiles: unknown[];
     games: unknown[];
     training_progress: unknown[];
+    engine_analyses: unknown[];
+    analysis_manifests: unknown[];
+    training_attempts: unknown[];
+    ai_explanations: unknown[];
   }) {
     return invokeCommand<CloudMergeResult>("merge_cloud_changes", { request });
   },
