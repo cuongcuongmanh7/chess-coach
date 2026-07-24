@@ -49,3 +49,16 @@ export type FullAnalysisState = {
   total: number;
   error: string;
 };
+
+export type BatchAnalysisState = {
+  running: boolean;
+  paused: boolean;
+  finished: boolean;
+  total: number;
+  done: number;
+  failed: number;
+  currentGameId: string | null;
+  currentLabel: string;
+  currentPly: number;
+  currentPlyTotal: number;
+};

@@ -28,6 +28,7 @@ import {
   playerColorForUsername,
 } from "../../features/analysis/playerMoveStats";
 import { useCandidateLabComposition } from "./useCandidateLabComposition";
+import { useBatchAnalysis } from "./useBatchAnalysis";
 
 export function useAppController() {
   const appState = useAppState();
@@ -116,7 +117,8 @@ export function useAppController() {
     || engineLoading
     || candidateState.loading
     || aiLoading
-    || gameCoachLoading;
+    || gameCoachLoading
+    || appState.batchAnalysis.running;
 
   const movePairs = useMemo(() => {
     const pairs: Array<{ number: number; white?: number; black?: number }> = [];
@@ -167,6 +169,12 @@ export function useAppController() {
     hydrateEngineCache,
     gameSummaryRequest,
   } = dataController;
+  const batchController = useBatchAnalysis(appState, {
+    persistEngineResult,
+    generateCardsForGame: trainingController.generateCardsForGame,
+    refreshSavedGames,
+    syncCloud,
+  });
   useAppEffects(appState, {
     step,
     engine,
@@ -196,7 +204,7 @@ export function useAppController() {
     refreshSavedGames,
     syncCloud,
     generateCardsForGame: trainingController.generateCardsForGame,
-    fullAnalysisBlocked: candidateState.loading,
+    fullAnalysisBlocked: candidateState.loading || appState.batchAnalysis.running,
   });
   const tacticsController = useTacticsController(engine);
   const boardController = useBoardController(appState, {
@@ -224,6 +232,7 @@ export function useAppController() {
     ...candidateController,
     ...boardController,
     ...trainingController,
+    ...batchController,
     step,
     engine,
     aiCacheKey,

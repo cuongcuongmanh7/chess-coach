@@ -7,6 +7,7 @@ import "@fontsource/be-vietnam-pro/600.css";
 import "@fontsource/be-vietnam-pro/700.css";
 import "./styles.css";
 import "./app/chrome.css";
+import "./app/batch-analysis.css";
 import "./features/analysis/analysis.css";
 import "./features/analysis/components/gameHeading.css";
 import "./features/analysis/components/fullGameAnalysis.css";

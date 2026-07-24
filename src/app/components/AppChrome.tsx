@@ -20,6 +20,7 @@ import {
   KeyRound,
   Library,
   Link2,
+  ListChecks,
   LoaderCircle,
   RotateCcw,
   RefreshCw,
@@ -93,6 +94,7 @@ export function AppChrome() {
     refreshSavedGames,
     openDashboard,
     openTraining,
+    setBatchSheetOpen,
     handleGoogleLogout,
     changeActiveProfile,
     openStoredGame,
@@ -227,6 +229,9 @@ export function AppChrome() {
           </button>
           <button className="ghost-button dashboard-button" onClick={openTraining}>
             <Dumbbell size={16} /> Mistake Lab
+          </button>
+          <button className="ghost-button dashboard-button" onClick={() => setBatchSheetOpen(true)}>
+            <ListChecks size={16} /> Phân tích loạt
           </button>
           <button className="ghost-button library-button mobile-library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
             <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}

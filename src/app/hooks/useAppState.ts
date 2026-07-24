@@ -10,6 +10,7 @@ import type { User as FirebaseUser } from "../../firebase";
 import { DEFAULT_MODELS } from "../constants";
 import type {
   AutoExplainMode,
+  BatchAnalysisState,
   FullAnalysisState,
   RetryState,
   SyncNotice,
@@ -30,6 +31,19 @@ const emptyFullAnalysis: FullAnalysisState = {
   completed: 0,
   total: 0,
   error: "",
+};
+
+const emptyBatchAnalysis: BatchAnalysisState = {
+  running: false,
+  paused: false,
+  finished: false,
+  total: 0,
+  done: 0,
+  failed: 0,
+  currentGameId: null,
+  currentLabel: "",
+  currentPly: 0,
+  currentPlyTotal: 0,
 };
 
 export function useAppState() {
@@ -81,6 +95,8 @@ export function useAppState() {
   const [variationPlaying, setVariationPlaying] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [fullAnalysis, setFullAnalysis] = useState<FullAnalysisState>(emptyFullAnalysis);
+  const [batchAnalysis, setBatchAnalysis] = useState<BatchAnalysisState>(emptyBatchAnalysis);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   const [gameCoachSummary, setGameCoachSummary] = useState<AiExplanation | null>(null);
   const [gameCoachLoading, setGameCoachLoading] = useState(false);
   const [gameCoachError, setGameCoachError] = useState("");
@@ -107,6 +123,8 @@ export function useAppState() {
   const cacheMissesRef = useRef(new Set<string>());
   const autoAttemptsRef = useRef(new Set<string>());
   const fullAnalysisAbortRef = useRef<AbortController | null>(null);
+  const batchAnalysisAbortRef = useRef<AbortController | null>(null);
+  const batchPausedRef = useRef(false);
   const timelineScrollerRef = useRef<HTMLDivElement | null>(null);
   const coachScrollerRef = useRef<HTMLDivElement | null>(null);
   const cloudSyncInFlightRef = useRef(false);
@@ -138,12 +156,14 @@ export function useAppState() {
     engineLoading, setEngineLoading, engineError, setEngineError, retryState, setRetryState,
     promotionPending, setPromotionPending, variationState, setVariationState,
     variationPlaying, setVariationPlaying, summaryOpen, setSummaryOpen, fullAnalysis,
-    setFullAnalysis, gameCoachSummary, setGameCoachSummary, gameCoachLoading,
+    setFullAnalysis, batchAnalysis, setBatchAnalysis, batchSheetOpen, setBatchSheetOpen,
+    gameCoachSummary, setGameCoachSummary, gameCoachLoading,
     setGameCoachLoading, gameCoachError, setGameCoachError, aiCache, setAiCache,
     aiLoading, setAiLoading, aiError, setAiError, hasApiKeys, setHasApiKeys,
     apiKeyInput, setApiKeyInput, settingsError, setSettingsError, provider, setProvider,
     model, setModel, autoExplainMode, setAutoExplainMode, aiInFlightRef, cacheLookupsRef,
-    cacheMissesRef, autoAttemptsRef, fullAnalysisAbortRef, timelineScrollerRef,
+    cacheMissesRef, autoAttemptsRef, fullAnalysisAbortRef, batchAnalysisAbortRef,
+    batchPausedRef, timelineScrollerRef,
     coachScrollerRef, cloudSyncInFlightRef, cloudSyncPendingRef, cloudRetryTimerRef,
     cloudRetryAttemptRef, cloudRetryHandlerRef, cloudSyncedUserRef,
     activeProfileStorageKeyRef, previousMoveIndexRef, modalWasOpenRef, analysisWasCompleteRef,

@@ -20,6 +20,7 @@ export function useCandidateLabComposition(
     currentGameId,
     engineLoading,
     fullAnalysis,
+    batchAnalysis,
     retryState,
     setRetryState,
     setPromotionPending,
@@ -32,7 +33,7 @@ export function useCandidateLabComposition(
     step,
     engine,
     gameKey: currentGameId || analysis.rawPgn,
-    blocked: engineLoading || fullAnalysis.running || Boolean(retryState?.loading),
+    blocked: engineLoading || fullAnalysis.running || batchAnalysis.running || Boolean(retryState?.loading),
     playerElos: {
       w: playerEloForColor(analysis.headers, "w"),
       b: playerEloForColor(analysis.headers, "b"),
