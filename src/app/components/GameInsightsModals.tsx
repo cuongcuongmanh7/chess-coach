@@ -64,6 +64,8 @@ import { firebaseConfigured } from "../../firebase";
 import type { AutoExplainMode } from "../types";
 import type { AiProvider } from "../../shared/types/tauri";
 import { resolveStoryPerspective } from "../../features/game-story/model";
+import { GameReportCard } from "../../features/analysis/components/GameReportCard";
+import { playerColorForUsername } from "../../features/analysis/playerMoveStats";
 
 const GameStoryPanel = lazy(() => import(
   "../../features/game-story/components/GameStoryPanel"
@@ -101,6 +103,7 @@ export function GameInsightsModals() {
     gameSummaryRequest,
     summarizeGameWithAi,
   } = useAppControllerContext();
+  const reportColor = playerColorForUsername(headers, activeProfile?.username);
   return (
     <>
       {summaryOpen && (
@@ -117,6 +120,16 @@ export function GameInsightsModals() {
                 </div>
               </div>
             </div>
+
+            {reportColor && (
+              <GameReportCard
+                steps={analysis.steps}
+                engineCache={engineCache}
+                color={reportColor}
+                playerName={reportColor === "w" ? headers.White || "Trắng" : headers.Black || "Đen"}
+                onJump={(index) => { setCurrentIndex(index); setSummaryOpen(false); }}
+              />
+            )}
 
             <div className="summary-players">
               {([
