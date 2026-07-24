@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, LoaderCircle, TriangleAlert } from "lucide-reac
 import type { AnalysisStep } from "../../../analysis";
 import type { DisplayMoveQuality } from "../moveClassification";
 import type { EngineMoveAnalysis } from "../../../stockfish";
+import { MoveQualityIcon } from "./MoveQualityIcon";
 
 type MovePair = {
   number: number;
@@ -64,12 +65,12 @@ export function GameTimeline({
                   : "Chưa phân tích toàn ván"}
           </div>
           <div className="timeline-key">
-            <span><i className="dot brilliant" /> Brilliant</span>
-            <span><i className="dot best" /> Best</span>
-            <span><i className="dot good" /> Tốt</span>
-            <span><i className="dot inaccuracy" /> Thiếu CX</span>
-            <span><i className="dot mistake" /> Sai</span>
-            <span><i className="dot blunder" /> Blunder</span>
+            <span><MoveQualityIcon quality="brilliant" /> Brilliant</span>
+            <span><MoveQualityIcon quality="best" /> Best</span>
+            <span><MoveQualityIcon quality="good" /> Tốt</span>
+            <span><MoveQualityIcon quality="inaccuracy" /> Thiếu CX</span>
+            <span><MoveQualityIcon quality="mistake" /> Sai</span>
+            <span><MoveQualityIcon quality="blunder" /> Blunder</span>
           </div>
         </div>
       </div>
@@ -91,7 +92,7 @@ export function GameTimeline({
                   title={`${qualityLabels[itemQuality]} — ${item.title}`}
                 >
                   <i className={`piece-dot ${colorIndex === 0 ? "white-piece" : "black-piece"}`} />
-                  {item.san}<i className={`status-dot ${itemQuality}`} />
+                  {item.san}<MoveQualityIcon quality={itemQuality} title={qualityLabels[itemQuality]} />
                 </button>
               );
             })}

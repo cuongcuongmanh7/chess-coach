@@ -11,7 +11,7 @@ import {
 } from "../../features/analysis/moveClassification";
 import { withTacticalAnalysis } from "../../features/tactics/detector.ts";
 import { isTauri } from "../../shared/services/tauriClient";
-import { playSfx } from "../../sfx";
+import { playMoveSfx, playSfx } from "../../sfx";
 import { analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
 import type { useCloudController } from "./useCloudController";
 import type { useDataController } from "./useDataController";
@@ -26,6 +26,7 @@ type EffectDependencies = {
   refreshProfiles: CloudController["refreshProfiles"];
   refreshSavedGames: CloudController["refreshSavedGames"];
   persistEngineResult: DataController["persistEngineResult"];
+  candidateActive: boolean;
 };
 
 export function useAppEffects(
@@ -37,6 +38,7 @@ export function useAppEffects(
     refreshProfiles,
     refreshSavedGames,
     persistEngineResult,
+    candidateActive,
   }: EffectDependencies,
 ) {
   const {
@@ -131,10 +133,7 @@ export function useAppEffects(
   useEffect(() => {
     if (previousMoveIndexRef.current !== null && previousMoveIndexRef.current !== currentIndex) {
       const san = analysis.steps[currentIndex]?.san || "";
-      if (/^O-O/.test(san)) playSfx("castle");
-      else if (/[+#]$/.test(san)) playSfx("check");
-      else if (san.includes("x")) playSfx("capture");
-      else playSfx("move");
+      playMoveSfx(san);
     }
     previousMoveIndexRef.current = currentIndex;
   }, [analysis.steps, currentIndex]);
@@ -168,6 +167,7 @@ export function useAppEffects(
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("textarea, input, select")) return;
+      if (candidateActive) return;
       if (variationState) {
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
           event.preventDefault();
@@ -189,7 +189,7 @@ export function useAppEffects(
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [analysis.steps.length, retryState, variationState]);
+  }, [analysis.steps.length, candidateActive, retryState, variationState]);
 
   useEffect(() => {
     const scroller = timelineScrollerRef.current;

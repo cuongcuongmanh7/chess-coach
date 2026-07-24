@@ -2,14 +2,14 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.8.1**.
+Phiên bản hiện tại: **0.9.0**.
 
-## Điểm mới trong v0.8.1
+## Điểm mới trong v0.9.0
 
-- Đồng bộ kết quả phân tích toàn ván giữa các máy đăng nhập cùng tài khoản Google theo cơ chế hợp nhất; dữ liệu chỉ có trên một máy không bị snapshot từ máy khác xóa.
-- Tự động đưa cache Stockfish hiện có vào hàng đợi cloud khi nâng cấp, giữ nhiều mức depth và ưu tiên kết quả sâu nhất.
-- Đồng bộ thêm lịch sử và tiến độ Mistake Lab, cache HLV AI cùng các tùy chọn provider/model/chế độ phân tích; API key và tùy chọn giao diện theo máy vẫn chỉ lưu local.
-- Thêm migration có backup và regression test cho tình huống nhiều thiết bị, nâng cấp dữ liệu cũ và đồng bộ lặp.
+- Candidate Lab cho phép kéo một nước khác từ vị trí trước nước đang xem và so sánh trực tiếp với best move.
+- Stockfish phân tích candidate hoàn toàn offline ở đúng depth của kết quả gốc, hiển thị evaluation trước/sau, CPL, best reply và biến kiểm chứng.
+- Tactical detector hiện có gắn motif có bằng chứng vào candidate mà không gọi OpenAI hoặc Gemini.
+- Tác vụ candidate cũ được huỷ khi thử nước khác, đổi ply, đổi ván hoặc thoát; kết quả trễ không thể ghi vào sai vị trí.
 
 ## Chạy trên Windows
 
@@ -52,6 +52,7 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Dark mode và font Be Vietnam Pro được đóng gói trong app để hỗ trợ tiếng Việt và chạy offline.
 - Điều hướng bằng nút, timeline hoặc phím mũi tên trái/phải.
 - Chế độ Thử lại cho phép kéo quân, nhận chấm điểm Stockfish và mở dần ba cấp gợi ý.
+- Candidate Lab cho phép thử tự do một nước hợp lệ, so sánh với best move cùng depth và trở về mainline mà không thay đổi ván gốc.
 - Mistake Lab tự tạo bài từ Mistake/Blunder của hồ sơ đang chọn, chống trùng và dùng được hoàn toàn offline.
 - Lịch ôn local hỗ trợ bài đến hạn, bài mới, đã thuộc, đánh dấu sao, tạm ẩn, bộ lọc và thống kê streak.
 - Tiến độ và event log của Mistake Lab được đồng bộ qua Firestore; FEN và best line của bài tập vẫn được tạo lại local từ PGN cùng cache engine.

@@ -1,4 +1,4 @@
-export type SfxName = "tap" | "move" | "capture" | "check" | "castle" | "open" | "success" | "error";
+export type SfxName = "tap" | "move" | "capture" | "check" | "warning" | "castle" | "open" | "success" | "error";
 
 const STORAGE_KEY = "kypho-sfx-enabled";
 let audioContext: AudioContext | null = null;
@@ -86,6 +86,17 @@ export function setSfxEnabled(value: boolean) {
   window.localStorage.setItem(STORAGE_KEY, String(value));
 }
 
+export function moveSfxForSan(san: string): SfxName {
+  if (/^O-O/.test(san)) return "castle";
+  if (/[+#]$/.test(san)) return "check";
+  if (san.includes("x")) return "capture";
+  return "move";
+}
+
+export function playMoveSfx(san: string) {
+  playSfx(moveSfxForSan(san));
+}
+
 export function playSfx(name: SfxName) {
   if (!enabled || typeof window === "undefined") return;
   const now = Date.now();
@@ -106,6 +117,9 @@ export function playSfx(name: SfxName) {
     } else if (name === "check") {
       woodImpact(target, 0, 0.125, 0.96);
       tone(target, 1040, 0.035, 0.045, 0.01, "sine", 820);
+    } else if (name === "warning") {
+      tone(target, 240, 0, 0.09, 0.025, "square", 180);
+      tone(target, 180, 0.11, 0.12, 0.022, "square", 135);
     } else if (name === "castle") {
       woodImpact(target, 0, 0.105, 0.94);
       woodImpact(target, 0.072, 0.115, 1.04);

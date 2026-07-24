@@ -9,7 +9,7 @@ function App() {
 
   return (
     <AppControllerProvider value={controller}>
-      <div className={`app-shell ${controller.sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <div className={`app-shell ${controller.sidebarCollapsed ? "sidebar-collapsed" : ""} ${controller.candidateState.active ? "candidate-focus-mode" : ""}`}>
         <AppChrome />
         <AnalysisWorkspace />
         <AppModals />

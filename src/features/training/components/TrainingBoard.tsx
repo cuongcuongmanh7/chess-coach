@@ -1,6 +1,8 @@
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
+import type { ReactNode } from "react";
 import { useInteractiveBoardHints } from "../../../shared/chess/useInteractiveBoardHints";
+import { useCheckWarning } from "../../../shared/chess/useCheckWarning";
 import type { TrainingCard, TrainingSession } from "../types";
 
 type TrainingBoardProps = {
@@ -25,6 +27,7 @@ export function TrainingBoard({
     controlledColor: card.side_to_move,
     enabled: interactionEnabled,
   });
+  const checkWarning = useCheckWarning(session.fen);
   const bestArrow = session.hintsUsed === 3
     ? (() => {
       try {
@@ -62,9 +65,17 @@ export function TrainingBoard({
             onPieceDrop: (move) => {
               const moved = onPieceDrop(move);
               if (moved) boardHints.clearSelection();
-              return moved;
+              return checkWarning.handleDropResult(move, moved);
             },
             squareStyles: boardHints.squareStyles,
+            squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
+              <div
+                className={`training-square-content${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
+                style={boardHints.squareStyles[square]}
+              >
+                {children}
+              </div>
+            ),
             allowDrawingArrows: false,
             showAnimations: true,
             animationDurationInMs: 220,

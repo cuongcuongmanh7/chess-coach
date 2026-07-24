@@ -1,0 +1,25 @@
+.game-heading { min-height: 54px; flex: 0 0 auto; margin-bottom: 10px; }
+.game-event { text-align: center; }
+.game-matchup { width: min(780px,100%); margin: 3px auto 0; display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 18px; }
+.matchup-player { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.matchup-player.white-player { justify-content: flex-end; text-align: right; }
+.matchup-player.black-player { justify-content: flex-start; text-align: left; }
+.player-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.player-copy strong { max-width: 260px; overflow: hidden; color: var(--ink); font-size: clamp(18px,2vw,24px); font-weight: 650; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
+.player-copy small { color: #75867e; font-size: 9px; font-weight: 600; letter-spacing: 0; }
+.player-details { min-height: 13px; }
+.player-status-cluster { min-height: 32px; padding: 4px 7px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border-radius: 7px; }
+.player-status-cluster.white-status { color: #17211d; background: #e6ece8; border: 1px solid white; }
+.player-status-cluster.black-status { color: #c7d4ce; background: #111815; border: 1px solid #47544e; }
+.player-clock { display: inline-flex; align-items: center; gap: 4px; font-size: clamp(12px,1.1vw,15px); font-variant-numeric: tabular-nums; line-height: 1; }
+.player-clock strong { color: inherit; font-size: inherit; font-weight: 850; letter-spacing: -.025em; }
+.player-clock.placeholder { visibility: hidden; }
+.side-badge { padding-right: 6px; border-right: 1px solid currentColor; font-size: 7px; font-style: normal; font-weight: 850; letter-spacing: .05em; line-height: 1; opacity: .72; text-transform: uppercase; }
+.matchup-center { min-width: 0; max-width: min(390px,38vw); display: flex; align-items: center; flex-direction: column; gap: 3px; }
+.match-result { color: var(--green); background: var(--surface-2); border: 1px solid var(--line); padding: 5px 9px; border-radius: 7px; font-size: 11px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+.match-context { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; color: #75867e; font-size: 8px; }
+.match-context > span + span::before { content: "·"; margin-right: 7px; color: #415149; }
+.match-context > span { white-space: nowrap; }
+.match-opening-context { min-width: 0; max-width: 310px; display: inline-flex; align-items: center; gap: 4px; color: #99b6a9; }
+.match-opening-context > .chess-term { flex: 0 0 auto; }
+.match-opening { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
 import {
+  APP_VERSION,
   GEMINI_MODELS,
   OPENAI_MODELS,
   PROVIDER_LABELS,
@@ -96,6 +97,7 @@ export function AppChrome() {
     changeActiveProfile,
     openStoredGame,
     removeStoredGame,
+    candidateState,
   } = useAppControllerContext();
   return (
     <>
@@ -106,13 +108,13 @@ export function AppChrome() {
           <button onClick={() => setSyncNotice(null)} aria-label="Đóng thông báo"><X size={16} /></button>
         </div>
       )}
-      <aside className="app-sidebar" aria-label="Điều hướng và Kho ván">
+      <aside className="app-sidebar" aria-label="Điều hướng và Kho ván" inert={candidateState.active}>
         <div className="sidebar-fixed-header">
           <div className="sidebar-brand-row">
             <div className="brand">
               <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
               <div className="brand-copy">
-                <div className="brand-name">Chess Coach <span className="version-badge">v0.8.0</span></div>
+                <div className="brand-name">Chess Coach <span className="version-badge">v{APP_VERSION}</span></div>
                 <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
               </div>
             </div>
@@ -197,11 +199,11 @@ export function AppChrome() {
         </div>
       </aside>
 
-      <header className="topbar">
+      <header className="topbar" inert={candidateState.active}>
         <div className="brand mobile-brand">
           <div className="brand-mark"><img src={appIcon} alt="" aria-hidden="true" /></div>
           <div className="brand-copy">
-            <div className="brand-name">Chess Coach <span className="version-badge">v0.8.0</span></div>
+            <div className="brand-name">Chess Coach <span className="version-badge">v{APP_VERSION}</span></div>
             <div className="brand-subtitle">HLV CỜ VUA · STOCKFISH + AI</div>
           </div>
         </div>

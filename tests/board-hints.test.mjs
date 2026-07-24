@@ -5,6 +5,10 @@ import {
   getLegalMoveHints,
   toggleSquareHighlight,
 } from "../src/shared/chess/boardHints.ts";
+import {
+  checkedKingSquare,
+  isIllegalNonKingCheckMove,
+} from "../src/shared/chess/checkState.ts";
 
 test("chỉ cho chọn quân đúng bên đang điều khiển và đến lượt", () => {
   const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -36,4 +40,26 @@ test("chuột phải bật/tắt độc lập nhiều ô highlight", () => {
   assert.deepEqual([...first], ["e4"]);
   assert.deepEqual([...second], ["e4", "d5"]);
   assert.deepEqual([...third], ["d5"]);
+});
+
+test("xác định đúng ô vua đang bị chiếu", () => {
+  const fen = "4r2k/8/8/8/8/8/8/2B1K3 w - - 0 1";
+  assert.equal(checkedKingSquare(fen), "e1");
+  assert.equal(checkedKingSquare("7k/8/8/8/8/8/8/4K3 w - - 0 1"), null);
+});
+
+test("chỉ cảnh báo nước quân khác không giải được chiếu", () => {
+  const fen = "4r2k/8/8/8/8/8/8/2B1K3 w - - 0 1";
+  assert.equal(isIllegalNonKingCheckMove(fen, {
+    sourceSquare: "c1",
+    targetSquare: "h6",
+  }), true);
+  assert.equal(isIllegalNonKingCheckMove(fen, {
+    sourceSquare: "c1",
+    targetSquare: "e3",
+  }), false);
+  assert.equal(isIllegalNonKingCheckMove(fen, {
+    sourceSquare: "e1",
+    targetSquare: "d1",
+  }), false);
 });

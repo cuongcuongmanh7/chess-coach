@@ -1,6 +1,8 @@
 import type { DisplayMoveQuality } from "../features/analysis/moveClassification";
 import type { AiProvider } from "../shared/types/tauri";
 
+export const APP_VERSION = "0.9.0";
+
 export const QUALITY_LABELS: Record<DisplayMoveQuality, string> = {
   brilliant: "Brilliant",
   best: "Best move",

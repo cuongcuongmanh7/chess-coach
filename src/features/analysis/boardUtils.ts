@@ -4,7 +4,7 @@ import type { EngineMoveAnalysis } from "../../stockfish";
 import type { VariationState } from "../../app/types";
 import type { DisplayMoveQuality } from "./moveClassification";
 
-export type BoardMoveBadge = Exclude<DisplayMoveQuality, "good">;
+export type BoardMoveBadge = DisplayMoveQuality;
 
 export const BOARD_MOVE_BADGES: Record<
   BoardMoveBadge,
@@ -12,6 +12,7 @@ export const BOARD_MOVE_BADGES: Record<
 > = {
   brilliant: { symbol: "!!", label: "Brilliant" },
   best: { symbol: "★", label: "Best move" },
+  good: { symbol: "✓", label: "Tốt" },
   inaccuracy: { symbol: "?!", label: "Thiếu chính xác" },
   mistake: { symbol: "?", label: "Sai lầm" },
   blunder: { symbol: "??", label: "Blunder" },

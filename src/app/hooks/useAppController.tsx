@@ -1,59 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
-import { Chess, type Square } from "chess.js";
-import { analyzePgn, type AnalysisStep, type GameAnalysis, type MoveQuality } from "../../analysis";
-import { DEMO_PGN } from "../../demo";
-import { analyzeGameWithStockfish, analyzeMoveWithStockfish, type EngineMoveAnalysis } from "../../stockfish";
+import { useCallback, useMemo } from "react";
 import { buildDashboardStats } from "../../dashboard";
-import { lastKnownOpening, openingTimeline } from "../../openings";
+import { openingTimeline } from "../../openings";
 import { playSfx, setSfxEnabled as persistSfxEnabled } from "../../sfx";
+import { firebaseConfigured } from "../../firebase";
 import {
-  downloadCloudChanges,
-  firebaseConfigured,
-  firebaseErrorMessage,
-  observeFirebaseUser,
-  signInWithGoogle,
-  signOutFirebase,
-  uploadCloudChanges,
-  type User as FirebaseUser,
-} from "../../firebase";
-import {
-  DEFAULT_MODELS,
   GEMINI_MODELS,
   OPENAI_MODELS,
   PROVIDER_LABELS,
-  QUALITY_LABELS,
-  QUALITY_ORDER,
 } from "../constants";
-import type { PlayerSummary } from "../types";
 import {
-  buildVariation,
   getBoardBadgePosition,
   getBoardMoveBadge,
 } from "../../features/analysis/boardUtils";
-import {
-  getPgnPlayedAt,
-  inferSourcePlatform,
-  inferTimeClass,
-  isChessComLink,
-  openingFromHeaders,
-} from "../../features/library/utils";
-import { cloudAckTokens } from "../../features/cloud/utils";
-import { isTauri } from "../../shared/services/tauriClient";
-import type {
-  AiProvider,
-  CloudAckToken,
-  CloudMergeResult,
-  PlayerProfile,
-  SavedGameSummary,
-} from "../../shared/types/tauri";
-import {
-  evaluationToWhitePercent,
-} from "../../shared/utils/format";
-import { analysisRepository } from "../../features/analysis/services/analysisRepository";
-import { localCloudRepository } from "../../features/cloud/services/localCloudRepository";
-import { coachRepository } from "../../features/coach/services/coachRepository";
-import { gameRepository } from "../../features/library/services/gameRepository";
-import { profileRepository } from "../../features/profiles/services/profileRepository";
+import { openingFromHeaders } from "../../features/library/utils";
+import { evaluationToWhitePercent } from "../../shared/utils/format";
 import { useAppState } from "./useAppState";
 import { useCloudController } from "./useCloudController";
 import { useDataController } from "./useDataController";
@@ -67,6 +27,7 @@ import {
   buildPlayerMoveStats,
   playerColorForUsername,
 } from "../../features/analysis/playerMoveStats";
+import { useCandidateLabComposition } from "./useCandidateLabComposition";
 
 export function useAppController() {
   const appState = useAppState();
@@ -112,16 +73,12 @@ export function useAppController() {
   const providerLabel = PROVIDER_LABELS[provider];
   const models = provider === "gemini" ? GEMINI_MODELS : OPENAI_MODELS;
   const whiteEvaluationPercent = evaluationToWhitePercent(engine?.whiteScoreCp);
-  const evaluationLeader = (engine?.whiteScoreCp || 0) >= 0 ? "white" : "black";
+  const evaluationLeader: "white" | "black" =
+    (engine?.whiteScoreCp || 0) >= 0 ? "white" : "black";
   const evaluationScoreAtTop = evaluationLeader !== orientation;
   const boardMoveBadge = getBoardMoveBadge(step, engine);
   const boardMoveBadgePosition = getBoardBadgePosition(step.to, orientation);
   const dashboardStats = useMemo(() => buildDashboardStats(dashboardRecords), [dashboardRecords]);
-  const boardPosition = retryState?.fen || (variationState ? variationState.positions[variationState.index] : step.fenAfter);
-  const boardInteractionMode = retryState ? "retry" : variationState ? "variation" : "main";
-  const variationMoveSquares = variationState && variationState.index > 0
-    ? variationState.moveSquares[variationState.index - 1]
-    : null;
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || null;
   const playerMoveSummary = useMemo(() => {
     if (!fullAnalysis.complete || !activeProfile) return null;
@@ -139,12 +96,25 @@ export function useAppController() {
   const cloudAccountLabel = firebaseUser
     ? firebaseUser.displayName || firebaseUser.email || "Google"
     : firebaseConfigured ? "Đăng nhập" : "Cloud chưa cấu hình";
+  const candidateController = useCandidateLabComposition(appState, { step, engine });
+  const {
+    candidateState,
+    candidateCanMove,
+    candidateCanStartFromMainline,
+    candidateControlledColor,
+    boardPosition,
+    boardInteractionMode,
+    variationMoveSquares,
+    exitCandidateLab,
+    handleCandidateDrop,
+  } = candidateController;
   const accountSwitchBusy = cloudSyncing
     || loading
     || libraryLoading
     || profilesLoading
     || fullAnalysis.running
     || engineLoading
+    || candidateState.loading
     || aiLoading
     || gameCoachLoading;
 
@@ -204,6 +174,7 @@ export function useAppController() {
     refreshProfiles,
     refreshSavedGames,
     persistEngineResult,
+    candidateActive: candidateState.active,
   });
   const libraryController = useLibraryController(appState, {
     activeProfile,
@@ -225,6 +196,7 @@ export function useAppController() {
     refreshSavedGames,
     syncCloud,
     generateCardsForGame: trainingController.generateCardsForGame,
+    fullAnalysisBlocked: candidateState.loading,
   });
   const tacticsController = useTacticsController(engine);
   const boardController = useBoardController(appState, {
@@ -233,8 +205,14 @@ export function useAppController() {
     boardPosition,
     boardInteractionMode,
     variationMoveSquares,
+    candidateMoveSquares: candidateState.moveSquares,
     threatViewEnabled: tacticsController.threatViewEnabled,
     threatSquareStyles: tacticsController.threatSquareStyles,
+    candidateCanMove,
+    candidateCanStartFromMainline,
+    candidateControlledColor,
+    handleCandidateDrop,
+    exitCandidateLab,
   });
   return {
     ...appState,
@@ -243,6 +221,7 @@ export function useAppController() {
     ...libraryController,
     ...coachController,
     ...tacticsController,
+    ...candidateController,
     ...boardController,
     ...trainingController,
     step,
