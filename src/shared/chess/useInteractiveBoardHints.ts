@@ -7,11 +7,11 @@ const SELECTED_STYLE: CSSProperties = {
 };
 
 const MOVE_STYLE: CSSProperties = {
-  backgroundImage: "radial-gradient(circle, rgba(20, 36, 30, .46) 0 17%, transparent 19%)",
+  backgroundImage: "radial-gradient(circle, rgba(0, 0, 0, .16) 0 17%, transparent 19%)",
 };
 
 const CAPTURE_STYLE: CSSProperties = {
-  backgroundImage: "radial-gradient(circle, transparent 0 55%, rgba(20, 36, 30, .48) 57% 68%, transparent 70%)",
+  backgroundImage: "radial-gradient(circle, transparent 0 55%, rgba(0, 0, 0, .16) 57% 68%, transparent 70%)",
 };
 
 const MANUAL_HIGHLIGHT_STYLE: CSSProperties = {

@@ -4,10 +4,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #33463e;
+  border: 1px solid #403d39;
   border-radius: 7px;
-  color: #8fa39a;
-  background: #14201c;
+  color: #9e9994;
+  background: #1b1a19;
   font-size: 8px;
   font-weight: 800;
 }
@@ -22,4 +22,4 @@
 .tactical-tag i { color: #7297ba; font-size: 7px; font-style: normal; }
 .tactical-insights > p { margin: 7px 0 0; color: #718b9e; font-size: 9px; }
 .tactical-threat-summary { margin-top: 8px; padding-top: 8px; display: flex; align-items: flex-start; gap: 6px; border-top: 1px solid rgba(239,106,98,.17); color: #d9aaa5; font-size: 9px; line-height: 1.45; }
-.tag-row .guidance-tag { color: #879a91; border-color: #30423a; background: rgba(255,255,255,.025); }
+.tag-row .guidance-tag { color: #96918b; border-color: #3c3936; background: rgba(255,255,255,.025); }

@@ -22,7 +22,7 @@
 }
 
 @media (max-height: 600px) {
-  .coach-scroll-content { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #31443c transparent; }
+  .coach-scroll-content { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3d3b38 transparent; }
   .coach-insight-scroll { min-height: auto; flex: 0 0 auto; overflow: visible; }
 }
 

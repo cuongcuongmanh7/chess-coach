@@ -1,13 +1,13 @@
 .player-move-stats {
-  width: min(100%, calc(100vh - 335px), 640px);
+  width: var(--board-w, min(100%, calc(100vh - 335px), 640px));
   min-height: 38px;
   margin: 7px auto 0;
   padding: 6px 8px;
   overflow-x: auto;
-  border: 1px solid #26372f;
+  border: 1px solid #312f2c;
   border-radius: 8px;
-  color: #84978d;
-  background: #0c1412;
+  color: #938e88;
+  background: #11100f;
   scrollbar-width: none;
   container: player-stats / inline-size;
 }
@@ -26,21 +26,18 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #93a69d;
+  color: #a19d98;
   font-size: 11px;
   white-space: nowrap;
 }
 .player-move-stat .move-quality-badge { --move-quality-size: 18px; }
 .player-move-stat strong {
-  color: #dce8e2;
+  color: #e3e2e1;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .player-move-stat em { color: currentColor; font-style: normal; font-weight: 700; }
 .player-move-stat-label-short { display: none; }
-.board-column:has(.retry-panel) .player-move-stats {
-  width: min(100%, clamp(360px, calc(100vh - 430px), 560px));
-}
 
 @container player-stats (max-width: 580px) {
   .player-move-stats-track { gap: 5px; }
