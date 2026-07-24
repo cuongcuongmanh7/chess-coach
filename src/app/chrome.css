@@ -62,8 +62,8 @@
 .sidebar-cloud-account.signed-in:hover .sidebar-cloud-logout, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-logout { opacity: 1; pointer-events: auto; transform: translate(0,-50%); }
 .sidebar-cloud-logout:hover:not(:disabled) { color: #ffd3cf; background: rgba(240,113,103,.2); }
 .sidebar-cloud-account.signed-in:hover .sidebar-cloud-logout:disabled, .sidebar-cloud-account.signed-in:focus-within .sidebar-cloud-logout:disabled { opacity: .35; pointer-events: none; cursor: not-allowed; }
-.sidebar-add-button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(246,190,73,.35); border-radius: 9px; color: #f7c968; background: rgba(246,190,73,.09); }
-.sidebar-add-button:hover { color: #23211f; background: var(--gold); }
+.sidebar-add-button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(129,182,76,.4); border-radius: 9px; color: #a3d160; background: rgba(129,182,76,.1); }
+.sidebar-add-button:hover { color: #12240a; background: var(--green); }
 .sidebar-library-collapsed-button { display: none; }
 
 .sidebar-collapsed .sidebar-fixed-header { padding: 11px 9px; }

@@ -52,7 +52,7 @@
   overflow: hidden;
   border: 1px solid #3e3b38;
   border-radius: 5px;
-  background: #ddd9c9;
+  background: #eeeed2;
   box-shadow: 0 4px 12px rgba(0,0,0,.22);
 }
 
@@ -69,5 +69,5 @@
   line-height: 9px;
 }
 
-.game-position-thumbnail i.light { background: #d8d4c4; }
-.game-position-thumbnail i.dark { background: #5b5752; }
+.game-position-thumbnail i.light { background: #eeeed2; }
+.game-position-thumbnail i.dark { background: #769656; }
