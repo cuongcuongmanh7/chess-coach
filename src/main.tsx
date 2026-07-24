@@ -5,6 +5,10 @@ import "@fontsource/be-vietnam-pro/400.css";
 import "@fontsource/be-vietnam-pro/500.css";
 import "@fontsource/be-vietnam-pro/600.css";
 import "@fontsource/be-vietnam-pro/700.css";
+// Montserrat — dùng cho tiêu đề (chất geometric kiểu chess.com); có subset vietnamese
+import "@fontsource/montserrat/600.css";
+import "@fontsource/montserrat/700.css";
+import "@fontsource/montserrat/800.css";
 import "./styles.css";
 import "./app/chrome.css";
 import "./app/batch-analysis.css";

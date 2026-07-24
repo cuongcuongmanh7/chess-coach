@@ -17,10 +17,28 @@
   --gold: #f6be49;          /* highlight / premium yellow */
   --red: #e0684b;
   --line: #3d3a37;          /* subtle borders */
+  --font-heading: "Montserrat", "Be Vietnam Pro", "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; background: var(--bg); }
+
+/* Montserrat cho tiêu đề (heading) — body vẫn Be Vietnam Pro để dấu tiếng Việt chuẩn */
+h1, h2, h3, h4,
+.brand-name,
+.eyebrow,
+.player-copy strong,
+.matchup-player strong,
+.match-result,
+.game-event,
+.summary-heading strong,
+.game-coach-heading strong,
+.critical-heading strong,
+.training-heading strong,
+.library-heading strong,
+.sidebar-library-heading h2 {
+  font-family: var(--font-heading);
+}
 button, textarea, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(246,190,73,.46); outline-offset: 2px; }
