@@ -42,7 +42,8 @@ export function CandidateBranchTimeline({
     <section className="candidate-branch-timeline" aria-label="Timeline biến nháp">
       <div className="candidate-branch-label">
         <GitBranch size={14} />
-        <span><strong>Timeline biến nháp</strong> · {state.anchorLabel}</span>
+        <strong>Timeline biến nháp</strong>
+        <small>{state.anchorLabel}</small>
         <small>Bạn cầm {state.userColor === "w" ? "Trắng" : "Đen"}</small>
       </div>
       <div className="candidate-branch-moves" ref={movesRef}>

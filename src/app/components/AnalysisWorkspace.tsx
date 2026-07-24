@@ -106,14 +106,16 @@ export function AnalysisWorkspace() {
 
         <section className="analysis-grid">
           <div className="board-column">
-            <div className="board-toolbar" inert={candidateState.active}>
-              <div className="board-status"><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span>{currentOpening && <span className="opening-live" title={`${currentOpening.eco} · ${currentOpening.name}`}><BookOpen size={12} /><b>{currentOpening.family}</b>{currentOpening.variation && <em>: {currentOpening.variation}</em>}</span>}</div>
+            <div className="board-toolbar">
+              <div className="board-status" inert={candidateState.active}><span className="phase-dot" /><strong>{step.phase}</strong><span>Nước {step.moveNumber}{step.color === "b" ? "…" : "."}</span>{currentOpening && <span className="opening-live" title={`${currentOpening.eco} · ${currentOpening.name}`}><BookOpen size={12} /><b>{currentOpening.family}</b>{currentOpening.variation && <em>: {currentOpening.variation}</em>}</span>}</div>
               <div className="board-tools">
-                <ThreatViewToggle available={threatViewAvailable} enabled={threatViewEnabled} onToggle={toggleThreatView} />
-                <div className="evaluation-chip">
-                  <CircleGauge size={15} />
-                  <ChessTerm term="evaluation">{engineLoading ? "…" : engine?.evaluation || "—"}</ChessTerm>
-                </div>
+                <span className="board-tools-analysis" style={{ display: "contents" }} inert={candidateState.active}>
+                  <ThreatViewToggle available={threatViewAvailable} enabled={threatViewEnabled} onToggle={toggleThreatView} />
+                  <div className="evaluation-chip">
+                    <CircleGauge size={15} />
+                    <ChessTerm term="evaluation">{engineLoading ? "…" : engine?.evaluation || "—"}</ChessTerm>
+                  </div>
+                </span>
                 <button className="icon-button" onClick={() => setOrientation((value) => (value === "white" ? "black" : "white"))} aria-label="Xoay bàn cờ" title="Xoay bàn cờ">
                   <RotateCcw size={17} />
                 </button>
@@ -295,7 +297,6 @@ export function AnalysisWorkspace() {
             movePairs={movePairs}
             totalMoves={totalMoves}
             scrollerRef={timelineScrollerRef}
-            fullAnalysis={fullAnalysis}
             qualityLabels={QUALITY_LABELS}
           />
         )}

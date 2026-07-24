@@ -195,7 +195,10 @@ export function useAppEffects(
     const scroller = timelineScrollerRef.current;
     const target = scroller?.querySelector<HTMLElement>(`[data-step-index="${currentIndex}"]`);
     if (!scroller || !target) return;
-    const centeredLeft = target.offsetLeft - scroller.clientWidth / 2 + target.clientWidth / 2;
+    const scrollerBounds = scroller.getBoundingClientRect();
+    const targetBounds = target.getBoundingClientRect();
+    const targetLeft = targetBounds.left - scrollerBounds.left + scroller.scrollLeft;
+    const centeredLeft = targetLeft - (scroller.clientWidth - targetBounds.width) / 2;
     scroller.scrollTo({ left: Math.max(0, centeredLeft), behavior: "smooth" });
   }, [currentIndex]);
 

@@ -23,6 +23,8 @@
 .sidebar-library-heading h2 { margin: 2px 0 0; color: #e3ebe7; font-size: 15px; }
 .sidebar-library-heading-actions { display: flex; align-items: center; gap: 6px; }
 .sidebar-library-heading-actions .library-count { color: #10271f; font-size: 8px; letter-spacing: 0; }
+.sidebar-library-heading-actions .library-analyzed-count { gap: 3px; height: 19px; padding: 0 8px; font-size: 9.5px; }
+.sidebar-library-heading-actions .library-analyzed-count svg { margin-top: -.5px; }
 .sidebar-library-heading-actions button { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #2c3e36; border-radius: 7px; color: #82968d; background: #121d19; }
 .sidebar-library-heading-actions button:hover:not(:disabled) { color: #d8e5de; background: #1a2924; }
 .sidebar-library-heading-actions button:disabled { cursor: wait; opacity: .55; }
@@ -90,7 +92,7 @@
 .brand-mark { width: 34px; height: 34px; flex: 0 0 auto; border: 1px solid rgba(246,190,73,.28); border-radius: 9px; display: grid; place-items: center; overflow: hidden; background: #061d1a; box-shadow: inset 0 -2px 0 rgba(0,0,0,.16), 0 8px 24px rgba(246,190,73,.12); }
 .brand-mark img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
-.version-badge { margin-left: 5px; padding: 2px 5px; border: 1px solid #30443b; border-radius: 5px; color: #7f9289; font-size: 7px; font-weight: 700; vertical-align: 2px; letter-spacing: .04em; }
+.version-badge { margin-left: 6px; padding: 2px 7px; border: 1px solid #38504524; border-radius: 6px; color: #93a89e; background: rgba(67,217,163,.08); font-size: 10.5px; font-weight: 800; vertical-align: 1px; letter-spacing: .03em; }
 .brand-subtitle { color: #7f9289; font-size: 9px; margin-top: 2px; letter-spacing: .12em; }
 .top-actions { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .profile-switcher { height: 32px; min-width: 190px; max-width: 245px; padding-left: 9px; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(67,217,163,.22); border-radius: 8px; color: #77d9b7; background: rgba(67,217,163,.06); }

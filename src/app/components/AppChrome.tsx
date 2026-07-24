@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -101,6 +102,7 @@ export function AppChrome() {
     removeStoredGame,
     candidateState,
   } = useAppControllerContext();
+  const analyzedGamesCount = savedGames.filter((game) => game.analysis_complete).length;
   return (
     <>
       {syncNotice && (
@@ -155,7 +157,13 @@ export function AppChrome() {
           <div className="sidebar-library-heading">
             <div><span>THƯ VIỆN</span><h2 id="sidebar-library-title">Kho ván</h2></div>
             <div className="sidebar-library-heading-actions">
-              <span className="library-count">{savedGames.length}</span>
+              <span
+                className="library-count library-analyzed-count"
+                title={`Đã phân tích toàn ván ${analyzedGamesCount}/${savedGames.length} ván`}
+              >
+                <Check size={10} strokeWidth={3} aria-hidden="true" />
+                {analyzedGamesCount}/{savedGames.length}
+              </span>
               <button onClick={() => void refreshSavedGames()} disabled={libraryLoading} aria-label="Làm mới Kho ván" title="Làm mới"><RefreshCw className={libraryLoading ? "spin" : ""} size={15} /></button>
             </div>
           </div>

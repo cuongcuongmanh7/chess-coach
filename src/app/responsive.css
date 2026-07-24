@@ -72,10 +72,8 @@
   .step-controls { margin: 0 16px; }
   .arrow-legend { gap: 11px; flex-wrap: wrap; }
   .keyboard-hint { display: none !important; }
-  .timeline-section { min-height: 108px; }
-  .timeline-header { height: auto; min-height: 69px; align-items: flex-start; padding: 9px 11px; gap: 7px; flex-direction: column; }
-  .timeline-summary-actions { width: 100%; margin-left: 0; justify-content: space-between; }
-  .timeline-key { flex-wrap: wrap; }
+  .timeline-section { grid-template-columns: 1fr; gap: 7px; }
+  .timeline-label { min-width: 0; }
   .summary-players { grid-template-columns: 1fr; }
   .variation-player { grid-template-columns: 30px 30px minmax(70px,1fr) 30px; }
   .variation-player .variation-exit { grid-column: 1 / -1; }

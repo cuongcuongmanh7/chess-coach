@@ -2,8 +2,8 @@
 .library-game-layout { min-width: 0; }
 .library-game-copy { min-width: 0; }
 .library-thumbnail-status {
-  width: 50px;
-  height: 50px;
+  width: 74px;
+  height: 74px;
   position: relative;
 }
 .library-thumbnail-status .game-position-thumbnail {
@@ -37,18 +37,18 @@
 
 .sidebar-library .library-game-layout {
   display: grid;
-  grid-template-columns: 52px minmax(0,1fr);
+  grid-template-columns: 76px minmax(0,1fr);
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
 .game-position-thumbnail {
-  width: 50px;
-  height: 50px;
+  width: 74px;
+  height: 74px;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: repeat(8,6px);
-  grid-template-rows: repeat(8,6px);
+  grid-template-columns: repeat(8,9px);
+  grid-template-rows: repeat(8,9px);
   overflow: hidden;
   border: 1px solid #31453c;
   border-radius: 5px;
@@ -57,16 +57,16 @@
 }
 
 .game-position-thumbnail i {
-  width: 6px;
-  height: 6px;
+  width: 9px;
+  height: 9px;
   display: grid;
   place-items: center;
   overflow: hidden;
   color: #111;
   font-family: "Segoe UI Symbol","Arial Unicode MS",sans-serif;
-  font-size: 6px;
+  font-size: 9px;
   font-style: normal;
-  line-height: 6px;
+  line-height: 9px;
 }
 
 .game-position-thumbnail i.light { background: #d8d4c4; }

@@ -2,7 +2,7 @@
 .candidate-launch:hover:not(:disabled) { border-color: rgba(205,177,255,.72); background: rgba(181,140,255,.17); }
 .candidate-launch:disabled { opacity: .38; cursor: not-allowed; }
 .board-mode-badge.candidate { color: #dfcaff; border-color: rgba(181,140,255,.48); }
-.candidate-focus-mode .app-sidebar, .candidate-focus-mode .topbar, .candidate-focus-mode .coach-scroll-content, .candidate-focus-mode .board-toolbar { opacity: .34; filter: saturate(.55); }
+.candidate-focus-mode .app-sidebar, .candidate-focus-mode .topbar, .candidate-focus-mode .coach-scroll-content, .candidate-focus-mode .board-status, .candidate-focus-mode .evaluation-chip { opacity: .34; filter: saturate(.55); }
 .candidate-focus-mode .coach-scroll-content { user-select: none; }
 .candidate-navigation { border-top-color: rgba(181,140,255,.26); background: rgba(181,140,255,.06); }
 .candidate-panel { width: 100%; flex: 0 0 auto; margin-top: 8px; padding: 14px; display: grid; gap: 12px; border: 1px solid rgba(181,140,255,.28); border-radius: 8px; background: linear-gradient(135deg, rgba(181,140,255,.1), rgba(17,26,23,.96)); }
@@ -37,10 +37,10 @@
 .candidate-actions button { min-height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #35483f; border-radius: 6px; color: #c3d1ca; background: #17231f; font-size: 10px; font-weight: 700; }
 .candidate-actions button:hover { color: #edf5f1; border-color: #526c60; }
 .candidate-branch-timeline { min-height: 66px; flex: 0 0 auto; margin-top: 6px; padding: 8px 10px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 11px; border: 1px solid rgba(181,140,255,.28); border-radius: 10px; background: linear-gradient(90deg, rgba(181,140,255,.1), rgba(17,26,23,.97)); }
-.candidate-branch-label { min-width: 180px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3px 7px; color: #b5a1d5; font-size: 10px; }
-.candidate-branch-label svg { grid-row: 1 / 3; color: #c9aaff; }
+.candidate-branch-label { min-width: 150px; max-width: 210px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 7px; color: #b5a1d5; font-size: 10px; }
+.candidate-branch-label svg { grid-row: 1 / -1; color: #c9aaff; }
 .candidate-branch-label strong { color: #eadfff; font-size: 11px; }
-.candidate-branch-label small { grid-column: 2; color: #81938a; font-size: 9px; }
+.candidate-branch-label small { grid-column: 2; color: #81938a; font-size: 9px; line-height: 1.35; }
 .candidate-branch-moves { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #4b3f61 transparent; }
 .candidate-branch-moves button { min-width: 160px; height: 48px; padding: 5px 8px; display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 2px 5px; border: 1px solid transparent; border-radius: 7px; color: #aebdb6; background: #141f1b; font-family: "Cascadia Mono", Consolas, monospace; font-size: 10px; white-space: nowrap; }
 .candidate-branch-moves button.candidate-branch-root { min-width: 84px; display: inline-flex; justify-content: center; font-size: 10px; }
