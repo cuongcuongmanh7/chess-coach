@@ -52,12 +52,14 @@ function PlayerHeading({
       {isWhite && statusNode}
       <span className="player-copy">
         <strong>{name}</strong>
-        <small className="player-details">
-          Elo {elo}
+        <span className="player-stats-line">
           {accuracy !== undefined && (
-            <b className={`player-accuracy ${accuracyTier}`} title="Độ chính xác cả ván">{accuracy}</b>
+            <b className={`player-accuracy ${accuracyTier}`} title="Độ chính xác cả ván">
+              {accuracy}<i>Chính xác</i>
+            </b>
           )}
-        </small>
+          <small className="player-details">Elo {elo}</small>
+        </span>
         <CapturedPieces pieceColor={capturedColor} pieces={captured} advantage={advantage} />
       </span>
       {!isWhite && statusNode}
