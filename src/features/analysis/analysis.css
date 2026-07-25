@@ -282,6 +282,8 @@
 /* Khi mở biểu đồ: co bàn cờ thêm + cho phép cuộn để xem đủ chart */
 .workspace.story-open { overflow-y: auto; }
 .workspace.story-open .board-column { --board-w: min(100%, clamp(320px, calc(100vh - 476px), 600px)); }
+/* Không cho grid co dưới kích thước bàn cờ khi cuộn (tránh bàn cờ tràn đè chart) */
+.workspace.story-open .analysis-grid { flex: 0 0 auto; }
 
 /* Khối biểu đồ Game Story dưới bàn cờ (thu/mở) */
 .story-graph-section { flex: 0 0 auto; margin-top: 10px; }
