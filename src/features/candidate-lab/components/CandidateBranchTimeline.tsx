@@ -57,7 +57,7 @@ export function CandidateBranchTimeline({
         </button>
         {state.moves.map((move, index) => (
           <button
-            className={`${move.actor} ${state.selectedIndex === index ? "active" : ""}`}
+            className={`${move.actor} ${move.quality || ""} ${state.selectedIndex === index ? "active" : ""}`}
             data-candidate-index={index}
             key={`${index}-${move.moveUci}`}
             onClick={() => onSelect(index)}

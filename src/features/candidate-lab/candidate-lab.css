@@ -53,6 +53,13 @@
 .candidate-branch-moves button.user { border-color: rgba(181,140,255,.22); }
 .candidate-branch-moves button.engine { border-color: rgba(129,182,76,.18); color: #8fcbb5; }
 .candidate-branch-moves button.active { border-color: #b58cff; color: white; background: rgba(181,140,255,.22); }
+/* Ký hiệu nước đi đổi màu theo chất lượng (đồng bộ icon đánh giá) */
+.candidate-branch-moves button.brilliant strong { color: var(--mc-brilliant); }
+.candidate-branch-moves button.best strong { color: var(--mc-best); }
+.candidate-branch-moves button.good strong { color: var(--mc-good); }
+.candidate-branch-moves button.inaccuracy strong { color: var(--mc-inaccuracy); }
+.candidate-branch-moves button.mistake strong { color: var(--mc-mistake); }
+.candidate-branch-moves button.blunder strong { color: var(--mc-blunder); }
 .candidate-branch-thinking { display: inline-flex; align-items: center; gap: 5px; color: #a8a39e; font-size: 10px; white-space: nowrap; }
 .candidate-branch-exit { height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #413e3b; border-radius: 6px; color: #b8b4b0; background: #1b1a19; font-size: 10px; font-weight: 700; }
 @media (max-width: 720px) {

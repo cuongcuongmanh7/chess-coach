@@ -21,3 +21,10 @@
 .timeline-move.black { border-color: rgba(255,255,255,.05); background: #151413; }
 .timeline-move:hover { border-color: #4d4a46; color: #f2f1f0; }
 .timeline-move.active { border-color: #81b64c; color: white; background: rgba(129,182,76,.2); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+/* Ký hiệu nước đi đổi màu theo chất lượng (đồng bộ icon đánh giá) */
+.timeline-move.brilliant strong { color: var(--mc-brilliant); }
+.timeline-move.best strong { color: var(--mc-best); }
+.timeline-move.good strong { color: var(--mc-good); }
+.timeline-move.inaccuracy strong { color: var(--mc-inaccuracy); }
+.timeline-move.mistake strong { color: var(--mc-mistake); }
+.timeline-move.blunder strong { color: var(--mc-blunder); }
