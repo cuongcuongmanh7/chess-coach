@@ -121,7 +121,6 @@ export function GameHeading({
           <div className="match-context">
             <span className="match-opening-context">
               <ChessTerm term="eco">{currentOpening?.eco || headers.ECO || "ECO —"}</ChessTerm>
-              {currentOpening && <span className="match-opening" title={currentOpening.name}>{currentOpening.name}</span>}
             </span>
             <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
           </div>

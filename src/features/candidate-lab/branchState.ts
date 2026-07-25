@@ -16,11 +16,13 @@ export function createCandidateSessionState(
   anchorPly: number,
   anchorLabel: string,
   active = true,
+  rootMoveSquares: { from: string; to: string } | null = null,
 ): CandidateLabState {
   const userColor = new Chess(rootFen).turn();
   return {
     active,
     rootFen,
+    rootMoveSquares,
     anchorPly,
     anchorLabel,
     userColor,
@@ -29,7 +31,7 @@ export function createCandidateSessionState(
     attempts: 0,
     moves: [],
     selectedIndex: -1,
-    moveSquares: null,
+    moveSquares: rootMoveSquares,
     result: null,
     gameOver: new Chess(rootFen).isGameOver(),
     error: "",
@@ -41,6 +43,14 @@ export function lastCandidateUserResult(moves: CandidateBranchMove[]) {
     if (moves[index].actor === "user") return moves[index].result || null;
   }
   return null;
+}
+
+export function candidateRootMoveSquares(
+  steps: AnalysisStep[],
+  currentIndex: number,
+) {
+  const previous = steps[currentIndex - 1];
+  return previous ? { from: previous.from, to: previous.to } : null;
 }
 
 export function completeCandidateTurn(
@@ -117,7 +127,7 @@ export function failCandidateTurn(
     selectedIndex: prefix.length - 1,
     moveSquares: previous
       ? { from: previous.step.from, to: previous.step.to }
-      : null,
+      : session.rootMoveSquares,
     result: lastCandidateUserResult(prefix),
     gameOver: new Chess(fenBefore).isGameOver(),
     error: reason instanceof Error ? reason.message : String(reason),

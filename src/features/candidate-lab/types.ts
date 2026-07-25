@@ -26,6 +26,7 @@ export type CandidateBranchMove = CandidateMove & {
 export type CandidateLabState = {
   active: boolean;
   rootFen: string;
+  rootMoveSquares: { from: string; to: string } | null;
   anchorPly: number;
   anchorLabel: string;
   userColor: "w" | "b";

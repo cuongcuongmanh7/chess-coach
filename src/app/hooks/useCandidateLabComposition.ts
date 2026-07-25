@@ -3,6 +3,7 @@ import type { AnalysisStep } from "../../analysis";
 import type { EngineMoveAnalysis } from "../../stockfish";
 import { playerEloForColor } from "../../features/analysis/moveClassification";
 import { useCandidateLabController } from "../../features/candidate-lab/hooks/useCandidateLabController";
+import { candidateRootMoveSquares } from "../../features/candidate-lab/branchState";
 import type { AppState } from "./useAppState";
 
 export function useCandidateLabComposition(
@@ -17,6 +18,7 @@ export function useCandidateLabComposition(
 ) {
   const {
     analysis,
+    currentIndex,
     currentGameId,
     engineLoading,
     fullAnalysis,
@@ -38,6 +40,7 @@ export function useCandidateLabComposition(
       w: playerEloForColor(analysis.headers, "w"),
       b: playerEloForColor(analysis.headers, "b"),
     },
+    previousMoveSquares: candidateRootMoveSquares(analysis.steps, currentIndex),
     onBegin: (color) => {
       setRetryState(null);
       setPromotionPending(null);

@@ -31,6 +31,7 @@ type CandidateLabDependencies = {
   gameKey: string;
   blocked: boolean;
   playerElos: Record<"w" | "b", number>;
+  previousMoveSquares: { from: string; to: string } | null;
   onBegin: (color: "w" | "b") => void;
 };
 
@@ -40,6 +41,7 @@ export function useCandidateLabController({
   gameKey,
   blocked,
   playerElos,
+  previousMoveSquares,
   onBegin,
 }: CandidateLabDependencies) {
   const [candidateState, setCandidateState] = useState<CandidateLabState>(
@@ -87,12 +89,16 @@ export function useCandidateLabController({
     step.fenBefore,
     step.ply - 1,
     `Trước ${candidateMoveLabel(step)}`,
+    true,
+    previousMoveSquares,
   );
 
   const mainlineSession = () => createCandidateSessionState(
     step.fenAfter,
     step.ply,
     `Sau ${candidateMoveLabel(step)}`,
+    true,
+    { from: step.from, to: step.to },
   );
 
   const exitCandidateLab = () => {
@@ -219,6 +225,8 @@ export function useCandidateLabController({
       candidateState.rootFen,
       candidateState.anchorPly,
       candidateState.anchorLabel,
+      true,
+      candidateState.rootMoveSquares,
     ));
   };
 
@@ -244,7 +252,7 @@ export function useCandidateLabController({
       selectedIndex: index,
       moveSquares: selected
         ? { from: selected.step.from, to: selected.step.to }
-        : null,
+        : value.rootMoveSquares,
       result,
       gameOver: new Chess(fen).isGameOver(),
       error: "",

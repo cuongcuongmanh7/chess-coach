@@ -2,13 +2,13 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.9.1**.
+Phiên bản hiện tại: **0.10.4**.
 
-## Điểm mới trong v0.9.1
+## Điểm mới trong v0.10.4
 
-- Bộ icon ứng dụng mới dùng quân mã vàng lớn trên nền bàn cờ xanh, được tối ưu cho các kích thước hệ điều hành.
-- Panel Phân tích nước đi luôn hiển thị sẵn phương án Best của Stockfish; phương án #2 có thể mở thêm khi cần.
-- Chế độ xem biến Stockfish tự co bàn cờ theo chiều cao để cụm nút điều khiển luôn nằm trong panel chính.
+- Khóa đồng bộ Firebase cho duy nhất tài khoản chủ sở hữu đã xác minh.
+- Focus mode của Phân tích tuỳ chọn giữ highlight nước dẫn vào vị trí gốc.
+- Header hai người chơi gọn hơn, chỉ giữ mã ECO thay vì tên đầy đủ của biến khai cuộc.
 
 ## Chạy trên Windows
 
@@ -85,7 +85,7 @@ Mở biểu tượng bánh răng trong app, chọn OpenAI hoặc Gemini, chọn 
 3. Tạo một Firebase Web App, sao chép `.env.example` thành `.env.local` rồi điền các giá trị `VITE_FIREBASE_*`.
 4. Chạy lại `npm run tauri dev`. Nút tài khoản trên thanh đầu sẽ mở Google Sign-In và tự đồng bộ sau khi đăng nhập.
 
-Rules trong repo chỉ cho phép người dùng đã xác thực đọc/ghi đường dẫn `users/{uid}` của chính họ. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
+Cloud hiện được khóa cho tài khoản cá nhân `cuongruby12@gmail.com`: app tự đăng xuất tài khoản khác và Security Rules chỉ cho phép UID chủ sở hữu đã xác minh đọc/ghi đường dẫn `users/{uid}`. `.env.local` không được commit; Firebase Web config không thay thế Security Rules.
 
 Schema cloud gốc hiện tại là phiên bản 3; các collection nội dung mới có schema riêng. Lần đồng bộ đầu sau khi nâng cấp sẽ giữ nguyên SQLite, tạo manifest cho các ván đã phân tích và đưa cache Stockfish, lịch luyện cùng cache HLV AI hiện có vào hàng đợi một lần. Kết quả engine được hợp nhất theo `game + ply + engine version + depth + MultiPV`, nên depth thấp không ghi đè depth cao.
 

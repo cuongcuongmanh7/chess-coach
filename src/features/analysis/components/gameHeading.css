@@ -67,6 +67,5 @@
 .match-context { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; color: #847e77; font-size: 9.5px; }
 .match-context > span + span::before { content: "·"; margin-right: 7px; color: #4d4945; }
 .match-context > span { white-space: nowrap; }
-.match-opening-context { min-width: 0; max-width: 310px; display: inline-flex; align-items: center; gap: 4px; color: #aca8a3; }
+.match-opening-context { min-width: 0; display: inline-flex; align-items: center; color: #aca8a3; }
 .match-opening-context > .chess-term { flex: 0 0 auto; }
-.match-opening { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

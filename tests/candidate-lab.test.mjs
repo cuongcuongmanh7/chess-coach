@@ -7,8 +7,10 @@ import {
 } from "../src/features/candidate-lab/model.ts";
 import { buildCandidateAnalysis } from "../src/features/candidate-lab/services/candidateAnalysis.ts";
 import {
+  candidateRootMoveSquares,
   completeCandidateTurn,
   createCandidateSessionState,
+  failCandidateTurn,
 } from "../src/features/candidate-lab/branchState.ts";
 import { moveSfxForSan } from "../src/sfx.ts";
 
@@ -146,6 +148,38 @@ test("hoàn tất lượt candidate tự thêm nước đáp Stockfish vào nhá
   assert.equal(completed.moves[1].evaluation, "+0.25");
   assert.equal(completed.selectedIndex, 1);
   assert.equal(completed.fen, completed.moves[1].step.fenAfter);
+});
+
+test("focus mode giữ highlight nước dẫn vào vị trí gốc", () => {
+  const previous = { ...step(), from: "d7", to: "d6" };
+  const current = step();
+  const rootMoveSquares = candidateRootMoveSquares([previous, current], 1);
+  const session = createCandidateSessionState(
+    initialFen,
+    2,
+    "Điểm rẽ",
+    true,
+    rootMoveSquares,
+  );
+
+  assert.deepEqual(rootMoveSquares, { from: "d7", to: "d6" });
+  assert.deepEqual(session.moveSquares, rootMoveSquares);
+  assert.deepEqual(session.rootMoveSquares, rootMoveSquares);
+  assert.deepEqual(
+    failCandidateTurn(session, [], initialFen, new Error("Dừng thử")),
+    {
+      ...session,
+      loading: false,
+      attempts: 1,
+      moves: [],
+      selectedIndex: -1,
+      moveSquares: rootMoveSquares,
+      result: null,
+      gameOver: false,
+      error: "Dừng thử",
+    },
+  );
+  assert.equal(candidateRootMoveSquares([current], 0), null);
 });
 
 test("SFX candidate nhận đúng kiểu nước từ SAN", () => {
