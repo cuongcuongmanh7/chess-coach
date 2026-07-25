@@ -1,5 +1,6 @@
-import { Clock3 } from "lucide-react";
+import { Clock3, GraduationCap } from "lucide-react";
 import type { Color, PieceSymbol } from "chess.js";
+import type { GradeTone } from "../reportCard";
 import type { AnalysisStep } from "../../../analysis";
 import type { OpeningInfo } from "../../../openings";
 import { ChessTerm } from "../../../shared/components/ChessTerm";
@@ -20,6 +21,8 @@ function PlayerHeading({
   capturedColor,
   advantage,
   accuracy,
+  perfElo,
+  perfEloTone,
 }: {
   color: PlayerColor;
   name: string;
@@ -30,6 +33,8 @@ function PlayerHeading({
   capturedColor: Color;
   advantage?: number;
   accuracy?: number;
+  perfElo?: number;
+  perfEloTone?: GradeTone;
 }) {
   const isWhite = color === "w";
   const accuracyTier = accuracy === undefined
@@ -49,20 +54,30 @@ function PlayerHeading({
   );
   return (
     <div className={`matchup-player ${isWhite ? "white-player" : "black-player"}`}>
-      {isWhite && statusNode}
+      {statusNode}
       <span className="player-copy">
         <strong>{name}</strong>
         <span className="player-stats-line">
+          {!isWhite && <small className="player-details">Elo {elo}</small>}
           {accuracy !== undefined && (
-            <b className={`player-accuracy ${accuracyTier}`} title="Độ chính xác cả ván">
-              {accuracy}<i>Chính xác</i>
-            </b>
+            <span className={`player-perf-cluster ${accuracyTier}`}>
+              <span className="perf-cluster-row acc" title="Độ chính xác cả ván">
+                <b>{accuracy}</b><i>Chính xác</i>
+              </span>
+              {perfElo !== undefined && (
+                <>
+                  <span className="perf-cluster-div" aria-hidden="true" />
+                  <span className={`perf-cluster-row perf ${perfEloTone ?? ""}`} title="Elo ước lượng từ phong độ ván này — không phải Elo thật.">
+                    <b><GraduationCap size={11} aria-hidden="true" />≈{perfElo}</b><i>Phong độ</i>
+                  </span>
+                </>
+              )}
+            </span>
           )}
-          <small className="player-details">Elo {elo}</small>
+          {isWhite && <small className="player-details">Elo {elo}</small>}
         </span>
         <CapturedPieces pieceColor={capturedColor} pieces={captured} advantage={advantage} />
       </span>
-      {!isWhite && statusNode}
     </div>
   );
 }
@@ -74,6 +89,10 @@ export function GameHeading({
   currentIndex,
   whiteAccuracy,
   blackAccuracy,
+  whitePerfElo,
+  blackPerfElo,
+  whitePerfEloTone,
+  blackPerfEloTone,
 }: {
   headers: Record<string, string>;
   currentOpening: OpeningInfo | null;
@@ -81,6 +100,10 @@ export function GameHeading({
   currentIndex: number;
   whiteAccuracy?: number;
   blackAccuracy?: number;
+  whitePerfElo?: number;
+  blackPerfElo?: number;
+  whitePerfEloTone?: GradeTone;
+  blackPerfEloTone?: GradeTone;
 }) {
   const clocks = playerClocksAtStep(steps, currentIndex);
   const showClock = steps.some((step) => step.clockSeconds !== null);
@@ -92,7 +115,7 @@ export function GameHeading({
     <section className="game-heading">
       <div className="eyebrow game-event">{headers.Event || "Ván cờ đã nhập"}</div>
       <div className="game-matchup">
-        <PlayerHeading color="w" name={headers.White || "Trắng"} elo={headers.WhiteElo || "—"} clock={clocks.w} showClock={showClock} captured={whiteCaptured} capturedColor="b" advantage={diff > 0 ? diff : undefined} accuracy={whiteAccuracy} />
+        <PlayerHeading color="w" name={headers.White || "Trắng"} elo={headers.WhiteElo || "—"} clock={clocks.w} showClock={showClock} captured={whiteCaptured} capturedColor="b" advantage={diff > 0 ? diff : undefined} accuracy={whiteAccuracy} perfElo={whitePerfElo} perfEloTone={whitePerfEloTone} />
         <div className="matchup-center">
           <span className="match-result">{headers.Result || "*"}</span>
           <div className="match-context">
@@ -103,7 +126,7 @@ export function GameHeading({
             <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
           </div>
         </div>
-        <PlayerHeading color="b" name={headers.Black || "Đen"} elo={headers.BlackElo || "—"} clock={clocks.b} showClock={showClock} captured={blackCaptured} capturedColor="w" advantage={diff < 0 ? -diff : undefined} accuracy={blackAccuracy} />
+        <PlayerHeading color="b" name={headers.Black || "Đen"} elo={headers.BlackElo || "—"} clock={clocks.b} showClock={showClock} captured={blackCaptured} capturedColor="w" advantage={diff < 0 ? -diff : undefined} accuracy={blackAccuracy} perfElo={blackPerfElo} perfEloTone={blackPerfEloTone} />
       </div>
     </section>
   );

@@ -3,7 +3,7 @@
 
 .analysis-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(430px,1.08fr) minmax(370px,.92fr); gap: 16px; align-items: stretch; }
 .board-column, .coach-panel { background: rgba(23,22,20,.94); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 55px rgba(0,0,0,.18); }
-.board-column { min-height: 0; padding: 11px 13px 12px; display: flex; flex-direction: column; align-items: stretch; --board-w: min(100%, calc(100vh - 340px), 640px); }
+.board-column { min-height: 0; padding: 11px 13px 12px; display: flex; flex-direction: column; align-items: stretch; }
 .board-toolbar { height: 31px; flex: 0 0 31px; display: flex; align-items: flex-start; justify-content: space-between; color: #837d77; font-size: 10px; }
 .board-toolbar > div { display: flex; align-items: center; gap: 7px; }
 .board-status { min-width: 0; flex: 1 1 auto; overflow: hidden; }
@@ -16,8 +16,10 @@
 .phase-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(246,190,73,.14); }
 .board-tools { margin-top: -4px; }
 .evaluation-chip { height: 30px; min-width: 72px; padding: 0 9px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 7px; color: #e3e2e1; background: #11100f; border: 1px solid var(--line); font-variant-numeric: tabular-nums; font-weight: 700; }
-.board-stage { width: var(--board-w); max-width: 100%; margin: 0 auto; display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 6px; align-items: stretch; }
-.board-wrap { width: 100%; min-width: 0; position: relative; isolation: isolate; }
+/* Bàn cờ co theo chiều cao THẬT của panel (container-query units), không dùng 100vh + magic number */
+.board-stage { flex: 1 1 auto; min-height: 0; margin-top: 6px; container-type: size; display: flex; justify-content: center; align-items: center; }
+.board-group { max-width: 100%; display: flex; gap: 6px; align-items: stretch; height: min(100cqh, calc(100cqw - 30px), 640px); }
+.board-wrap { height: 100%; aspect-ratio: 1; min-width: 0; position: relative; isolation: isolate; }
 .analysis-square-content { width: 100%; height: 100%; position: relative; }
 .analysis-square-content.last-move-from { box-shadow: inset 0 0 0 999px rgba(246,190,73,.25); }
 .analysis-square-content.last-move-to { box-shadow: inset 0 0 0 999px rgba(246,190,73,.5); }
@@ -37,12 +39,12 @@
 .move-quality-badge.blunder { color: #fff; background: var(--mc-blunder); border-color: #ffcabf; }
 .move-quality-badge.blunder svg { width: 76%; height: 76%; display: block; }
 .board-move-badge-square .move-quality-badge { --move-quality-size: clamp(17px,30%,25px); position: absolute; top: 4%; right: 4%; z-index: 6; }
-.evaluation-bar { min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #4d4a46; border-radius: 5px; background: #1c1a19; box-shadow: inset 0 0 0 1px rgba(255,255,255,.035); }
+.evaluation-bar { flex: 0 0 24px; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #4d4a46; border-radius: 5px; background: #1c1a19; box-shadow: inset 0 0 0 1px rgba(255,255,255,.035); }
 .evaluation-bar.orientation-black { flex-direction: column-reverse; }
 .evaluation-bar-side { width: 100%; flex: 0 0 auto; transition: height .35s cubic-bezier(.22,.61,.36,1); }
 .evaluation-bar-side.black { background: linear-gradient(90deg,#141312,#252321); }
 .evaluation-bar-side.white { background: linear-gradient(90deg,#dcdbd9,#f4f3f2); }
-.evaluation-bar-score { min-width: 20px; position: absolute; left: 50%; z-index: 1; transform: translateX(-50%); padding: 2px 2px; border-radius: 3px; font-family: "Cascadia Mono",Consolas,monospace; font-size: 7px; font-weight: 900; line-height: 1; text-align: center; transition: top .35s ease,bottom .35s ease; }
+.evaluation-bar-score { min-width: 22px; position: absolute; left: 50%; z-index: 1; transform: translateX(-50%); padding: 2px 3px; border-radius: 3px; font-family: "Cascadia Mono",Consolas,monospace; font-size: 9px; font-weight: 900; line-height: 1; text-align: center; transition: top .35s ease,bottom .35s ease; }
 .evaluation-bar-score.top { top: 5px; }
 .evaluation-bar-score.bottom { bottom: 5px; }
 .evaluation-bar-score.white { color: #191816; background: rgba(255,255,255,.75); }
@@ -211,8 +213,15 @@
 .summary-metrics strong { color: #e6e5e4; font-size: 17px; font-variant-numeric: tabular-nums; }
 .summary-metrics span { color: #746e69; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .quality-counts { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
-.quality-counts > span { padding: 4px 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #302e2b; border-radius: 5px; color: #8d8781; font-size: 9px; }
-.quality-counts strong { color: #c1bebb; }
+.quality-counts > span { padding: 4px 7px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #302e2b; border-radius: 6px; color: #8d8781; font-size: 10px; }
+.quality-counts .move-quality-badge { --move-quality-size: 15px; flex: 0 0 auto; }
+.quality-counts strong { color: inherit; font-variant-numeric: tabular-nums; }
+.quality-counts > span.brilliant { color: var(--mc-brilliant); border-color: color-mix(in srgb, var(--mc-brilliant) 32%, #302e2b); background: color-mix(in srgb, var(--mc-brilliant) 9%, transparent); }
+.quality-counts > span.best { color: var(--mc-best); border-color: color-mix(in srgb, var(--mc-best) 32%, #302e2b); background: color-mix(in srgb, var(--mc-best) 9%, transparent); }
+.quality-counts > span.good { color: var(--mc-good); border-color: color-mix(in srgb, var(--mc-good) 32%, #302e2b); background: color-mix(in srgb, var(--mc-good) 9%, transparent); }
+.quality-counts > span.inaccuracy { color: var(--mc-inaccuracy); border-color: color-mix(in srgb, var(--mc-inaccuracy) 32%, #302e2b); background: color-mix(in srgb, var(--mc-inaccuracy) 9%, transparent); }
+.quality-counts > span.mistake { color: var(--mc-mistake); border-color: color-mix(in srgb, var(--mc-mistake) 32%, #302e2b); background: color-mix(in srgb, var(--mc-mistake) 9%, transparent); }
+.quality-counts > span.blunder { color: var(--mc-blunder); border-color: color-mix(in srgb, var(--mc-blunder) 32%, #302e2b); background: color-mix(in srgb, var(--mc-blunder) 9%, transparent); }
 .game-coach-card { margin-top: 13px; padding: 12px; border: 1px solid #353230; border-radius: 11px; background: linear-gradient(135deg,rgba(32,30,29,.92),rgba(17,16,16,.96)); }
 .game-coach-card.ready { border-color: rgba(129,182,76,.22); }
 .game-coach-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -266,7 +275,6 @@
 .variation-player button:disabled { opacity: .35; cursor: not-allowed; }
 .variation-player > span { overflow: hidden; color: #bdb9b5; font-family: "Cascadia Mono",Consolas,monospace; font-size: 10px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .variation-player .variation-exit { color: #f0c975; border-color: rgba(246,190,73,.28); }
-.board-column:has(.variation-player) { --board-w: min(100%, clamp(300px,calc(100vh - 410px),580px)); }
 .retry-panel { width: 100%; max-width: 100%; flex: 0 0 auto; margin-top: 7px; padding: 9px 10px; overflow: hidden; border: 1px solid rgba(246,190,73,.25); border-radius: 8px; background: rgba(246,190,73,.06); }
 .retry-panel.best { border-color: rgba(129,182,76,.4); background: rgba(129,182,76,.07); }
 .retry-panel.blunder, .retry-panel.mistake { border-color: rgba(240,113,103,.3); background: rgba(240,113,103,.06); }
@@ -280,15 +288,15 @@
 .retry-actions { margin-top: 7px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .retry-actions button { min-height: 27px; padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #413e3b; border-radius: 6px; color: #b4b0ac; background: #1b1a19; font-size: 9px; font-weight: 700; }
 .retry-actions button:hover { color: white; border-color: #65605b; }
-.board-column:has(.retry-panel) { --board-w: min(100%, clamp(360px, calc(100vh - 430px), 560px)); }
 
-/* Sau khi phân tích: chừa chỗ cho dải cột eval + thanh Biểu đồ (bàn cờ co lại) */
-.workspace.has-review .board-column { --board-w: min(100%, calc(100vh - 408px), 640px); }
-/* Khi mở biểu đồ: co bàn cờ thêm + cho phép cuộn để xem đủ chart */
+/* Khi mở biểu đồ: cho phép cuộn để xem đủ chart */
 .workspace.story-open { overflow-y: auto; }
-.workspace.story-open .board-column { --board-w: min(100%, clamp(320px, calc(100vh - 476px), 600px)); }
 /* Không cho grid co dưới kích thước bàn cờ khi cuộn (tránh bàn cờ tràn đè chart) */
 .workspace.story-open .analysis-grid { flex: 0 0 auto; }
+/* Story mở: grid hết co giãn nên chuyển bàn cờ sang bám chiều rộng (tránh cqh = 0) */
+.workspace.story-open .board-stage { container-type: normal; }
+.workspace.story-open .board-group { height: auto; width: min(100%, 640px); }
+.workspace.story-open .board-wrap { height: auto; flex: 1 1 auto; }
 
 /* Khối biểu đồ Game Story dưới bàn cờ (thu/mở) */
 .story-graph-section { flex: 0 0 auto; margin-top: 10px; }

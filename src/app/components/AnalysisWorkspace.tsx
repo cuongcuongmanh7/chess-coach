@@ -35,6 +35,7 @@ import { useAppControllerContext } from "../AppControllerContext";
 import { ThreatViewToggle } from "../../features/tactics/components/ThreatViewToggle";
 import { TacticalInsights } from "../../features/tactics/components/TacticalInsights";
 import { PlayerMoveStats } from "../../features/analysis/components/PlayerMoveStats";
+import { estimateEloFromAcpl, gradeForAcpl } from "../../features/analysis/reportCard";
 
 const GameStoryPanel = lazy(() => import(
   "../../features/game-story/components/GameStoryPanel"
@@ -104,6 +105,10 @@ export function AnalysisWorkspace() {
   } = useAppControllerContext();
   const [storyOpen, setStoryOpen] = useState(false);
   const showStory = !candidateState.active && fullAnalysis.complete;
+  const whiteEstimatedElo = estimateEloFromAcpl(fullGameSummary.white.acpl);
+  const blackEstimatedElo = estimateEloFromAcpl(fullGameSummary.black.acpl);
+  const whiteEloTone = gradeForAcpl(fullGameSummary.white.acpl).tone;
+  const blackEloTone = gradeForAcpl(fullGameSummary.black.acpl).tone;
   return (
     <>
       <main className={`workspace ${showStory ? "has-review" : ""} ${showStory && storyOpen ? "story-open" : ""}`}>
@@ -114,6 +119,10 @@ export function AnalysisWorkspace() {
           currentIndex={currentIndex}
           whiteAccuracy={fullAnalysis.complete ? fullGameSummary.white.accuracy : undefined}
           blackAccuracy={fullAnalysis.complete ? fullGameSummary.black.accuracy : undefined}
+          whitePerfElo={fullAnalysis.complete ? whiteEstimatedElo : undefined}
+          blackPerfElo={fullAnalysis.complete ? blackEstimatedElo : undefined}
+          whitePerfEloTone={whiteEloTone}
+          blackPerfEloTone={blackEloTone}
         />
 
         <section className="analysis-grid">

@@ -20,14 +20,18 @@
 .summary-modal .summary-players { margin-top: 23px; gap: 14px; }
 .summary-modal .summary-player { padding: 18px; border-radius: 13px; }
 .summary-modal .summary-player-name { gap: 9px; font-size: 14px; }
-.summary-modal .summary-player-name .side-badge { padding: 4px 7px; font-size: 10px; }
-.summary-modal .summary-player-name > span { color: #9f9a95; font-size: 11px; }
+/* Badge Trắng/Đen: đồng bộ pill sáng/tối như player-status-cluster ở main */
+.summary-modal .summary-player-name .side-badge { padding: 5px 8px; border-right: 0; border-radius: 7px; opacity: 1; font-size: 10px; font-weight: 850; line-height: 1; }
+.summary-modal .summary-player-name .side-badge.white-side { color: #1d1c1b; background: #eae9e8; border: 1px solid #fff; }
+.summary-modal .summary-player-name .side-badge.black-side { color: #d0cecb; background: #161413; border: 1px solid #514e4a; }
+/* Elo: đồng bộ chip viền như player-details ở main */
+.summary-modal .summary-player-name > span { margin-left: auto; padding: 4px 10px; border: 1px solid #3d3a37; border-radius: 7px; color: #c4bfb8; font-weight: 800; line-height: 1; white-space: nowrap; }
 .summary-modal .summary-metrics { margin-top: 15px; gap: 9px; }
 .summary-modal .summary-metrics > div { padding: 12px 9px; gap: 4px; border-radius: 9px; }
 .summary-modal .summary-metrics strong { font-size: 22px; }
 .summary-modal .summary-metrics span { color: #928c86; font-size: 10px; }
 .summary-modal .quality-counts { margin-top: 12px; gap: 7px; }
-.summary-modal .quality-counts > span { padding: 6px 8px; gap: 5px; border-radius: 6px; color: #a19d98; font-size: 10px; }
+.summary-modal .quality-counts > span { padding: 6px 8px; gap: 6px; border-radius: 6px; font-size: 11px; }
 .summary-modal .time-summary-card { margin-top: 14px; padding: 13px 15px; gap: 20px; border-radius: 10px; font-size: 11px; }
 .summary-modal .game-coach-card { margin-top: 16px; padding: 17px; border-radius: 13px; }
 .summary-modal .game-coach-heading > div { gap: 9px; font-size: 12px; }

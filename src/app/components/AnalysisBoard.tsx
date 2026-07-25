@@ -79,6 +79,7 @@ export function AnalysisBoard({
   const visibleLoading = mode === "candidate" ? candidateLoading : engineLoading;
   return (
     <div className="board-stage">
+      <div className="board-group">
       <div
         className={`evaluation-bar orientation-${orientation}`}
         role="meter"
@@ -126,6 +127,7 @@ export function AnalysisBoard({
             onCancel={onCancelCandidatePromotion}
           />
         )}
+      </div>
       </div>
     </div>
   );

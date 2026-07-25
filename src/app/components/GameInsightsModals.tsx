@@ -65,6 +65,7 @@ import type { AutoExplainMode } from "../types";
 import type { AiProvider } from "../../shared/types/tauri";
 import { resolveStoryPerspective } from "../../features/game-story/model";
 import { GameReportCard } from "../../features/analysis/components/GameReportCard";
+import { MoveQualityIcon } from "../../features/analysis/components/MoveQualityIcon";
 import { InsightsResultsPanel, InsightsRhythmPanel } from "../../features/analysis/components/InsightsPanels";
 import { playerColorForUsername } from "../../features/analysis/playerMoveStats";
 
@@ -150,7 +151,7 @@ export function GameInsightsModals() {
                   <div className="quality-counts">
                     {QUALITY_ORDER.map((item) => (
                       <span className={item} key={item}>
-                        <i className={`dot ${item}`} />
+                        <MoveQualityIcon quality={item} />
                         <ChessTerm term={item}>{QUALITY_LABELS[item]}</ChessTerm>
                         <strong>{player.stats.counts[item]}</strong>
                       </span>

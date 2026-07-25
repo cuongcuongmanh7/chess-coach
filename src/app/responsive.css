@@ -3,7 +3,9 @@
   .topbar { position: static; }
   .workspace { height: 100%; min-height: 0; overflow-y: auto; }
   .analysis-grid { flex: 0 0 auto; grid-template-columns: 1fr; }
-  .board-wrap { max-width: 650px; }
+  .board-stage { container-type: normal; }
+  .board-group { height: auto; width: min(100%, 674px); margin: 0 auto; }
+  .board-wrap { height: auto; flex: 1 1 auto; max-width: 650px; }
   .coach-panel { min-height: 480px; overflow: visible; }
   .coach-scroll-content { min-height: auto; flex: 0 0 auto; overflow: visible; }
   .coach-insight-scroll { min-height: auto; flex: 0 0 auto; overflow: visible; }
@@ -12,7 +14,6 @@
   .cloud-account-button { max-width: 105px; }
   .sidebar-cloud-button { max-width: none; }
   .profile-switcher { min-width: 170px; }
-  .board-column:has(.retry-panel) .board-stage { width: min(100%, clamp(360px, calc(100vh - 430px), 560px)); }
 }
 
 @media (max-height: 780px) {
