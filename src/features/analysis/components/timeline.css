@@ -2,10 +2,10 @@
 .timeline-label { min-width: 130px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3px 7px; color: #8c8680; font-size: 10px; }
 .timeline-label svg { grid-row: 1 / 3; color: #6fd0ab; }
 .timeline-label strong { color: #dcdbd9; font-size: 11px; }
-.timeline-label small { grid-column: 2; color: #736e68; font-size: 9px; }
+.timeline-label small { grid-column: 2; color: #736e68; font-size: 10px; }
 .timeline-scroller { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 2px; scrollbar-width: thin; scrollbar-color: #3d3b38 transparent; }
 .timeline-move { flex: 0 0 auto; min-width: 92px; height: 42px; padding: 5px 9px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 2px 7px; border: 1px solid transparent; border-radius: 7px; color: #b9b6b2; background: #1b1a18; font-family: "Cascadia Mono", Consolas, monospace; font-size: 10px; white-space: nowrap; }
-.timeline-move i { color: #908a84; font-size: 9px; font-style: normal; }
+.timeline-move i { color: #908a84; font-size: 10px; font-style: normal; }
 .timeline-move strong { overflow: hidden; color: inherit; font-size: 12px; text-overflow: ellipsis; }
 .timeline-move .move-quality-badge { --move-quality-size: 19px; }
 .timeline-move.white { border-color: rgba(228,227,225,.14); }

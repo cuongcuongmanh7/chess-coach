@@ -53,17 +53,17 @@
   .cloud-account-button > span:last-child { display: none; }
   .top-actions .library-button, .top-actions .dashboard-button, .top-actions > .primary-button { width: 34px; min-width: 34px; min-height: 34px; padding: 0; gap: 0; overflow: visible; font-size: 0; }
   .top-actions .library-button { position: relative; }
-  .top-actions .library-count { min-width: 15px; height: 15px; padding: 0 3px; position: absolute; top: -5px; right: -5px; font-size: 7px; }
+  .top-actions .library-count { min-width: 15px; height: 15px; padding: 0 3px; position: absolute; top: -5px; right: -5px; font-size: 9px; }
   .workspace { padding: 19px 11px; }
   .game-heading { min-height: 61px; }
   .game-matchup { gap: 7px; }
   .matchup-player { gap: 5px; }
   .player-copy strong { max-width: 120px; font-size: 15px; }
-  .player-copy small { font-size: 7px; }
-  .side-badge { padding: 2px 4px; font-size: 6px; }
+  .player-copy small { font-size: 9px; }
+  .side-badge { padding: 2px 4px; font-size: 8px; }
   .matchup-center { gap: 2px; }
-  .match-result { padding: 4px 6px; font-size: 9px; }
-  .match-context { gap: 4px; font-size: 6px; }
+  .match-result { padding: 4px 6px; font-size: 10px; }
+  .match-context { gap: 4px; font-size: 8px; }
   .match-context span + span::before { margin-right: 4px; }
   .analysis-grid { gap: 11px; }
   .board-column { padding: 11px; }
@@ -112,8 +112,8 @@
   .library-player small { display: none; }
   .library-player .side-badge { display: none; }
   .library-outcome { min-width: 50px; padding: 4px 5px; }
-  .library-outcome strong { font-size: 9px; }
-  .library-outcome small { font-size: 6px; }
+  .library-outcome strong { font-size: 10px; }
+  .library-outcome small { font-size: 8px; }
   .library-game-meta { flex-wrap: wrap; white-space: normal; }
   .library-opened { width: 100%; margin-left: 0; }
   .library-opened::before { display: none; }

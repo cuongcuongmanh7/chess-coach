@@ -48,7 +48,7 @@
 
 @container player-stats (max-width: 470px) {
   .player-move-stats-track { gap: 3px; }
-  .player-move-stat { font-size: 9px; }
+  .player-move-stat { font-size: 10px; }
   .player-move-stat .move-quality-badge { --move-quality-size: 15px; }
   .player-move-stat-label-full { display: none; }
   .player-move-stat-label-short { display: inline; }

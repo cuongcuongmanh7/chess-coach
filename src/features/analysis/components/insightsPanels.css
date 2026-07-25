@@ -86,4 +86,4 @@
 .insights-hour i.good { background: var(--green); }
 .insights-hour i.warn { background: var(--gold); }
 .insights-hour i.bad { background: var(--red); }
-.insights-hour span { font-size: 9px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.insights-hour span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
