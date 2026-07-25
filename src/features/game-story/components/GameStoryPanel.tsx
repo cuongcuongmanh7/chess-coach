@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, ChevronRight, Clock3, Gauge, Sparkles, Timer, Zap } from "lucide-react";
+import { Activity, ChevronRight, ChevronUp, Clock3, Gauge, Sparkles, Timer, Zap } from "lucide-react";
 import type { AnalysisStep } from "../../../analysis";
 import type { DisplayMoveQuality } from "../../analysis/moveClassification";
 import type { EngineMoveAnalysis } from "../../../stockfish";
@@ -15,6 +15,7 @@ type GameStoryPanelProps = {
   currentIndex: number;
   onSelectIndex: (index: number) => void;
   onOpenIndex: (index: number) => void;
+  onCollapse?: () => void;
 };
 
 export function GameStoryPanel({
@@ -24,6 +25,7 @@ export function GameStoryPanel({
   currentIndex,
   onSelectIndex,
   onOpenIndex,
+  onCollapse,
 }: GameStoryPanelProps) {
   const story = useMemo(() => buildGameStory(steps, engineCache), [engineCache, steps]);
   const [showTime, setShowTime] = useState(story.hasTimeData);
@@ -82,6 +84,11 @@ export function GameStoryPanel({
               <Timer size={13} /> Áp lực
             </button>
           </div>
+          {onCollapse && (
+            <button className="game-story-collapse" onClick={onCollapse} title="Thu gọn biểu đồ" aria-label="Thu gọn biểu đồ">
+              <ChevronUp size={16} />
+            </button>
+          )}
         </div>
       </header>
 

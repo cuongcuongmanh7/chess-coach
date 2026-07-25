@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CircleGauge,
   Cpu,
+  Info,
   LoaderCircle,
   RotateCcw,
   Play,
@@ -86,6 +87,7 @@ export function AnalysisWorkspace() {
     openVariation,
     retryBestPiece, chessboardOptions, handleBoardMouseDown,
     tacticalAnalysis,
+    fullGameSummary,
     playerMoveSummary,
     threatViewAvailable,
     threatViewEnabled,
@@ -110,6 +112,8 @@ export function AnalysisWorkspace() {
           currentOpening={currentOpening}
           steps={analysis.steps}
           currentIndex={currentIndex}
+          whiteAccuracy={fullAnalysis.complete ? fullGameSummary.white.accuracy : undefined}
+          blackAccuracy={fullAnalysis.complete ? fullGameSummary.black.accuracy : undefined}
         />
 
         <section className="analysis-grid">
@@ -127,6 +131,18 @@ export function AnalysisWorkspace() {
                 <button className="icon-button" onClick={() => setOrientation((value) => (value === "white" ? "black" : "white"))} aria-label="Xoay bàn cờ" title="Xoay bàn cờ">
                   <RotateCcw size={17} />
                 </button>
+                <div className="board-legend-info">
+                  <button className="icon-button" aria-label="Chú thích mũi tên" title="Chú thích mũi tên">
+                    <Info size={16} />
+                  </button>
+                  <div className="board-legend-popover" role="tooltip">
+                    <span><i className="legend-line gold" /> Nước vừa đi</span>
+                    <span><i className="legend-line green" /> Best move</span>
+                    <span><i className="legend-line blue" /> Phương án 2</span>
+                    <span><i className="legend-line red" /> Phản đòn</span>
+                    <span className="keyboard-hint">← → chuyển nước</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -187,15 +203,6 @@ export function AnalysisWorkspace() {
                   : value)}
                 onExit={() => { setRetryState(null); setPromotionPending(null); }}
               />
-            )}
-            {!candidateState.active && (
-              <div className="arrow-legend">
-                <span><i className="legend-line gold" /> Nước vừa đi</span>
-                <span><i className="legend-line green" /> Best move</span>
-                <span><i className="legend-line blue" /> Phương án 2</span>
-                <span><i className="legend-line red" /> Phản đòn</span>
-                <span className="keyboard-hint">← → chuyển nước</span>
-              </div>
             )}
           </div>
           <aside className="coach-panel">
@@ -294,17 +301,7 @@ export function AnalysisWorkspace() {
         </section>
         {showStory && (
           <section className={`story-graph-section ${storyOpen ? "open" : ""}`}>
-            <button
-              className="story-graph-toggle"
-              onClick={() => setStoryOpen((value) => !value)}
-              aria-expanded={storyOpen}
-            >
-              <BarChart3 size={15} />
-              <strong>Biểu đồ Game Story</strong>
-              <small>Diễn biến lợi thế &amp; các bước ngoặt cả ván</small>
-              <ChevronDown size={16} className="story-graph-chevron" />
-            </button>
-            {storyOpen && (
+            {storyOpen ? (
               <Suspense fallback={<div className="game-story-loading"><LoaderCircle className="spin" size={18} /> Đang mở biểu đồ…</div>}>
                 <GameStoryPanel
                   steps={analysis.steps}
@@ -313,8 +310,20 @@ export function AnalysisWorkspace() {
                   currentIndex={currentIndex}
                   onSelectIndex={setCurrentIndex}
                   onOpenIndex={setCurrentIndex}
+                  onCollapse={() => setStoryOpen(false)}
                 />
               </Suspense>
+            ) : (
+              <button
+                className="story-graph-toggle"
+                onClick={() => setStoryOpen(true)}
+                aria-expanded={false}
+              >
+                <BarChart3 size={15} />
+                <strong>Biểu đồ Game Story</strong>
+                <small>Diễn biến lợi thế &amp; các bước ngoặt cả ván</small>
+                <ChevronDown size={16} className="story-graph-chevron" />
+              </button>
             )}
           </section>
         )}

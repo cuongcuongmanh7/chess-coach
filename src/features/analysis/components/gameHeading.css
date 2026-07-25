@@ -8,6 +8,11 @@
 .player-copy strong { max-width: 260px; overflow: hidden; color: var(--ink); font-size: clamp(18px,2vw,24px); font-weight: 650; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
 .player-copy small { color: #847e77; font-size: 10px; font-weight: 600; letter-spacing: 0; }
 .player-details { min-height: 13px; }
+.player-accuracy { margin-left: 6px; padding: 1px 6px; border-radius: 5px; font-size: 10px; font-weight: 850; font-style: normal; letter-spacing: 0; vertical-align: 1px; }
+.player-accuracy.elite { color: #c3e29a; background: rgba(129,182,76,.22); }
+.player-accuracy.good { color: #a6cf65; background: rgba(129,182,76,.15); }
+.player-accuracy.ok { color: #efc457; background: rgba(240,193,92,.15); }
+.player-accuracy.low { color: #eda049; background: rgba(229,143,42,.16); }
 .captured-pieces { min-height: 16px; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
 .white-player .captured-pieces { justify-content: flex-end; }
 .black-player .captured-pieces { justify-content: flex-start; }

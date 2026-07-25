@@ -5,6 +5,7 @@ export type AutoExplainMode = "off" | "mistakes" | "visited";
 export type PlayerSummary = {
   moves: number;
   acpl: number;
+  accuracy: number;
   bestGoodRate: number;
   counts: Record<DisplayMoveQuality, number>;
 };

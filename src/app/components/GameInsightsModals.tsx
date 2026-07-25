@@ -142,6 +142,7 @@ export function GameInsightsModals() {
                 <article className={`summary-player ${player.side}`} key={player.side}>
                   <div className="summary-player-name"><i className={`side-badge ${player.side === "white" ? "white-side" : "black-side"}`}>{player.label}</i><strong>{player.name}</strong><span>{player.elo ? `Elo ${player.elo}` : "Elo —"}</span></div>
                   <div className="summary-metrics">
+                    <div className="summary-accuracy"><strong>{player.stats.accuracy}</strong><span>Độ chính xác</span></div>
                     <div><strong>{player.stats.acpl}</strong><span><ChessTerm term="acpl" /></span></div>
                     <div><strong>{player.stats.bestGoodRate}%</strong><span><ChessTerm term="bestGood" /></span></div>
                     <div><strong>{player.stats.moves}</strong><span>Nước đã tính</span></div>

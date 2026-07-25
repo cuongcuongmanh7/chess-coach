@@ -218,9 +218,16 @@ export function useDataController(
         counts[engine.displayQuality || engine.quality] += 1;
       });
       const totalLoss = results.reduce((sum, { engine }) => sum + engine.centipawnLoss, 0);
+      // Độ chính xác kiểu chess.com: từ win% mất mỗi nước (expectedPointsLoss) rồi trung bình.
+      const totalAccuracy = results.reduce((sum, { engine }) => {
+        const winDrop = (engine.expectedPointsLoss ?? 0) * 100;
+        const moveAccuracy = 103.1668 * Math.exp(-0.04354 * winDrop) - 3.1669;
+        return sum + Math.max(0, Math.min(100, moveAccuracy));
+      }, 0);
       return {
         moves: results.length,
         acpl: results.length ? Math.round(totalLoss / results.length) : 0,
+        accuracy: results.length ? Math.round((totalAccuracy / results.length) * 10) / 10 : 0,
         bestGoodRate: results.length
           ? Math.round(((counts.brilliant + counts.best + counts.good) / results.length) * 100)
           : 0,

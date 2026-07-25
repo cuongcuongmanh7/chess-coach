@@ -3,7 +3,7 @@
 
 .analysis-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(430px,1.08fr) minmax(370px,.92fr); gap: 16px; align-items: stretch; }
 .board-column, .coach-panel { background: rgba(23,22,20,.94); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 55px rgba(0,0,0,.18); }
-.board-column { min-height: 0; padding: 11px 13px 12px; display: flex; flex-direction: column; align-items: stretch; --board-w: min(100%, calc(100vh - 364px), 640px); }
+.board-column { min-height: 0; padding: 11px 13px 12px; display: flex; flex-direction: column; align-items: stretch; --board-w: min(100%, calc(100vh - 340px), 640px); }
 .board-toolbar { height: 31px; flex: 0 0 31px; display: flex; align-items: flex-start; justify-content: space-between; color: #837d77; font-size: 10px; }
 .board-toolbar > div { display: flex; align-items: center; gap: 7px; }
 .board-status { min-width: 0; flex: 1 1 auto; overflow: hidden; }
@@ -47,8 +47,11 @@
 .evaluation-bar-score.bottom { bottom: 5px; }
 .evaluation-bar-score.white { color: #191816; background: rgba(255,255,255,.75); }
 .evaluation-bar-score.black { color: #f1f1f0; background: rgba(11,11,10,.72); }
-.arrow-legend { min-height: 23px; width: var(--board-w); max-width: 100%; margin-inline: auto; padding-top: 7px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 13px; color: #77716b; font-size: 9.5px; }
-.arrow-legend span { display: flex; align-items: center; gap: 6px; }
+.board-legend-info { position: relative; display: inline-flex; }
+.board-legend-popover { min-width: 168px; position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #494642; border-radius: 9px; color: #b3b0ac; background: rgba(14,14,13,.97); box-shadow: 0 14px 38px rgba(0,0,0,.45); font-size: 10px; opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s ease, transform .15s ease, visibility .15s; pointer-events: none; }
+.board-legend-info:hover .board-legend-popover, .board-legend-info:focus-within .board-legend-popover { opacity: 1; visibility: visible; transform: translateY(0); }
+.board-legend-popover span { display: flex; align-items: center; gap: 7px; }
+.board-legend-popover .keyboard-hint { margin: 2px 0 0; padding-top: 6px; border-top: 1px solid #2c2a27; color: #837d77; }
 .legend-line { width: 17px; height: 3px; border-radius: 99px; position: relative; }
 .legend-line::after { content: ""; position: absolute; right: -2px; top: -3px; border-left: 5px solid; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 .legend-line.gold { background: var(--gold); } .legend-line.gold::after { border-left-color: var(--gold); }
@@ -201,8 +204,10 @@
 .summary-player-name { display: flex; align-items: center; gap: 7px; color: #dfdddb; font-size: 11px; }
 .summary-player-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary-player-name > span { margin-left: auto; color: #7c7670; font-size: 9.5px; white-space: nowrap; }
-.summary-metrics { margin-top: 12px; display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.summary-metrics { margin-top: 12px; display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
 .summary-metrics > div { padding: 8px; display: flex; flex-direction: column; gap: 2px; border-radius: 7px; background: #1c1b19; text-align: center; }
+.summary-metrics > .summary-accuracy { background: rgba(129,182,76,.12); }
+.summary-metrics > .summary-accuracy strong { color: #a6cf65; }
 .summary-metrics strong { color: #e6e5e4; font-size: 17px; font-variant-numeric: tabular-nums; }
 .summary-metrics span { color: #746e69; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .quality-counts { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
@@ -278,7 +283,7 @@
 .board-column:has(.retry-panel) { --board-w: min(100%, clamp(360px, calc(100vh - 430px), 560px)); }
 
 /* Sau khi phân tích: chừa chỗ cho dải cột eval + thanh Biểu đồ (bàn cờ co lại) */
-.workspace.has-review .board-column { --board-w: min(100%, calc(100vh - 432px), 640px); }
+.workspace.has-review .board-column { --board-w: min(100%, calc(100vh - 408px), 640px); }
 /* Khi mở biểu đồ: co bàn cờ thêm + cho phép cuộn để xem đủ chart */
 .workspace.story-open { overflow-y: auto; }
 .workspace.story-open .board-column { --board-w: min(100%, clamp(320px, calc(100vh - 476px), 600px)); }
@@ -294,8 +299,8 @@
 .story-graph-toggle small { min-width: 0; overflow: hidden; color: #837d77; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .story-graph-chevron { margin-left: auto; flex: 0 0 auto; color: #837d77; transition: transform .18s ease; }
 .story-graph-section.open .story-graph-chevron { transform: rotate(180deg); }
-.story-graph-section .game-story { margin-top: 8px; }
-.story-graph-section .game-story-loading { margin-top: 8px; }
+.story-graph-section .game-story { margin-top: 0; }
+.story-graph-section .game-story-loading { margin-top: 0; }
 
 .training-start-button { width: 100%; min-height: 31px; margin-bottom: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #3d3a37; border-radius: 7px; color: #ada9a4; background: #1b1a18; font-size: 9.5px; font-weight: 800; }
 .training-start-button:hover:not(:disabled), .training-start-button.recommended { color: #f6ce78; border-color: rgba(246,190,73,.35); background: rgba(246,190,73,.08); }
