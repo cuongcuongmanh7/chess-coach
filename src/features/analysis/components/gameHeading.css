@@ -7,8 +7,9 @@
 .player-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .player-copy strong { max-width: 260px; overflow: hidden; color: var(--ink); font-size: clamp(18px,2vw,24px); font-weight: 650; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
 .player-copy small { color: #847e77; font-size: 10px; font-weight: 600; letter-spacing: 0; }
-.player-details { min-height: 13px; color: #7c766f; font-size: 10px; font-weight: 600; }
-.player-stats-line { min-height: 22px; margin-top: 1px; display: flex; align-items: center; gap: 9px; }
+.player-details { min-height: 13px; }
+.player-stats-line { min-height: 24px; margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+.player-stats-line .player-details { min-height: 24px; padding: 2px 9px; display: inline-flex; align-items: center; border: 1px solid #3d3a37; border-radius: 7px; color: #c4bfb8; font-size: 12.5px; font-weight: 800; }
 .white-player .player-stats-line { justify-content: flex-end; }
 .black-player .player-stats-line { justify-content: flex-start; }
 .player-accuracy { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 9px; border-radius: 7px; font-size: 16px; font-weight: 900; font-style: normal; letter-spacing: -.02em; line-height: 1.15; }
