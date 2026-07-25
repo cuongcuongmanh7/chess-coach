@@ -1,9 +1,12 @@
 import { Clock3 } from "lucide-react";
+import type { Color, PieceSymbol } from "chess.js";
 import type { AnalysisStep } from "../../../analysis";
 import type { OpeningInfo } from "../../../openings";
 import { ChessTerm } from "../../../shared/components/ChessTerm";
 import { formatSeconds } from "../../../shared/utils/format";
 import { playerClocksAtStep } from "../playerClocks";
+import { computeCapturedMaterial } from "../capturedMaterial";
+import { CapturedPieces } from "./CapturedPieces";
 
 type PlayerColor = "w" | "b";
 
@@ -13,12 +16,18 @@ function PlayerHeading({
   elo,
   clock,
   showClock,
+  captured,
+  capturedColor,
+  advantage,
 }: {
   color: PlayerColor;
   name: string;
   elo: string;
   clock: number | null;
   showClock: boolean;
+  captured: PieceSymbol[];
+  capturedColor: Color;
+  advantage?: number;
 }) {
   const isWhite = color === "w";
   const clockNode = showClock && (
@@ -39,6 +48,7 @@ function PlayerHeading({
       <span className="player-copy">
         <strong>{name}</strong>
         <small className="player-details">Elo {elo}</small>
+        <CapturedPieces pieceColor={capturedColor} pieces={captured} advantage={advantage} />
       </span>
       {!isWhite && statusNode}
     </div>
@@ -58,11 +68,15 @@ export function GameHeading({
 }) {
   const clocks = playerClocksAtStep(steps, currentIndex);
   const showClock = steps.some((step) => step.clockSeconds !== null);
+  const material = computeCapturedMaterial(steps[0]?.fenBefore, steps[currentIndex]?.fenAfter);
+  const whiteCaptured = material?.whiteCaptured ?? [];
+  const blackCaptured = material?.blackCaptured ?? [];
+  const diff = material?.diff ?? 0;
   return (
     <section className="game-heading">
       <div className="eyebrow game-event">{headers.Event || "Ván cờ đã nhập"}</div>
       <div className="game-matchup">
-        <PlayerHeading color="w" name={headers.White || "Trắng"} elo={headers.WhiteElo || "—"} clock={clocks.w} showClock={showClock} />
+        <PlayerHeading color="w" name={headers.White || "Trắng"} elo={headers.WhiteElo || "—"} clock={clocks.w} showClock={showClock} captured={whiteCaptured} capturedColor="b" advantage={diff > 0 ? diff : undefined} />
         <div className="matchup-center">
           <span className="match-result">{headers.Result || "*"}</span>
           <div className="match-context">
@@ -73,7 +87,7 @@ export function GameHeading({
             <span>{headers.TimeControl ? `${headers.TimeControl}s` : "Không rõ thời gian"}</span>
           </div>
         </div>
-        <PlayerHeading color="b" name={headers.Black || "Đen"} elo={headers.BlackElo || "—"} clock={clocks.b} showClock={showClock} />
+        <PlayerHeading color="b" name={headers.Black || "Đen"} elo={headers.BlackElo || "—"} clock={clocks.b} showClock={showClock} captured={blackCaptured} capturedColor="w" advantage={diff < 0 ? -diff : undefined} />
       </div>
     </section>
   );

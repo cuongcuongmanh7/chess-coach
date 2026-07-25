@@ -6,6 +6,7 @@ import { ChessTerm } from "../../../shared/components/ChessTerm";
 import { formatSeconds } from "../../../shared/utils/format";
 import type { DisplayMoveQuality } from "../moveClassification";
 import { MoveQualityIcon } from "./MoveQualityIcon";
+import { EngineLinesAccordion } from "./EngineLinesAccordion";
 
 export function MoveAnalysisSummary({
   step,
@@ -15,6 +16,9 @@ export function MoveAnalysisSummary({
   engine,
   engineLoading,
   engineError,
+  activeRank,
+  activeIndex,
+  onOpenVariation,
 }: {
   step: AnalysisStep;
   headers: Record<string, string>;
@@ -23,11 +27,16 @@ export function MoveAnalysisSummary({
   engine?: EngineMoveAnalysis;
   engineLoading: boolean;
   engineError: string;
+  activeRank?: number;
+  activeIndex?: number;
+  onOpenVariation: (rank: number, moves: string[]) => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const playerName = step.color === "w"
     ? headers.White || "Người chơi"
     : headers.Black || "Người chơi";
+  const bestLine = engine?.variations[0]?.lineSan;
+  const canOpenBest = Boolean(bestLine && bestLine.length);
   return (
     <section className="move-summary">
       <div className="move-summary-top">
@@ -55,9 +64,25 @@ export function MoveAnalysisSummary({
         <span>
           <b>{step.title}</b>
           <small aria-live="polite">
-            {engine
-              ? `${engine.evaluation} · CPL ${Math.round(engine.centipawnLoss)} · Best ${engine.bestMoveSan}`
-              : engineError || "Stockfish đang chấm nước đi…"}
+            {engine ? (
+              <>
+                {engine.evaluation} · CPL {Math.round(engine.centipawnLoss)} ·{" "}
+                {canOpenBest ? (
+                  <button
+                    type="button"
+                    className="best-move-link"
+                    onClick={() => onOpenVariation(1, bestLine!)}
+                    title="Xem phương án Best trên bàn cờ"
+                  >
+                    Best {engine.bestMoveSan}
+                  </button>
+                ) : (
+                  <>Best {engine.bestMoveSan}</>
+                )}
+              </>
+            ) : (
+              engineError || "Stockfish đang chấm nước đi…"
+            )}
           </small>
         </span>
       </div>
@@ -92,6 +117,12 @@ export function MoveAnalysisSummary({
               {step.isTimePressure && <i>Áp lực thời gian</i>}
             </div>
           )}
+          <EngineLinesAccordion
+            engine={engine}
+            activeRank={activeRank}
+            activeIndex={activeIndex}
+            onOpenVariation={onOpenVariation}
+          />
         </div>
       )}
     </section>

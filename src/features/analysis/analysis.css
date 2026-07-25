@@ -277,6 +277,24 @@
 .retry-actions button:hover { color: white; border-color: #65605b; }
 .board-column:has(.retry-panel) { --board-w: min(100%, clamp(360px, calc(100vh - 430px), 560px)); }
 
+/* Sau khi phân tích: chừa chỗ cho dải cột eval + thanh Biểu đồ (bàn cờ co lại) */
+.workspace.has-review .board-column { --board-w: min(100%, calc(100vh - 432px), 640px); }
+/* Khi mở biểu đồ: co bàn cờ thêm + cho phép cuộn để xem đủ chart */
+.workspace.story-open { overflow-y: auto; }
+.workspace.story-open .board-column { --board-w: min(100%, clamp(320px, calc(100vh - 476px), 600px)); }
+
+/* Khối biểu đồ Game Story dưới bàn cờ (thu/mở) */
+.story-graph-section { flex: 0 0 auto; margin-top: 10px; }
+.story-graph-toggle { width: 100%; min-height: 46px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; color: #c8c5c3; background: rgba(23,22,20,.96); text-align: left; }
+.story-graph-toggle:hover { border-color: #4a4743; background: rgba(30,29,27,.96); }
+.story-graph-toggle > svg:first-child { flex: 0 0 auto; color: var(--green); }
+.story-graph-toggle strong { flex: 0 0 auto; font-size: 12px; }
+.story-graph-toggle small { min-width: 0; overflow: hidden; color: #837d77; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.story-graph-chevron { margin-left: auto; flex: 0 0 auto; color: #837d77; transition: transform .18s ease; }
+.story-graph-section.open .story-graph-chevron { transform: rotate(180deg); }
+.story-graph-section .game-story { margin-top: 8px; }
+.story-graph-section .game-story-loading { margin-top: 8px; }
+
 .training-start-button { width: 100%; min-height: 31px; margin-bottom: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #3d3a37; border-radius: 7px; color: #ada9a4; background: #1b1a18; font-size: 9.5px; font-weight: 800; }
 .training-start-button:hover:not(:disabled), .training-start-button.recommended { color: #f6ce78; border-color: rgba(246,190,73,.35); background: rgba(246,190,73,.08); }
 .training-start-button:disabled { opacity: .45; cursor: wait; }

@@ -1,5 +1,8 @@
+import { lazy, Suspense, useState } from "react";
 import {
+  BarChart3,
   BookOpen,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
@@ -21,7 +24,6 @@ import { CandidateNavigationControls } from "../../features/candidate-lab/compon
 import { AnalysisBoard } from "./AnalysisBoard";
 import { RetryPanel } from "../../features/training/components/RetryPanel";
 import { FullGameAnalysisAction } from "../../features/analysis/components/FullGameAnalysisAction";
-import { EngineLinesAccordion } from "../../features/analysis/components/EngineLinesAccordion";
 import { GameHeading } from "../../features/analysis/components/GameHeading";
 import { GameTimeline } from "../../features/analysis/components/GameTimeline";
 import { MoveAnalysisSummary } from "../../features/analysis/components/MoveAnalysisSummary";
@@ -32,6 +34,10 @@ import { useAppControllerContext } from "../AppControllerContext";
 import { ThreatViewToggle } from "../../features/tactics/components/ThreatViewToggle";
 import { TacticalInsights } from "../../features/tactics/components/TacticalInsights";
 import { PlayerMoveStats } from "../../features/analysis/components/PlayerMoveStats";
+
+const GameStoryPanel = lazy(() => import(
+  "../../features/game-story/components/GameStoryPanel"
+).then((module) => ({ default: module.GameStoryPanel })));
 
 export function AnalysisWorkspace() {
   const {
@@ -94,9 +100,11 @@ export function AnalysisWorkspace() {
     selectCandidateBranchMove,
     cancelCandidatePromotion,
   } = useAppControllerContext();
+  const [storyOpen, setStoryOpen] = useState(false);
+  const showStory = !candidateState.active && fullAnalysis.complete;
   return (
     <>
-      <main className="workspace">
+      <main className={`workspace ${showStory ? "has-review" : ""} ${showStory && storyOpen ? "story-open" : ""}`}>
         <GameHeading
           headers={headers}
           currentOpening={currentOpening}
@@ -238,6 +246,9 @@ export function AnalysisWorkspace() {
               engine={engine}
               engineLoading={engineLoading}
               engineError={engineError}
+              activeRank={variationState?.rank}
+              activeIndex={variationState?.index}
+              onOpenVariation={openVariation}
             />
 
             </div>
@@ -268,13 +279,6 @@ export function AnalysisWorkspace() {
               analysis={tacticalAnalysis}
               threatViewEnabled={threatViewEnabled}
             />
-            <EngineLinesAccordion
-              key={analysis.rawPgn}
-              engine={engine}
-              activeRank={variationState?.rank}
-              activeIndex={variationState?.index}
-              onOpenVariation={openVariation}
-            />
             <div className="coach-spacer" />
             </div>
             </div>
@@ -288,6 +292,32 @@ export function AnalysisWorkspace() {
               </div>}
           </aside>
         </section>
+        {showStory && (
+          <section className={`story-graph-section ${storyOpen ? "open" : ""}`}>
+            <button
+              className="story-graph-toggle"
+              onClick={() => setStoryOpen((value) => !value)}
+              aria-expanded={storyOpen}
+            >
+              <BarChart3 size={15} />
+              <strong>Biểu đồ Game Story</strong>
+              <small>Diễn biến lợi thế &amp; các bước ngoặt cả ván</small>
+              <ChevronDown size={16} className="story-graph-chevron" />
+            </button>
+            {storyOpen && (
+              <Suspense fallback={<div className="game-story-loading"><LoaderCircle className="spin" size={18} /> Đang mở biểu đồ…</div>}>
+                <GameStoryPanel
+                  steps={analysis.steps}
+                  engineCache={engineCache}
+                  initialPerspective={orientation}
+                  currentIndex={currentIndex}
+                  onSelectIndex={setCurrentIndex}
+                  onOpenIndex={setCurrentIndex}
+                />
+              </Suspense>
+            )}
+          </section>
+        )}
         {!candidateState.active && (
           <GameTimeline
             steps={analysis.steps}

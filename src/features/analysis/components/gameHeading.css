@@ -8,6 +8,12 @@
 .player-copy strong { max-width: 260px; overflow: hidden; color: var(--ink); font-size: clamp(18px,2vw,24px); font-weight: 650; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
 .player-copy small { color: #847e77; font-size: 10px; font-weight: 600; letter-spacing: 0; }
 .player-details { min-height: 13px; }
+.captured-pieces { min-height: 16px; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.white-player .captured-pieces { justify-content: flex-end; }
+.black-player .captured-pieces { justify-content: flex-start; }
+.captured-glyphs { display: inline-flex; align-items: center; }
+.captured-glyphs i { color: #b7b2ab; font-size: 15px; font-style: normal; line-height: 1; letter-spacing: -1px; }
+.material-diff { padding: 1px 5px; border-radius: 5px; color: #bcd69a; background: rgba(129,182,76,.15); font-size: 10px; font-weight: 800; letter-spacing: 0; line-height: 1.5; }
 .player-status-cluster { min-height: 32px; padding: 4px 7px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border-radius: 7px; }
 .player-status-cluster.white-status { color: #1d1c1b; background: #eae9e8; border: 1px solid white; }
 .player-status-cluster.black-status { color: #d0cecb; background: #161413; border: 1px solid #514e4a; }

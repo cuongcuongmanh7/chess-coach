@@ -1,9 +1,5 @@
-import { Chess, type Color, type PieceSymbol } from "chess.js";
-
-const PIECES: Record<Color, Record<PieceSymbol, string>> = {
-  w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
-  b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" },
-};
+import { Chess, type Color } from "chess.js";
+import { PIECE_GLYPHS } from "../../../shared/chess/pieces";
 
 type GamePositionThumbnailProps = {
   fen: string;
@@ -23,7 +19,7 @@ export function GamePositionThumbnail({ fen, orientation }: GamePositionThumbnai
     <span className="game-position-thumbnail" aria-hidden="true" title="Vị trí sau nước cuối">
       {squares.map((piece, index) => (
         <i className={(Math.floor(index / 8) + index) % 2 === 0 ? "light" : "dark"} key={index}>
-          {piece ? PIECES[piece.color][piece.type] : ""}
+          {piece ? PIECE_GLYPHS[piece.color][piece.type] : ""}
         </i>
       ))}
     </span>
