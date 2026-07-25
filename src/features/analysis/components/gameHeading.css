@@ -8,11 +8,11 @@
 .player-copy strong { max-width: 260px; overflow: hidden; color: var(--ink); font-size: clamp(18px,2vw,24px); font-weight: 650; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
 .player-copy small { color: #847e77; font-size: 10px; font-weight: 600; letter-spacing: 0; }
 .player-details { min-height: 13px; }
-.player-stats-line { min-height: 27px; margin-top: 3px; display: flex; align-items: center; gap: 7px; }
-.player-stats-line .player-details { height: 27px; box-sizing: border-box; padding: 0 9px; display: inline-flex; align-items: center; border: 1px solid #3d3a37; border-radius: 7px; color: #c4bfb8; font-size: 12.5px; font-weight: 800; }
+.player-stats-line { min-height: 28px; margin-top: 3px; display: flex; align-items: center; gap: 7px; }
+.player-stats-line .player-details { min-height: 28px; box-sizing: border-box; padding: 4px 10px; display: inline-flex; align-items: center; border: 1px solid #3d3a37; border-radius: 7px; color: #c4bfb8; font-size: 12.5px; font-weight: 800; line-height: 1; }
 .white-player .player-stats-line { justify-content: flex-end; }
 .black-player .player-stats-line { justify-content: flex-start; }
-.player-accuracy { height: 27px; box-sizing: border-box; display: inline-flex; align-items: baseline; gap: 5px; padding: 4px 9px 0; border-radius: 7px; font-size: 16px; font-weight: 900; font-style: normal; letter-spacing: -.02em; line-height: 1; }
+.player-accuracy { min-height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 7px; font-size: 15px; font-weight: 900; font-style: normal; letter-spacing: -.02em; line-height: 1; }
 .player-accuracy i { font-size: 8px; font-weight: 800; font-style: normal; letter-spacing: .07em; text-transform: uppercase; opacity: .82; }
 .player-accuracy.elite { color: #c9e6a3; background: rgba(129,182,76,.24); box-shadow: inset 0 0 0 1px rgba(129,182,76,.3); }
 .player-accuracy.good { color: #a6cf65; background: rgba(129,182,76,.16); }
