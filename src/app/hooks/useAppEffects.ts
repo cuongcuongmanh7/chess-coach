@@ -43,6 +43,7 @@ export function useAppEffects(
 ) {
   const {
     analysis,
+    workspaceMode,
     currentIndex,
     setCurrentIndex,
     importOpen,
@@ -54,6 +55,7 @@ export function useAppEffects(
     firebaseUser,
     setFirebaseUser,
     setAuthLoading,
+    setStartupDataReady,
     setLastCloudSyncAt,
     currentGameId,
     input,
@@ -86,6 +88,7 @@ export function useAppEffects(
   } = state;
   useEffect(() => observeFirebaseUser((user) => {
     setFirebaseUser(user);
+    setStartupDataReady(!user);
     setLastCloudSyncAt(user
       ? localStorage.getItem(`kypho-cloud-last-sync:${user.uid}`)
       : null);
@@ -131,12 +134,16 @@ export function useAppEffects(
   }, [syncNotice]);
 
   useEffect(() => {
+    if (workspaceMode !== "analysis") {
+      previousMoveIndexRef.current = null;
+      return;
+    }
     if (previousMoveIndexRef.current !== null && previousMoveIndexRef.current !== currentIndex) {
       const san = analysis.steps[currentIndex]?.san || "";
       playMoveSfx(san);
     }
     previousMoveIndexRef.current = currentIndex;
-  }, [analysis.steps, currentIndex]);
+  }, [analysis.steps, currentIndex, workspaceMode]);
 
   useEffect(() => {
     const modalOpen = importOpen
@@ -164,6 +171,7 @@ export function useAppEffects(
   }, [activeProfileId, refreshSavedGames]);
 
   useEffect(() => {
+    if (workspaceMode !== "analysis") return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("textarea, input, select")) return;
@@ -189,7 +197,7 @@ export function useAppEffects(
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [analysis.steps.length, candidateActive, retryState, variationState]);
+  }, [analysis.steps.length, candidateActive, retryState, variationState, workspaceMode]);
 
   useEffect(() => {
     const scroller = timelineScrollerRef.current;
@@ -207,6 +215,10 @@ export function useAppEffects(
   }, [step.ply]);
 
   useEffect(() => {
+    if (workspaceMode !== "analysis") {
+      setEngineLoading(false);
+      return;
+    }
     if (engine?.depth && engine.depth >= 13) {
       setEngineLoading(false);
       setEngineError("");
@@ -253,6 +265,7 @@ export function useAppEffects(
     engine?.depth,
     persistEngineResult,
     step,
+    workspaceMode,
   ]);
 
   useEffect(() => () => fullAnalysisAbortRef.current?.abort(), []);

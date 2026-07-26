@@ -18,10 +18,7 @@ pub(crate) fn clear_api_key(
 }
 
 #[tauri::command]
-pub(crate) fn has_api_key(
-    state: tauri::State<'_, ApiKeyState>,
-    provider: String,
-) -> bool {
+pub(crate) fn has_api_key(state: tauri::State<'_, ApiKeyState>, provider: String) -> bool {
     crate::has_api_key(state, provider)
 }
 
@@ -36,9 +33,7 @@ pub(crate) fn get_cached_explanation(
 }
 
 #[tauri::command]
-pub(crate) fn clear_ai_cache(
-    database: tauri::State<'_, DatabaseState>,
-) -> Result<u64, String> {
+pub(crate) fn clear_ai_cache(database: tauri::State<'_, DatabaseState>) -> Result<u64, String> {
     crate::clear_ai_cache(database)
 }
 

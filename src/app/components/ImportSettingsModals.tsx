@@ -40,6 +40,8 @@ import {
   X,
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
+import { Segmented } from "../../shared/components/Segmented";
+import "./providerSegmented.css";
 import {
   APP_VERSION,
   GEMINI_MODELS,
@@ -121,10 +123,16 @@ export function ImportSettingsModals() {
             <div className="modal-icon">{importMode === "single" ? <ClipboardPaste size={24} /> : <Download size={24} />}</div>
             <div className="eyebrow">BẮT ĐẦU PHÂN TÍCH</div>
             <h2 id="import-title">Nạp ván cờ</h2>
-            <div className="import-tabs" role="tablist" aria-label="Cách nạp ván">
-              <button className={importMode === "single" ? "active" : ""} onClick={() => { setImportMode("single"); setError(""); }}><ClipboardPaste size={14} /> Một ván</button>
-              <button className={importMode === "sync" ? "active" : ""} onClick={() => { setImportMode("sync"); setError(""); }}><Download size={14} /> Đồng bộ gần đây</button>
-            </div>
+            <Segmented
+              className="import-tabs"
+              ariaLabel="Cách nạp ván"
+              value={importMode}
+              onChange={(mode) => { setImportMode(mode); setError(""); }}
+              options={[
+                { value: "single", label: "Một ván", icon: <ClipboardPaste size={14} /> },
+                { value: "sync", label: "Đồng bộ gần đây", icon: <Download size={14} /> },
+              ]}
+            />
 
             {importMode === "single" ? (
               <>
@@ -204,14 +212,26 @@ export function ImportSettingsModals() {
             <p>Chọn dịch vụ AI và cách app tự giải thích. Kết quả được lưu trên máy để lần sau hiện ngay, không gọi API lại.</p>
 
             <label className="field-label">Nhà cung cấp</label>
-            <div className="provider-switch" role="group" aria-label="Nhà cung cấp AI">
-              {(["gemini", "openai"] as AiProvider[]).map((item) => (
-                <button key={item} className={provider === item ? "active" : ""} onClick={() => changeProvider(item)}>
-                  <BrandIcon brand={item} size={15} /> {PROVIDER_LABELS[item]}
-                  {hasApiKeys[item] && <span className="provider-ready">Sẵn sàng</span>}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              ariaLabel="Nhà cung cấp AI"
+              className="provider-segmented"
+              value={provider}
+              onChange={(item) => changeProvider(item as AiProvider)}
+              options={(["gemini", "openai"] as AiProvider[]).map((item) => ({
+                value: item,
+                label: PROVIDER_LABELS[item],
+                icon: <BrandIcon brand={item} size={15} />,
+                badge: (
+                  <>
+                    <span
+                      className={`provider-status-dot ${hasApiKeys[item] ? "ready" : "unconfigured"}`}
+                      aria-hidden="true"
+                    />
+                    {hasApiKeys[item] ? "Sẵn sàng" : "Chưa cấu hình"}
+                  </>
+                ),
+              }))}
+            />
 
             <label className="field-label" htmlFor="model">Model</label>
             <select id="model" value={model} onChange={(event) => changeModel(event.target.value)}>

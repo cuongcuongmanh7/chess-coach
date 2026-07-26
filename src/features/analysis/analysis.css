@@ -44,7 +44,7 @@
 .evaluation-bar-side { width: 100%; flex: 0 0 auto; transition: height .35s cubic-bezier(.22,.61,.36,1); }
 .evaluation-bar-side.black { background: linear-gradient(90deg,#141312,#252321); }
 .evaluation-bar-side.white { background: linear-gradient(90deg,#dcdbd9,#f4f3f2); }
-.evaluation-bar-score { min-width: 22px; position: absolute; left: 50%; z-index: 1; transform: translateX(-50%); padding: 2px 3px; border-radius: 3px; font-family: "Cascadia Mono",Consolas,monospace; font-size: 9px; font-weight: 900; line-height: 1; text-align: center; transition: top .35s ease,bottom .35s ease; }
+.evaluation-bar-score { min-width: 22px; position: absolute; left: 50%; z-index: 1; transform: translateX(-50%); padding: 2px 3px; border-radius: 3px; font-family: "Cascadia Mono",Consolas,monospace; font-size: 10px; font-weight: 900; line-height: 1; text-align: center; transition: top .35s ease,bottom .35s ease; }
 .evaluation-bar-score.top { top: 5px; }
 .evaluation-bar-score.bottom { bottom: 5px; }
 .evaluation-bar-score.white { color: #191816; background: rgba(255,255,255,.75); }
@@ -146,10 +146,6 @@
 .sfx-setting small { overflow: hidden; color: #7f7973; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
 .sfx-setting button { min-width: 48px; height: 30px; border: 1px solid #464340; border-radius: 7px; color: #96908a; background: #1e1c1b; font-size: 10px; font-weight: 800; }
 .sfx-setting button.active { border-color: rgba(129,182,76,.38); color: #83e2c0; background: rgba(129,182,76,.1); }
-.provider-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.provider-switch button { height: 42px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid #3b3936; border-radius: 8px; background: #0f0f0e; color: #928d87; font-size: 10px; font-weight: 700; }
-.provider-switch button.active { color: #d9f5ea; border-color: #2a745c; background: #17372d; }
-.provider-ready { margin-left: auto; color: #65d2aa; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .key-field { height: 43px; display: flex; align-items: center; gap: 8px; border: 1px solid #3b3936; border-radius: 8px; background: #0f0f0e; padding: 0 11px; color: #817b75; }
 .key-field input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: #dfdddb; font-size: 11px; }
 .security-note { margin-top: 9px; padding: 10px; display: flex; align-items: flex-start; gap: 7px; color: #817a74; background: #1c1b1a; border-radius: 7px; font-size: 10px; line-height: 1.5; }

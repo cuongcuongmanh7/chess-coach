@@ -52,14 +52,14 @@ function buildSummary(phases: PhaseReport[]): string {
   if (!phases.length) return "";
   if (phases.length === 1) {
     const only = phases[0];
-    return `Chủ yếu diễn ra ở ${PHASE_SHORT[only.phase]} (hạng ${only.grade}).`;
+    return `Dữ liệu hiện có tập trung ở ${PHASE_SHORT[only.phase]} (ACPL ${only.acpl}).`;
   }
   const best = phases.reduce((left, right) => (right.acpl < left.acpl ? right : left));
   const worst = phases.reduce((left, right) => (right.acpl > left.acpl ? right : left));
   if (best.phase === worst.phase) {
-    return `Phong độ đều giữa các giai đoạn (hạng ${best.grade}).`;
+    return `Phong độ tương đối đồng đều giữa các giai đoạn (ACPL ${best.acpl}).`;
   }
-  return `Tốt nhất ở ${PHASE_SHORT[best.phase]} (${best.grade}), cần cải thiện ${PHASE_SHORT[worst.phase]} (${worst.grade}).`;
+  return `Điểm mạnh: ${PHASE_SHORT[best.phase]} ổn định (ACPL ${best.acpl}). Ưu tiên luyện tập: giảm sai số ở ${PHASE_SHORT[worst.phase]} (ACPL ${worst.acpl}).`;
 }
 
 // Dựng phiếu điểm cho một màu quân từ dữ liệu Stockfish đã lưu.

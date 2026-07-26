@@ -333,3 +333,20 @@ fn v7_adds_profile_sync_watermark_columns_with_defaults() {
 
     initialize_database(&connection, false).expect("v7 migration must be idempotent");
 }
+
+#[test]
+fn creates_repertoire_tables_on_v8() {
+    let connection = Connection::open_in_memory().expect("open database");
+    initialize_database(&connection, false).expect("migrate database");
+    for table in ["repertoires", "repertoire_nodes", "repertoire_progress"] {
+        let exists: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists, 1, "thiếu bảng {table}");
+    }
+    initialize_database(&connection, false).expect("v8 migration must be idempotent");
+}

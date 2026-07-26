@@ -4,6 +4,8 @@ pub(crate) mod training;
 pub(crate) use training::*;
 pub(crate) mod cloud_content;
 pub(crate) use cloud_content::*;
+pub(crate) mod repertoire;
+pub(crate) use repertoire::*;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct ExplainMoveRequest {

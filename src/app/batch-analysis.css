@@ -7,17 +7,17 @@
 .batch-scope {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 6px;
 }
-.batch-scope label {
+.batch-scope-limit {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
   color: var(--ink);
 }
-.batch-scope select { width: auto; margin: 0 2px; }
+.batch-scope-limit select { width: auto; margin: 0 2px; }
 
 .batch-card {
   position: fixed;

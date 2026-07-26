@@ -24,7 +24,10 @@ pub(crate) fn initialize_account_registry(data_dir: &Path) -> rusqlite::Result<C
     Ok(registry)
 }
 
-pub(crate) fn legacy_owner_hash(guest: &Connection, registry: &Connection) -> Result<Option<String>, String> {
+pub(crate) fn legacy_owner_hash(
+    guest: &Connection,
+    registry: &Connection,
+) -> Result<Option<String>, String> {
     if let Some(owner) = registry
         .query_row(
             "SELECT value FROM settings WHERE key = 'legacy_owner_hash'",

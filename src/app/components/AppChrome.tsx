@@ -73,6 +73,7 @@ export function AppChrome() {
     authLoading,
     cloudSyncing,
     currentGameId,
+    workspaceMode,
     error,
     loading,
     savedGames,
@@ -95,6 +96,7 @@ export function AppChrome() {
     refreshSavedGames,
     openDashboard,
     openTraining,
+    openOpeningTrainer,
     setBatchSheetOpen,
     handleGoogleLogout,
     changeActiveProfile,
@@ -223,9 +225,11 @@ export function AppChrome() {
           <button className={`icon-button mobile-sidebar-action ${firebaseUser ? "signed-in" : ""}`} onClick={() => setAccountOpen(true)} aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}>
             {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
           </button>
-          <div className={`service-pill ${engine ? "online" : "working"}`}>
+          <div className={`service-pill ${workspaceMode !== "analysis" || engine ? "online" : "working"}`}>
             <Cpu size={14} />
-            {engine
+            {workspaceMode !== "analysis"
+              ? "Stockfish sẵn sàng"
+              : engine
               ? <ChessTerm term="depth">{`Stockfish d${engine.depth}`}</ChessTerm>
               : "Stockfish đang tính"}
           </div>
@@ -237,6 +241,9 @@ export function AppChrome() {
           </button>
           <button className="ghost-button dashboard-button" onClick={openTraining}>
             <Dumbbell size={16} /> Mistake Lab
+          </button>
+          <button className="ghost-button dashboard-button" onClick={openOpeningTrainer}>
+            <BookOpen size={16} /> Opening Trainer
           </button>
           <button className="ghost-button dashboard-button" onClick={() => setBatchSheetOpen(true)}>
             <ListChecks size={16} /> Phân tích loạt

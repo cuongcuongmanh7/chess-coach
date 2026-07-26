@@ -1,0 +1,69 @@
+.training-square-content.last-move-from { box-shadow: inset 0 0 0 999px rgba(246,190,73,.25); }
+.training-square-content.last-move-to { box-shadow: inset 0 0 0 999px rgba(246,190,73,.5); }
+
+.repertoire-picker { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+.repertoire-build {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 18px; border: 1px solid rgba(129,182,76,.22); border-radius: 12px;
+  background: rgba(129,182,76,.055);
+}
+.repertoire-build-copy { display: grid; gap: 4px; }
+.repertoire-build-copy strong { color: #e3e2e0; font-size: 15px; }
+.repertoire-build-copy span { color: #8b847e; font-size: 12px; }
+.repertoire-build-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.repertoire-build-progress {
+  padding: 14px 16px; display: grid; gap: 8px;
+  border: 1px solid rgba(129,182,76,.22); border-radius: 12px; background: rgba(129,182,76,.055);
+}
+.repertoire-build-progress-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  color: #e3e2e0; font-size: 13px; font-weight: 600;
+}
+.repertoire-build-progress-head > span { display: inline-flex; align-items: center; gap: 7px; }
+.repertoire-build-progress-count { color: #9b9590; font-weight: 500; font-variant-numeric: tabular-nums; }
+.repertoire-build-progress-sub { color: #857f78; font-size: 11px; }
+
+.repertoire-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.repertoire-empty {
+  grid-column: 1 / -1; min-height: 160px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; color: #817b75;
+  text-align: center; font-size: 13px;
+}
+.repertoire-card {
+  display: flex; align-items: center; gap: 12px; padding: 13px 15px; text-align: left;
+  border: 1px solid #353230; border-radius: 11px; background: #111010; color: inherit;
+  transition: border-color .15s ease, background .15s ease;
+}
+.repertoire-card:hover { border-color: #4c4945; }
+.repertoire-card.active { border-color: var(--green); background: #14261a; }
+.repertoire-card-color {
+  flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center;
+  border-radius: 9px; font-size: 22px;
+}
+.repertoire-card-color.white { color: #191816; background: #e8e6e2; }
+.repertoire-card-color.black { color: #eceae7; background: #2a2723; }
+.repertoire-card-body { display: grid; gap: 3px; min-width: 0; }
+.repertoire-card-body strong { color: #e8e7e5; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repertoire-card-body small { color: #857f78; font-size: 11px; }
+.repertoire-picker-footer { display: flex; justify-content: flex-end; }
+
+.repertoire-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.repertoire-status strong { color: #e8e7e5; font-size: 15px; }
+.repertoire-score { color: #9b9590; font-size: 13px; font-variant-numeric: tabular-nums; }
+.repertoire-message { margin: 10px 0 0; color: #b3aea8; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+.repertoire-complete { margin-top: 12px; display: flex; align-items: center; gap: 8px; color: var(--green); font-size: 14px; }
+.repertoire-session-actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+.repertoire-deviation {
+  margin-top: 14px; padding: 14px; display: grid; gap: 11px;
+  border: 1px solid rgba(214,120,90,.35); border-radius: 11px; background: rgba(214,120,90,.07);
+}
+.repertoire-deviation-head { display: flex; align-items: center; gap: 8px; color: #e6c3a0; font-size: 13px; }
+.repertoire-deviation-expected { margin: 0; color: #cfc9c3; font-size: 13px; }
+.repertoire-deviation-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.repertoire-deviation-save { display: flex; gap: 8px; flex-wrap: wrap; }
+.repertoire-deviation-save input {
+  flex: 1 1 180px; min-width: 0; height: 36px; padding: 0 10px;
+  border: 1px solid #363431; border-radius: 8px; color: #b9b6b2; background: #0f0e0d; font-size: 12px;
+}

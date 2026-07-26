@@ -1,0 +1,45 @@
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.segmented-option {
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+.segmented-option:hover:not(:disabled) { color: var(--ink); }
+.segmented-option.active { color: #fff; background: var(--green); }
+.segmented-option:disabled { opacity: .5; cursor: default; }
+.segmented-option:focus-visible { outline: 2px solid rgba(129,182,76,.62); outline-offset: 1px; }
+.segmented-icon { display: inline-flex; align-items: center; }
+.segmented-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255,255,255,.08);
+  border: 1px solid var(--line);
+}
+.segmented-option.active .segmented-badge {
+  color: #fff;
+  background: rgba(0,0,0,.28);
+  border-color: rgba(0,0,0,.2);
+}

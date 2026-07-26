@@ -22,6 +22,7 @@ import { useLibraryController } from "./useLibraryController";
 import { useCoachController } from "./useCoachController";
 import { useBoardController } from "./useBoardController";
 import { useTrainingController } from "../../features/training/hooks/useTrainingController";
+import { useOpeningTrainerController } from "../../features/opening-trainer/hooks/useOpeningTrainerController";
 import { useTacticsController } from "../../features/tactics/hooks/useTacticsController";
 import {
   buildPlayerMoveStats,
@@ -29,6 +30,7 @@ import {
 } from "../../features/analysis/playerMoveStats";
 import { useCandidateLabComposition } from "./useCandidateLabComposition";
 import { useBatchAnalysis } from "./useBatchAnalysis";
+import { useStartupResume } from "./useStartupResume";
 
 export function useAppController() {
   const appState = useAppState();
@@ -141,6 +143,11 @@ export function useAppController() {
     if (firebaseUser) void syncCloud(firebaseUser, false);
   }, [firebaseUser, syncCloud]);
   const trainingController = useTrainingController(activeProfileId, syncTrainingProgress);
+  const openingTrainerController = useOpeningTrainerController(
+    activeProfileId,
+    activeProfile?.username ?? null,
+    syncTrainingProgress,
+  );
   const toggleSfx = () => {
     const next = !sfxEnabled;
     if (!next) playSfx("tap");
@@ -191,6 +198,7 @@ export function useAppController() {
     refreshSavedGames,
     hydrateEngineCache,
   });
+  useStartupResume(appState, libraryController.loadAnalysis);
   const coachController = useCoachController(appState, {
     step,
     engine,
@@ -232,6 +240,7 @@ export function useAppController() {
     ...candidateController,
     ...boardController,
     ...trainingController,
+    ...openingTrainerController,
     ...batchController,
     step,
     engine,

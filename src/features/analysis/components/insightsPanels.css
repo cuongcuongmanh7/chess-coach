@@ -1,24 +1,4 @@
-.insights-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
-}
-.insights-tabs button {
-  padding: 6px 14px;
-  font-size: 13px;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-}
-.insights-tabs button:hover { color: var(--ink); background: var(--surface-2); }
-.insights-tabs button.active {
-  color: var(--ink);
-  background: var(--surface-2);
-  border-color: var(--line);
-}
+.insights-tabs { margin-bottom: 14px; }
 .insights-panel { display: flex; flex-direction: column; gap: 16px; }
 .insights-overall {
   display: grid;

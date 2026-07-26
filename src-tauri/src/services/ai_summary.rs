@@ -13,8 +13,7 @@ const SUMMARY_LABELS: [&str; 7] = [
     "ĐEN · ƯU TIÊN",
 ];
 const NUMBER_WORDS: [&str; 13] = [
-    "một", "hai", "ba", "bốn", "tư", "năm", "sáu", "bảy",
-    "tám", "chín", "mười", "mươi", "trăm",
+    "một", "hai", "ba", "bốn", "tư", "năm", "sáu", "bảy", "tám", "chín", "mười", "mươi", "trăm",
 ];
 
 fn normalized_summary_lines(text: &str) -> Vec<String> {
@@ -87,7 +86,9 @@ fn critical_example(request: &ExplainGameRequest, side: &str) -> String {
                 position.best_move
             )
         })
-        .unwrap_or_else(|| "Không có vị trí Mistake/Blunder nổi bật trong dữ liệu đã lưu.".to_string())
+        .unwrap_or_else(|| {
+            "Không có vị trí Mistake/Blunder nổi bật trong dữ liệu đã lưu.".to_string()
+        })
 }
 
 pub(crate) fn deterministic_game_summary(request: &ExplainGameRequest) -> String {
@@ -175,7 +176,9 @@ mod tests {
 
     #[test]
     fn rejects_spelled_numbers_and_fallback_keeps_digits() {
-        assert!(summary_has_spelled_numbers("ACPL sáu mươi hai và bảy mươi ba phần trăm"));
+        assert!(summary_has_spelled_numbers(
+            "ACPL sáu mươi hai và bảy mươi ba phần trăm"
+        ));
         let fallback = normalize_game_summary("TỔNG QUAN: năm mươi hai nước", &request());
         assert!(fallback.contains("52 nước"));
         assert!(fallback.contains("ACPL 62"));

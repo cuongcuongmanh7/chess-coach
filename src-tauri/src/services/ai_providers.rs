@@ -225,15 +225,8 @@ pub(crate) async fn summarize_game(
         .map_err(|_| "Không thể khởi tạo kết nối AI.".to_string())?;
     let input = serde_json::to_value(&request)
         .map_err(|_| "Không thể chuẩn bị dữ liệu tổng kết ván đấu.".to_string())?;
-    let raw_text = request_game_summary(
-        &client,
-        &key,
-        provider,
-        &model,
-        GAME_SUMMARY_PROMPT,
-        &input,
-    )
-    .await?;
+    let raw_text =
+        request_game_summary(&client, &key, provider, &model, GAME_SUMMARY_PROMPT, &input).await?;
     let candidate = if game_summary_is_valid(&raw_text, &request) {
         raw_text
     } else {
@@ -244,16 +237,9 @@ pub(crate) async fn summarize_game(
             "du_lieu_goc": &request,
             "phan_hoi_can_sua": raw_text,
         });
-        request_game_summary(
-            &client,
-            &key,
-            provider,
-            &model,
-            &retry_prompt,
-            &retry_input,
-        )
-        .await
-        .unwrap_or_default()
+        request_game_summary(&client, &key, provider, &model, &retry_prompt, &retry_input)
+            .await
+            .unwrap_or_default()
     };
     let text = normalize_game_summary(&candidate, &request);
     write_cached_explanation(

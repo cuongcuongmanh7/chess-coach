@@ -42,6 +42,7 @@ import {
   X,
 } from "lucide-react";
 import appIcon from "../../../src-tauri/icons/128x128.png";
+import { Segmented } from "../../shared/components/Segmented";
 import {
   GEMINI_MODELS,
   OPENAI_MODELS,
@@ -174,10 +175,15 @@ export function LibraryAccountModals() {
 
             <div className="profile-add-form">
               <h3>Thêm hồ sơ</h3>
-              <div className="provider-switch" role="group" aria-label="Nền tảng hồ sơ mới">
-                <button className={newProfilePlatform === "chesscom" ? "active" : ""} onClick={() => setNewProfilePlatform("chesscom")}>Chess.com</button>
-                <button className={newProfilePlatform === "lichess" ? "active" : ""} onClick={() => setNewProfilePlatform("lichess")}>Lichess</button>
-              </div>
+              <Segmented
+                ariaLabel="Nền tảng hồ sơ mới"
+                value={newProfilePlatform}
+                onChange={setNewProfilePlatform}
+                options={[
+                  { value: "chesscom", label: "Chess.com" },
+                  { value: "lichess", label: "Lichess" },
+                ]}
+              />
               <div className="profile-add-row">
                 <input value={newProfileUsername} onChange={(event) => setNewProfileUsername(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void addPlayerProfile(); }} placeholder="Nhập username" aria-label="Username hồ sơ mới" />
                 <button className="primary-button" onClick={() => void addPlayerProfile()} disabled={profilesLoading || !newProfileUsername.trim()}><UserPlus size={15} /> Thêm</button>

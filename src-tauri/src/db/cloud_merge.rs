@@ -113,7 +113,13 @@ pub(crate) fn merge_cloud_changes_connection(
                        ELSE sync_watermark
                      END
                  WHERE platform = ?1 AND username = ?2 COLLATE NOCASE",
-                params![platform, username, &profile.last_sync_at, &profile.sync_watermark, profile.sync_gap as i64],
+                params![
+                    platform,
+                    username,
+                    &profile.last_sync_at,
+                    &profile.sync_watermark,
+                    profile.sync_gap as i64
+                ],
             )
             .map_err(|_| "Không thể cập nhật hồ sơ từ cloud.".to_string())?;
         if change.needs_upgrade {

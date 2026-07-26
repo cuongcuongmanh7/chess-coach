@@ -64,7 +64,7 @@ test("chỉ tính nước của đúng màu, gộp theo giai đoạn và lấy �
   assert.equal(middle.firstIndex, 4);
 });
 
-test("chỉ hiện các giai đoạn có dữ liệu và dựng tóm tắt best/worst", () => {
+test("chỉ tính các giai đoạn có dữ liệu và dựng tóm tắt có tính hành động", () => {
   const steps = [
     { ply: 1, color: "w", phase: "Khai cuộc" },
     { ply: 2, color: "w", phase: "Trung cuộc" },
@@ -75,6 +75,8 @@ test("chỉ hiện các giai đoạn có dữ liệu và dựng tóm tắt best/
   };
   const card = buildReportCard(steps, engineCache, "w");
   assert.equal(card.phases.length, 2);
-  assert.match(card.summary, /Tốt nhất ở khai cuộc/);
-  assert.match(card.summary, /cần cải thiện trung cuộc/);
+  assert.match(card.summary, /Điểm mạnh: khai cuộc ổn định/);
+  assert.match(card.summary, /Ưu tiên luyện tập: giảm sai số ở trung cuộc/);
+  assert.match(card.summary, /ACPL 5/);
+  assert.match(card.summary, /ACPL 120/);
 });

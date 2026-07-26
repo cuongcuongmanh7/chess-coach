@@ -68,6 +68,7 @@ import { GameReportCard } from "../../features/analysis/components/GameReportCar
 import { MoveQualityIcon } from "../../features/analysis/components/MoveQualityIcon";
 import { InsightsResultsPanel, InsightsRhythmPanel } from "../../features/analysis/components/InsightsPanels";
 import { playerColorForUsername } from "../../features/analysis/playerMoveStats";
+import { Segmented } from "../../shared/components/Segmented";
 
 const GameStoryPanel = lazy(() => import(
   "../../features/game-story/components/GameStoryPanel"
@@ -256,11 +257,17 @@ export function GameInsightsModals() {
               </div>
             ) : (
               <div className="dashboard-content">
-                <div className="insights-tabs" role="tablist" aria-label="Nhóm thống kê">
-                  <button className={insightsTab === "quality" ? "active" : ""} onClick={() => setInsightsTab("quality")}>Chất lượng</button>
-                  <button className={insightsTab === "results" ? "active" : ""} onClick={() => setInsightsTab("results")}>Kết quả</button>
-                  <button className={insightsTab === "rhythm" ? "active" : ""} onClick={() => setInsightsTab("rhythm")}>Nhịp độ</button>
-                </div>
+                <Segmented
+                  className="insights-tabs"
+                  ariaLabel="Nhóm thống kê"
+                  value={insightsTab}
+                  onChange={setInsightsTab}
+                  options={[
+                    { value: "quality", label: "Chất lượng" },
+                    { value: "results", label: "Kết quả" },
+                    { value: "rhythm", label: "Nhịp độ" },
+                  ]}
+                />
                 {insightsTab === "quality" && (<>
                 <div className="dashboard-metrics">
                   <div><strong>{dashboardStats.games}</strong><span>Ván đã phân tích</span></div>

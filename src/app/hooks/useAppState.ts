@@ -48,6 +48,7 @@ const emptyBatchAnalysis: BatchAnalysisState = {
 
 export function useAppState() {
   const [analysis, setAnalysis] = useState<GameAnalysis>(() => analyzePgn(DEMO_PGN));
+  const [workspaceMode, setWorkspaceMode] = useState<"booting" | "empty" | "analysis">("booting");
   const [currentIndex, setCurrentIndex] = useState(7);
   const [orientation, setOrientation] = useState<"white" | "black">("white");
   const [importOpen, setImportOpen] = useState(false);
@@ -62,6 +63,7 @@ export function useAppState() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [startupDataReady, setStartupDataReady] = useState(false);
   const [googleLoginPending, setGoogleLoginPending] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
@@ -77,7 +79,9 @@ export function useAppState() {
   const [dashboardError, setDashboardError] = useState("");
   const [profiles, setProfiles] = useState<PlayerProfile[]>([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profilesInitialized, setProfilesInitialized] = useState(false);
   const [profilesError, setProfilesError] = useState("");
+  const [activeCloudDatabaseUid, setActiveCloudDatabaseUid] = useState<string | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<number | null>(null);
   const [newProfilePlatform, setNewProfilePlatform] = useState<SyncPlatform>("chesscom");
   const [newProfileUsername, setNewProfileUsername] = useState("");
@@ -141,17 +145,20 @@ export function useAppState() {
   const analysisWasCompleteRef = useRef(false);
 
   return {
-    analysis, setAnalysis, currentIndex, setCurrentIndex, orientation, setOrientation,
+    analysis, setAnalysis, workspaceMode, setWorkspaceMode,
+    currentIndex, setCurrentIndex, orientation, setOrientation,
     importOpen, setImportOpen, libraryOpen, setLibraryOpen, sidebarCollapsed, setSidebarCollapsed,
     dashboardOpen, setDashboardOpen, profilesOpen, setProfilesOpen, settingsOpen, setSettingsOpen,
     sfxEnabled, setSfxEnabled, accountOpen, setAccountOpen, firebaseUser, setFirebaseUser,
-    authLoading, setAuthLoading, googleLoginPending, setGoogleLoginPending,
+    authLoading, setAuthLoading, startupDataReady, setStartupDataReady,
+    googleLoginPending, setGoogleLoginPending,
     cloudSyncing, setCloudSyncing, lastCloudSyncAt, setLastCloudSyncAt,
     currentGameId, setCurrentGameId, input, setInput, error, setError, loading, setLoading,
     savedGames, setSavedGames, libraryLoading, setLibraryLoading, libraryError, setLibraryError,
     dashboardRecords, setDashboardRecords, dashboardLoading, setDashboardLoading,
     dashboardError, setDashboardError, profiles, setProfiles, profilesLoading, setProfilesLoading,
-    profilesError, setProfilesError, activeProfileId, setActiveProfileId,
+    profilesInitialized, setProfilesInitialized, profilesError, setProfilesError,
+    activeCloudDatabaseUid, setActiveCloudDatabaseUid, activeProfileId, setActiveProfileId,
     newProfilePlatform, setNewProfilePlatform, newProfileUsername, setNewProfileUsername,
     importMode, setImportMode, syncTimeClass, setSyncTimeClass,
     syncMode, setSyncMode, syncLimit, setSyncLimit, syncStatus, setSyncStatus,

@@ -33,6 +33,12 @@ mod db {
     #[cfg(test)]
     pub(crate) mod migrations_tests;
     pub(crate) mod profiles;
+    pub(crate) mod repertoire;
+    pub(crate) mod repertoire_schema;
+    #[cfg(test)]
+    pub(crate) mod repertoire_tests;
+    pub(crate) mod repertoire_write;
+    pub(crate) mod startup;
     pub(crate) mod training;
     pub(crate) mod training_cards;
     pub(crate) mod training_cleanup;
@@ -44,6 +50,7 @@ mod commands {
     pub(crate) mod cloud;
     pub(crate) mod games;
     pub(crate) mod profiles;
+    pub(crate) mod repertoire;
     pub(crate) mod sources;
     pub(crate) mod training;
 }
@@ -78,6 +85,10 @@ pub(crate) use db::game_previews::*;
 pub(crate) use db::games::*;
 pub(crate) use db::migrations::*;
 pub(crate) use db::profiles::*;
+pub(crate) use db::repertoire::*;
+pub(crate) use db::repertoire_schema::*;
+pub(crate) use db::repertoire_write::*;
+pub(crate) use db::startup::*;
 pub(crate) use db::training::*;
 pub(crate) use db::training_cards::*;
 pub(crate) use db::training_cleanup::*;
@@ -114,6 +125,7 @@ pub fn run() {
             commands::sources::fetch_chess_com_game,
             commands::games::save_game,
             commands::games::list_saved_games,
+            commands::games::resume_last_opened_game,
             commands::games::save_game_previews,
             commands::games::open_saved_game,
             commands::games::delete_saved_game,
@@ -127,6 +139,12 @@ pub fn run() {
             commands::training::review_training_card,
             commands::training::update_training_card,
             commands::training::get_training_stats,
+            commands::repertoire::save_repertoire,
+            commands::repertoire::list_repertoires,
+            commands::repertoire::get_repertoire_tree,
+            commands::repertoire::next_repertoire_nodes,
+            commands::repertoire::review_repertoire_node,
+            commands::repertoire::add_repertoire_move,
             commands::profiles::list_player_profiles,
             commands::profiles::add_player_profile,
             commands::profiles::delete_player_profile,

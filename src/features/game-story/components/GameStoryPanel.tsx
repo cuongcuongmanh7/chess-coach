@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Activity, ChevronRight, ChevronUp, Clock3, Gauge, Sparkles, Timer, Zap } from "lucide-react";
 import type { AnalysisStep } from "../../../analysis";
+import { Segmented } from "../../../shared/components/Segmented";
 import type { DisplayMoveQuality } from "../../analysis/moveClassification";
 import type { EngineMoveAnalysis } from "../../../stockfish";
 import { buildGameStory, evaluationForPerspective } from "../model";
@@ -45,18 +46,17 @@ export function GameStoryPanel({
           </span>
         </div>
         <div className="game-story-toolbar">
-          <div className="perspective-switch" role="group" aria-label="Góc nhìn biểu đồ">
+          <div className="perspective-switch">
             <span>Góc nhìn</span>
-            {(["white", "black"] as const).map((side) => (
-              <button
-                key={side}
-                className={perspective === side ? "active" : ""}
-                onClick={() => setPerspective(side)}
-                aria-pressed={perspective === side}
-              >
-                {side === "white" ? "Trắng" : "Đen"}
-              </button>
-            ))}
+            <Segmented
+              ariaLabel="Góc nhìn biểu đồ"
+              value={perspective}
+              onChange={setPerspective}
+              options={[
+                { value: "white", label: "Trắng" },
+                { value: "black", label: "Đen" },
+              ]}
+            />
           </div>
           <div className="game-story-controls" aria-label="Tùy chọn biểu đồ">
             <button

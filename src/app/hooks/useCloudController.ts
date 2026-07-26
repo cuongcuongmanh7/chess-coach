@@ -1,6 +1,4 @@
 import { useCallback } from "react";
-import { analyzePgn } from "../../analysis";
-import { DEMO_PGN } from "../../demo";
 import {
   cancelGoogleSignIn,
   downloadCloudChanges,
@@ -26,11 +24,10 @@ import { profileRepository } from "../../features/profiles/services/profileRepos
 import { isTauri } from "../../shared/services/tauriClient";
 import type { CloudAckToken, CloudMergeResult } from "../../shared/types/tauri";
 import type { AppState } from "./useAppState";
+import { useDatabaseReset } from "./useDatabaseReset";
 
 export function useCloudController(state: AppState, accountSwitchBusy: boolean) {
   const {
-    setAnalysis,
-    setCurrentIndex,
     setAccountOpen,
     firebaseUser,
     setFirebaseUser,
@@ -39,28 +36,24 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     googleLoginPending,
     setGoogleLoginPending,
     setCloudSyncing,
+    setStartupDataReady,
     setLastCloudSyncAt,
-    setCurrentGameId,
     error,
     setSavedGames,
     setLibraryLoading,
     setLibraryError,
-    setDashboardRecords,
     profiles,
     setProfiles,
     setProfilesLoading,
+    setProfilesInitialized,
     setProfilesError,
+    setActiveCloudDatabaseUid,
     activeProfileId,
     setActiveProfileId,
     setSyncNotice,
-    setEngineCache,
-    setFullAnalysis,
-    setGameCoachSummary,
-    setAiCache,
     setProvider,
     setModel,
     setAutoExplainMode,
-    fullAnalysisAbortRef,
     cloudSyncInFlightRef,
     cloudSyncPendingRef,
     cloudRetryTimerRef,
@@ -69,8 +62,12 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     cloudSyncedUserRef,
     activeProfileStorageKeyRef,
   } = state;
+  const resetForDatabaseSwitch = useDatabaseReset(state);
   const refreshProfiles = useCallback(async (preferredId?: number) => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setProfilesInitialized(true);
+      return;
+    }
     setProfilesLoading(true);
     setProfilesError("");
     try {
@@ -89,6 +86,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       setProfilesError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setProfilesLoading(false);
+      setProfilesInitialized(true);
     }
   }, []);
 
@@ -109,22 +107,6 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     }
   }, [activeProfileId]);
 
-  const resetForDatabaseSwitch = useCallback(() => {
-    fullAnalysisAbortRef.current?.abort();
-    fullAnalysisAbortRef.current = null;
-    setAnalysis(analyzePgn(DEMO_PGN));
-    setCurrentIndex(7);
-    setCurrentGameId(null);
-    setProfiles([]);
-    setSavedGames([]);
-    setDashboardRecords([]);
-    setActiveProfileId(null);
-    setEngineCache({});
-    setAiCache({});
-    setGameCoachSummary(null);
-    setFullAnalysis({ running: false, complete: false, completed: 0, total: 0, error: "" });
-  }, []);
-
   const syncCloud = useCallback(async (
     targetUser: FirebaseUser | null = firebaseUser,
     showSuccess = true,
@@ -143,6 +125,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       cloudRetryTimerRef.current = null;
     }
     cloudSyncInFlightRef.current = true;
+    setStartupDataReady(false);
     setCloudSyncing(true);
     let activeTokens: CloudAckToken[] = [];
     let activeRetryAttempt = 0;
@@ -153,6 +136,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       do {
         cloudSyncPendingRef.current = false;
         const activation = await localCloudRepository.activate(targetUser.uid);
+        setActiveCloudDatabaseUid(targetUser.uid);
         if (activation.changed) {
           activeProfileStorageKeyRef.current = `kypho-active-profile-id:${targetUser.uid}`;
           resetForDatabaseSwitch();
@@ -225,6 +209,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     } finally {
       cloudSyncInFlightRef.current = false;
       setCloudSyncing(false);
+      setStartupDataReady(true);
       if (cloudSyncPendingRef.current && cloudRetryTimerRef.current === null) {
         window.setTimeout(() => cloudRetryHandlerRef.current(), 0);
       }
@@ -275,6 +260,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     try {
       await signOutFirebase();
       await localCloudRepository.deactivate();
+      setActiveCloudDatabaseUid(null);
       activeProfileStorageKeyRef.current = "kypho-active-profile-id:guest";
       if (cloudRetryTimerRef.current !== null) {
         window.clearTimeout(cloudRetryTimerRef.current);

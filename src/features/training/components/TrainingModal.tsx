@@ -21,6 +21,7 @@ import { uniqueTrainingValues } from "../utils";
 import { tacticLabel } from "../../tactics/presentation.ts";
 import { TrainingBoard } from "./TrainingBoard";
 import { TrainingTimeline } from "./TrainingTimeline";
+import { Segmented } from "../../../shared/components/Segmented";
 
 const QUEUES: Array<{ id: TrainingQueue; label: string }> = [
   { id: "due", label: "Đến hạn" },
@@ -210,13 +211,13 @@ export function TrainingModal() {
             </div>
 
             <div className="training-toolbar">
-              <div className="training-queues">
-                {QUEUES.map((queue) => (
-                  <button className={trainingQueue === queue.id ? "active" : ""} key={queue.id} onClick={() => setTrainingQueue(queue.id)}>
-                    {queue.label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                className="training-queues"
+                ariaLabel="Bộ lọc hàng đợi bài tập"
+                value={trainingQueue}
+                onChange={setTrainingQueue}
+                options={QUEUES.map((queue) => ({ value: queue.id, label: queue.label }))}
+              />
               <label className="training-inaccuracy-toggle">
                 <input type="checkbox" checked={includeInaccuracies} onChange={(event) => setIncludeInaccuracies(event.target.checked)} />
                 Tạo thêm bài Thiếu chính xác

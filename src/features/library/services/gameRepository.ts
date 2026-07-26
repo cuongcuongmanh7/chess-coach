@@ -12,6 +12,9 @@ export const gameRepository = {
   list(profileId: number | null) {
     return invokeCommand<SavedGameSummary[]>("list_saved_games", { profileId });
   },
+  resume(profileId: number | null) {
+    return invokeCommand<SavedGameDetail | null>("resume_last_opened_game", { profileId });
+  },
   open(id: string) {
     return invokeCommand<SavedGameDetail>("open_saved_game", { id });
   },

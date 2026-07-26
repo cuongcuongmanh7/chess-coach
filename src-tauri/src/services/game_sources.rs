@@ -287,10 +287,12 @@ pub(crate) async fn fetch_recent_games(
         .map_err(|_| "Không thể khởi tạo kết nối mạng.".to_string())?;
     let (pgns, reached_watermark) = match request.platform.as_str() {
         "chesscom" => {
-            fetch_recent_chess_com_games(&client, &username, limit, time_class, request.since_ms).await?
+            fetch_recent_chess_com_games(&client, &username, limit, time_class, request.since_ms)
+                .await?
         }
         "lichess" => {
-            fetch_recent_lichess_games(&client, &username, limit, time_class, request.since_ms).await?
+            fetch_recent_lichess_games(&client, &username, limit, time_class, request.since_ms)
+                .await?
         }
         _ => return Err("Nền tảng đồng bộ không hợp lệ.".to_string()),
     };

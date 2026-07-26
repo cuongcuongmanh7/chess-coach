@@ -14,6 +14,7 @@ import type { PlayerProfile, SavedGameSummary } from "../../shared/types/tauri";
 import type { useCloudController } from "./useCloudController";
 import type { useDataController } from "./useDataController";
 import type { AppState } from "./useAppState";
+import { useLoadAnalysis } from "./useLoadAnalysis";
 
 type CloudController = ReturnType<typeof useCloudController>;
 type DataController = ReturnType<typeof useDataController>;
@@ -36,12 +37,9 @@ export function useLibraryController(
   }: LibraryDependencies,
 ) {
   const {
-    setAnalysis,
-    setCurrentIndex,
     setImportOpen,
     setLibraryOpen,
     firebaseUser,
-    setCurrentGameId,
     input,
     setInput,
     error,
@@ -58,50 +56,8 @@ export function useLibraryController(
     setSyncStatus,
     setSyncNotice,
     setSyncProgress,
-    setEngineCache,
-    setRetryState,
-    setPromotionPending,
-    setVariationState,
-    setVariationPlaying,
-    setSummaryOpen,
-    setFullAnalysis,
-    setGameCoachSummary,
-    setGameCoachLoading,
-    setGameCoachError,
-    setAiCache,
-    cacheLookupsRef,
-    cacheMissesRef,
-    autoAttemptsRef,
-    fullAnalysisAbortRef,
   } = state;
-  const loadAnalysis = (pgn: string, gameId: string | null = null) => {
-    const next = analyzePgn(pgn);
-    fullAnalysisAbortRef.current?.abort();
-    fullAnalysisAbortRef.current = null;
-    setAnalysis(next);
-    setCurrentGameId(gameId);
-    setCurrentIndex(0);
-    setEngineCache({});
-    setAiCache({});
-    setGameCoachSummary(null);
-    setGameCoachError("");
-    setGameCoachLoading(false);
-    setRetryState(null);
-    setPromotionPending(null);
-    setVariationState(null);
-    setVariationPlaying(false);
-    setSummaryOpen(false);
-    setLibraryOpen(false);
-    setFullAnalysis({ running: false, complete: false, completed: 0, total: next.steps.length, error: "" });
-    cacheLookupsRef.current.clear();
-    cacheMissesRef.current.clear();
-    autoAttemptsRef.current.clear();
-    setImportOpen(false);
-    setInput("");
-    setError("");
-    if (gameId) void hydrateEngineCache(gameId, next);
-    return next;
-  };
+  const loadAnalysis = useLoadAnalysis(state, hydrateEngineCache);
 
   const handleImport = async () => {
     setError("");

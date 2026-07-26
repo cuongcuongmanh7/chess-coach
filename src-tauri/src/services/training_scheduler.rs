@@ -79,22 +79,46 @@ mod tests {
 
     #[test]
     fn schedules_wrong_and_revealed_for_ten_minutes() {
-        assert_eq!(schedule_review(7, 2, 36.0, 0, 0, 1_000, false).delay_seconds, 600);
-        assert_eq!(schedule_review(7, 2, 0.0, 3, 0, 1_000, false).delay_seconds, 600);
-        assert_eq!(schedule_review(7, 2, 0.0, 3, 0, 1_000, false).next_streak, 0);
+        assert_eq!(
+            schedule_review(7, 2, 36.0, 0, 0, 1_000, false).delay_seconds,
+            600
+        );
+        assert_eq!(
+            schedule_review(7, 2, 0.0, 3, 0, 1_000, false).delay_seconds,
+            600
+        );
+        assert_eq!(
+            schedule_review(7, 2, 0.0, 3, 0, 1_000, false).next_streak,
+            0
+        );
     }
 
     #[test]
     fn schedules_assisted_slow_and_clean_reviews() {
-        assert_eq!(schedule_review(0, 0, 10.0, 1, 0, 1_000, false).interval_days, 1);
-        assert_eq!(schedule_review(0, 0, 10.0, 0, 0, 20_001, false).interval_days, 3);
-        assert_eq!(schedule_review(0, 0, 10.0, 0, 0, 1_000, false).interval_days, 7);
-        assert_eq!(schedule_review(60, 2, 10.0, 0, 0, 1_000, false).interval_days, 90);
+        assert_eq!(
+            schedule_review(0, 0, 10.0, 1, 0, 1_000, false).interval_days,
+            1
+        );
+        assert_eq!(
+            schedule_review(0, 0, 10.0, 0, 0, 20_001, false).interval_days,
+            3
+        );
+        assert_eq!(
+            schedule_review(0, 0, 10.0, 0, 0, 1_000, false).interval_days,
+            7
+        );
+        assert_eq!(
+            schedule_review(60, 2, 10.0, 0, 0, 1_000, false).interval_days,
+            90
+        );
     }
 
     #[test]
     fn only_counts_one_correct_streak_per_day() {
         assert_eq!(schedule_review(7, 2, 0.0, 0, 0, 1_000, true).next_streak, 2);
-        assert_eq!(schedule_review(7, 2, 0.0, 0, 0, 1_000, false).next_streak, 3);
+        assert_eq!(
+            schedule_review(7, 2, 0.0, 0, 0, 1_000, false).next_streak,
+            3
+        );
     }
 }

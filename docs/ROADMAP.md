@@ -124,10 +124,10 @@ Nợ kỹ thuật đang theo dõi:
 | 0.8.1 ✅ | Đồng bộ đa thiết bị | Hợp nhất cache Stockfish, lịch luyện, cache AI và cấu hình học | Hoàn thành 2026-07-24 |
 | 0.9.0 ✅ | Candidate Lab | Thử và so sánh candidate move hoàn toàn bằng Stockfish | Hoàn thành 2026-07-24 |
 | 0.10.0 ✅ | Insights, Batch & Sync | Insights Dashboard + report card/estimated Elo; phân tích toàn ván hàng loạt; đồng bộ tăng dần theo watermark | Triển khai 2026-07-24 |
-| 0.11.0 | Opening Trainer | Repertoire cá nhân và luyện nước đi lệch theory | 10–15 ngày |
+| 0.11.0 ✅ | Opening Trainer | Repertoire cá nhân dựng từ ván đã chơi; tự đáp đối thủ, luyện nước lệch theory, lưu biến phụ và phân tích tự do khi lệch | Triển khai 2026-07-26 |
 | 1.0.0 | Study Workspace | PGN có chú thích, cây biến và trải nghiệm ổn định | 10–15 ngày |
 
-Tiến độ theo số milestone phát hành: **8/10 hoàn thành (80%)**. Con số này chỉ thể hiện số mốc, không quy đổi theo độ lớn công việc.
+Tiến độ theo số milestone phát hành: **9/10 hoàn thành (90%)**. Con số này chỉ thể hiện số mốc, không quy đổi theo độ lớn công việc.
 
 Ước lượng không gồm thời gian phát hành Microsoft Store hoặc mobile.
 
@@ -647,6 +647,10 @@ Sync-until-watermark:
 
 ## 11. Milestone 0.11.0 — Opening Trainer cá nhân hóa
 
+**Trạng thái:** Triển khai và phát hành ngày 2026-07-26 (schema SQLite v8 với `repertoires`/`repertoire_nodes`/`repertoire_progress`; cây biến dựng ở TypeScript từ ván đã chơi, Rust chỉ validate + lưu seed; tái dùng `schedule_review` cho lịch ôn). Repertoire structure + progress hiện lưu **local-only**; đồng bộ tiến độ để fast-follow.
+
+Rebuild lịch sử cập nhật theo `(hồ sơ, màu, opening family)`, giữ nguyên các family không xuất hiện trong lượt quét hiện tại, bảo toàn tiến độ của node còn tồn tại và gộp các repertoire trùng tên.
+
 ### Chiến lược
 
 Không bắt đầu bằng việc dạy toàn bộ cơ sở dữ liệu khai cuộc. Bắt đầu từ những opening người dùng thực sự chơi.
@@ -876,7 +880,7 @@ Nếu có analytics trong tương lai, chỉ gửi dữ liệu tổng hợp khi 
 6. [x] Đồng bộ dữ liệu học tập đa thiết bị — v0.8.1.
 7. [x] Candidate Lab offline — v0.9.0.
 8. [x] Insights + report card, batch analysis, sync-until-watermark — v0.10.0.
-9. [ ] Opening Trainer cá nhân — v0.11.0.
+9. [x] Opening Trainer cá nhân — v0.11.0.
 10. [ ] PGN annotation, cây biến, tối ưu bundle và phát hành 1.0.
 
 Không bắt đầu tính năng mới trước khi hoàn tất phase 0. Sau phase 0, không nên làm Opening Trainer hoặc PGN tree trước Mistake Lab vì hai tính năng đó tạo thêm bề rộng, trong khi Mistake Lab tạo vòng lặp giá trị cốt lõi cho sản phẩm.

@@ -17,6 +17,14 @@ pub(crate) fn list_saved_games(
 }
 
 #[tauri::command]
+pub(crate) fn resume_last_opened_game(
+    database: tauri::State<'_, DatabaseState>,
+    profile_id: Option<i64>,
+) -> Result<Option<SavedGameDetail>, String> {
+    crate::resume_last_opened_game(database, profile_id)
+}
+
+#[tauri::command]
 pub(crate) fn save_game_previews(
     database: tauri::State<'_, DatabaseState>,
     updates: Vec<GamePreviewUpdate>,

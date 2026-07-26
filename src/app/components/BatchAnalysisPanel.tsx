@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppControllerContext } from "../AppControllerContext";
+import { Segmented } from "../../shared/components/Segmented";
 
 const TIME_CLASSES = [
   { value: "all", label: "Tất cả thể loại" },
@@ -60,19 +61,25 @@ export function BatchAnalysisPanel() {
 
             <div className="batch-count">Chưa phân tích: <strong>{available} ván</strong></div>
 
-            <div className="batch-scope" role="radiogroup" aria-label="Phạm vi phân tích">
-              <label>
-                <input type="radio" name="batch-scope" checked={!useLimit} onChange={() => setUseLimit(false)} />
-                Tất cả chưa phân tích ({available})
-              </label>
-              <label>
-                <input type="radio" name="batch-scope" checked={useLimit} onChange={() => setUseLimit(true)} />
-                Chỉ
-                <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} disabled={!useLimit} aria-label="Số ván">
-                  {[10, 20, 50, 100].map((value) => <option value={value} key={value}>{value}</option>)}
-                </select>
-                ván mới nhất
-              </label>
+            <div className="batch-scope">
+              <Segmented
+                ariaLabel="Phạm vi phân tích"
+                value={useLimit ? "limit" : "all"}
+                onChange={(next) => setUseLimit(next === "limit")}
+                options={[
+                  { value: "all", label: `Tất cả (${available})` },
+                  { value: "limit", label: "Chọn số ván" },
+                ]}
+              />
+              {useLimit && (
+                <label className="batch-scope-limit">
+                  Chỉ
+                  <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} aria-label="Số ván">
+                    {[10, 20, 50, 100].map((value) => <option value={value} key={value}>{value}</option>)}
+                  </select>
+                  ván mới nhất
+                </label>
+              )}
             </div>
 
             <div className="modal-note">Chạy tuần tự 1 ván/lần để không làm nóng máy. Có thể tạm dừng hoặc dừng bất cứ lúc nào.</div>

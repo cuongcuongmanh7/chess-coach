@@ -27,6 +27,18 @@
   display: inline-flex;
   color: var(--gold);
 }
+.report-card-title > em {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
 .report-card-elo {
   display: inline-flex;
   flex-direction: column;
@@ -36,10 +48,8 @@
 .report-card-elo strong {
   font-size: 22px;
   font-variant-numeric: tabular-nums;
-  color: var(--green);
+  color: var(--gold);
 }
-.report-card-elo.warn strong { color: var(--gold); }
-.report-card-elo.bad strong { color: var(--red); }
 .report-card-elo span {
   display: inline-flex;
   align-items: center;
@@ -72,6 +82,17 @@
   font-weight: 700;
   line-height: 1.1;
 }
+.report-phase-result {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.report-phase-result em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 650;
+}
 .report-phase-acpl { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .report-phase.good .report-phase-grade { color: var(--green); }
 .report-phase.warn .report-phase-grade { color: var(--gold); }
@@ -79,6 +100,14 @@
 .report-phase.good { border-color: color-mix(in srgb, var(--green) 40%, var(--line)); }
 .report-phase.warn { border-color: color-mix(in srgb, var(--gold) 38%, var(--line)); }
 .report-phase.bad { border-color: color-mix(in srgb, var(--red) 42%, var(--line)); }
+.report-phase.unavailable {
+  justify-content: center;
+  border-style: dashed;
+  color: #6e6964;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.report-phase.unavailable .report-phase-grade,
+.report-phase.unavailable .report-phase-acpl { color: #6e6964; }
 .report-card-summary {
   margin: 0;
   font-size: 12px;

@@ -39,6 +39,16 @@
 .sidebar-library .library-player.black { grid-area: black; }
 .sidebar-library .library-player strong { font-size: 10px; }
 .sidebar-library .library-player small, .sidebar-library .library-player .side-badge { display: none; }
+.sidebar-library .library-player::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+}
+.sidebar-library .library-player.white::before { background: #eae9e8; border: 1px solid #cbcac7; }
+.sidebar-library .library-player.black::before { background: #161413; border: 1px solid #514e4a; }
 .sidebar-library .library-outcome { min-width: 54px; grid-area: outcome; align-self: stretch; justify-content: center; padding: 4px 6px; }
 .sidebar-library .library-outcome strong { font-size: 10px; }
 .sidebar-library .library-outcome small { font-size: 9px; }
