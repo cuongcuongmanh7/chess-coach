@@ -67,3 +67,21 @@
 .insights-hour i.warn { background: var(--gold); }
 .insights-hour i.bad { background: var(--red); }
 .insights-hour span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.insights-commentary ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.insights-commentary li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.insights-commentary li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+}

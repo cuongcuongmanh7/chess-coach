@@ -181,6 +181,8 @@ export function useBoardController(
     onPieceDrag: boardHints.onPieceDrag,
     onSquareClick: boardHints.onSquareClick,
     onSquareRightClick: boardHints.onSquareRightClick,
+    onMouseOverSquare: boardHints.onMouseOverSquare,
+    onMouseOutSquare: boardHints.onMouseOutSquare,
     onPieceDrop: (move: { sourceSquare: string; targetSquare: string | null }) => {
       const moved = candidateCanMove
         || (boardInteractionMode === "main" && candidateCanStartFromMainline)
@@ -193,6 +195,8 @@ export function useBoardController(
     allowDrawingArrows: false,
     showAnimations: true,
     animationDurationInMs: 220,
+    // Bóng đổ cho quân đang được nhấc/kéo (giống chess.com); giữ scale mặc định.
+    draggingPieceStyle: { filter: "drop-shadow(0 5px 2px rgba(0,0,0,.6)) drop-shadow(0 11px 7px rgba(0,0,0,.32))" },
     arrows: boardInteractionMode === "main" ? arrows : [],
     boardStyle: {
       borderRadius: "10px",
@@ -201,14 +205,28 @@ export function useBoardController(
     },
     darkSquareStyle: { backgroundColor: "#769656" },
     lightSquareStyle: { backgroundColor: "#eeeed2" },
-    squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
-      <div
-        className={`analysis-square-content${boardInteractionMode === "main" && square === step.from ? " last-move-from" : ""}${boardInteractionMode === "main" && square === step.to ? " last-move-to" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.from ? " candidate-move-from" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.to ? " candidate-move-to" : ""}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
-        style={squareStyles[square]}
-      >
-        {children}
-      </div>
-    ),
+    squareRenderer: ({ square, children, piece }: { square: string; children?: ReactNode; piece?: { pieceType: string } | null }) => {
+      // Highlight kiểu chess.com cho ô nước đi trước/sau (main mode) và ô đích khi
+      // rê quân: border xanh cho quân mình, đỏ cam cho quân đối phương.
+      const isLastMove = boardInteractionMode === "main" && (square === step.from || square === step.to);
+      const isHoverTarget = square === boardHints.hoverTargetSquare;
+      let highlight = "";
+      if (isLastMove) {
+        // "Của mình" = màu đang xem từ phía dưới bàn (orientation); quân đối phương → đỏ cam.
+        const ownColor = orientation === "white" ? "w" : "b";
+        highlight = step.color === ownColor ? " sq-hl sq-hl-own" : " sq-hl sq-hl-opp";
+      } else if (isHoverTarget) {
+        highlight = piece ? " sq-hl sq-hl-opp" : " sq-hl sq-hl-own";
+      }
+      return (
+        <div
+          className={`analysis-square-content${highlight}${boardInteractionMode === "variation" && square === variationMoveSquares?.from ? " variation-move-from" : ""}${boardInteractionMode === "variation" && square === variationMoveSquares?.to ? " variation-move-to" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.from ? " candidate-move-from" : ""}${boardInteractionMode === "candidate" && square === candidateMoveSquares?.to ? " candidate-move-to" : ""}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
+          style={squareStyles[square]}
+        >
+          {children}
+        </div>
+      );
+    },
     darkSquareNotationStyle: { color: "#eeeed2", fontSize: "11px", fontWeight: 700 },
     lightSquareNotationStyle: { color: "#769656", fontSize: "11px", fontWeight: 700 },
     alphaNotationStyle: { zIndex: 50, right: "3px", bottom: "2px", fontSize: "11px", fontWeight: 900, lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,.95), 0 0 2px rgba(255,255,255,.38)", pointerEvents: "none" },

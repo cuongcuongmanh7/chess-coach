@@ -7,11 +7,22 @@ import {
   overallTotals,
   type InsightsGame,
 } from "../insights";
+import { resultsCommentary, rhythmCommentary } from "../progressCommentary";
 
 function scoreTone(score: number): string {
   if (score >= 55) return "good";
   if (score <= 45) return "bad";
   return "warn";
+}
+
+export function InsightsCommentary({ lines }: { lines: string[] }) {
+  if (!lines.length) return null;
+  return (
+    <section className="dashboard-section insights-commentary">
+      <h3>Nhận xét &amp; kết luận</h3>
+      <ul>{lines.map((line, index) => <li key={index}>{line}</li>)}</ul>
+    </section>
+  );
 }
 
 function WdlBar({ wins, draws, losses, games }: { wins: number; draws: number; losses: number; games: number }) {
@@ -28,6 +39,7 @@ function WdlBar({ wins, draws, losses, games }: { wins: number; draws: number; l
 export function InsightsResultsPanel({ games, username }: { games: InsightsGame[]; username?: string | null }) {
   const overall = useMemo(() => overallTotals(games, username), [games, username]);
   const openings = useMemo(() => openingInsights(games, username), [games, username]);
+  const commentary = useMemo(() => resultsCommentary(overall, openings), [overall, openings]);
   if (!overall.games) {
     return <p className="insights-empty">Chưa xác định được kết quả ván cho hồ sơ này. Kết quả cần tên người chơi khớp header PGN.</p>;
   }
@@ -53,6 +65,7 @@ export function InsightsResultsPanel({ games, username }: { games: InsightsGame[
           ))}
         </div>
       </section>
+      <InsightsCommentary lines={commentary} />
     </div>
   );
 }
@@ -60,6 +73,7 @@ export function InsightsResultsPanel({ games, username }: { games: InsightsGame[
 export function InsightsRhythmPanel({ games, username }: { games: InsightsGame[]; username?: string | null }) {
   const hours = useMemo(() => hourInsights(games, username), [games, username]);
   const lengths = useMemo(() => lengthInsights(games, username), [games, username]);
+  const commentary = useMemo(() => rhythmCommentary(hours, lengths), [hours, lengths]);
   const maxHourGames = Math.max(1, ...hours.buckets.map((bucket) => bucket.games));
   return (
     <div className="insights-panel">
@@ -91,6 +105,7 @@ export function InsightsRhythmPanel({ games, username }: { games: InsightsGame[]
           ))}
         </div>
       </section>
+      <InsightsCommentary lines={commentary} />
     </div>
   );
 }

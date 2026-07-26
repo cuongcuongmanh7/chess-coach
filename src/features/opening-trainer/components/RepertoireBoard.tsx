@@ -24,6 +24,9 @@ export function RepertoireBoard({ session, color, onPieceDrop }: RepertoireBoard
   });
   const checkWarning = useCheckWarning(session.fen);
   const lastMove = session.lastMove;
+  // Bên vừa đi = ngược với bên đang tới lượt. Dùng để chọn màu highlight (xanh
+  // cho quân mình, đỏ cam cho quân đối phương).
+  const lastMoveColor = lastMove ? (turnColor(session.fen) === "w" ? "b" : "w") : null;
   const sideLabel = color === "w" ? "Trắng" : "Đen";
 
   return (
@@ -47,23 +50,36 @@ export function RepertoireBoard({ session, color, onPieceDrop }: RepertoireBoard
             onPieceDrag: boardHints.onPieceDrag,
             onSquareClick: boardHints.onSquareClick,
             onSquareRightClick: boardHints.onSquareRightClick,
+            onMouseOverSquare: boardHints.onMouseOverSquare,
+            onMouseOutSquare: boardHints.onMouseOutSquare,
             onPieceDrop: (move) => {
               const moved = onPieceDrop(move);
               if (moved) boardHints.clearSelection();
               return checkWarning.handleDropResult(move, moved);
             },
             squareStyles: boardHints.squareStyles,
-            squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
-              <div
-                className={`training-square-content${lastMove && square === lastMove.from ? " last-move-from" : ""}${lastMove && square === lastMove.to ? " last-move-to" : ""}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
-                style={boardHints.squareStyles[square]}
-              >
-                {children}
-              </div>
-            ),
+            squareRenderer: ({ square, children, piece }: { square: string; children?: ReactNode; piece?: { pieceType: string } | null }) => {
+              const isLastMove = lastMove && (square === lastMove.from || square === lastMove.to);
+              const isHoverTarget = square === boardHints.hoverTargetSquare;
+              let highlight = "";
+              if (isLastMove) {
+                highlight = lastMoveColor === color ? " sq-hl sq-hl-own" : " sq-hl sq-hl-opp";
+              } else if (isHoverTarget) {
+                highlight = piece ? " sq-hl sq-hl-opp" : " sq-hl sq-hl-own";
+              }
+              return (
+                <div
+                  className={`training-square-content${highlight}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
+                  style={boardHints.squareStyles[square]}
+                >
+                  {children}
+                </div>
+              );
+            },
             allowDrawingArrows: false,
             showAnimations: true,
             animationDurationInMs: 220,
+            draggingPieceStyle: { filter: "drop-shadow(0 5px 2px rgba(0,0,0,.6)) drop-shadow(0 11px 7px rgba(0,0,0,.32))" },
             boardStyle: { borderRadius: "10px", overflow: "hidden" },
             darkSquareStyle: { backgroundColor: "#769656" },
             lightSquareStyle: { backgroundColor: "#eeeed2" },

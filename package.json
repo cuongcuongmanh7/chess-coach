@@ -1,7 +1,7 @@
 {
   "name": "chess-coach-vn",
   "private": true,
-  "version": "0.11.1",
+  "version": "0.11.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,6 +20,7 @@
     "test:report-card": "node --test tests/report-card.test.mjs",
     "test:batch-analysis": "node --test tests/batch-analysis.test.mjs",
     "test:insights": "node --test tests/insights.test.mjs",
+    "test:progress-commentary": "node --test tests/progress-commentary.test.mjs",
     "test:cloud-owner": "node --test --test-isolation=none tests/cloud-owner.test.mjs",
     "test:repertoire-builder": "node --test tests/repertoire-builder.test.mjs",
     "update-openings": "node scripts/update-openings.mjs",

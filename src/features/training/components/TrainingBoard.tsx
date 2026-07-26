@@ -62,23 +62,31 @@ export function TrainingBoard({
             onPieceDrag: boardHints.onPieceDrag,
             onSquareClick: boardHints.onSquareClick,
             onSquareRightClick: boardHints.onSquareRightClick,
+            onMouseOverSquare: boardHints.onMouseOverSquare,
+            onMouseOutSquare: boardHints.onMouseOutSquare,
             onPieceDrop: (move) => {
               const moved = onPieceDrop(move);
               if (moved) boardHints.clearSelection();
               return checkWarning.handleDropResult(move, moved);
             },
             squareStyles: boardHints.squareStyles,
-            squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
-              <div
-                className={`training-square-content${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
-                style={boardHints.squareStyles[square]}
-              >
-                {children}
-              </div>
-            ),
+            squareRenderer: ({ square, children, piece }: { square: string; children?: ReactNode; piece?: { pieceType: string } | null }) => {
+              const highlight = square === boardHints.hoverTargetSquare
+                ? (piece ? " sq-hl sq-hl-opp" : " sq-hl sq-hl-own")
+                : "";
+              return (
+                <div
+                  className={`training-square-content${highlight}${square === checkWarning.kingSquare ? ` checked-king-square${checkWarning.warningActive ? " check-warning-active" : ""}` : ""}`}
+                  style={boardHints.squareStyles[square]}
+                >
+                  {children}
+                </div>
+              );
+            },
             allowDrawingArrows: false,
             showAnimations: true,
             animationDurationInMs: 220,
+            draggingPieceStyle: { filter: "drop-shadow(0 5px 2px rgba(0,0,0,.6)) drop-shadow(0 11px 7px rgba(0,0,0,.32))" },
             arrows: bestArrow,
             boardStyle: { borderRadius: "10px", overflow: "hidden" },
             darkSquareStyle: { backgroundColor: "#769656" },

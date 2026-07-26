@@ -66,7 +66,8 @@ import type { AiProvider } from "../../shared/types/tauri";
 import { resolveStoryPerspective } from "../../features/game-story/model";
 import { GameReportCard } from "../../features/analysis/components/GameReportCard";
 import { MoveQualityIcon } from "../../features/analysis/components/MoveQualityIcon";
-import { InsightsResultsPanel, InsightsRhythmPanel } from "../../features/analysis/components/InsightsPanels";
+import { InsightsResultsPanel, InsightsRhythmPanel, InsightsCommentary } from "../../features/analysis/components/InsightsPanels";
+import { qualityCommentary } from "../../features/analysis/progressCommentary";
 import { playerColorForUsername } from "../../features/analysis/playerMoveStats";
 import { Segmented } from "../../shared/components/Segmented";
 
@@ -318,6 +319,8 @@ export function GameInsightsModals() {
                     </section>
                   )}
                 </div>
+
+                <InsightsCommentary lines={qualityCommentary(dashboardStats)} />
                 </>)}
                 {insightsTab === "results" && <InsightsResultsPanel games={savedGames} username={activeProfile?.username} />}
                 {insightsTab === "rhythm" && <InsightsRhythmPanel games={savedGames} username={activeProfile?.username} />}

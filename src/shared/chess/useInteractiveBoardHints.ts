@@ -30,10 +30,12 @@ export function useInteractiveBoardHints({
   enabled,
 }: BoardHintOptions) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [hoveredSquare, setHoveredSquare] = useState<string | null>(null);
   const [highlightedSquares, setHighlightedSquares] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setSelectedSquare(null);
+    setHoveredSquare(null);
     setHighlightedSquares(new Set());
   }, [enabled, fen]);
 
@@ -46,7 +48,17 @@ export function useInteractiveBoardHints({
   const clearSelection = useCallback(() => setSelectedSquare(null), []);
   const clearAllHighlights = useCallback(() => {
     setSelectedSquare(null);
+    setHoveredSquare(null);
     setHighlightedSquares(new Set());
+  }, []);
+  const onMouseOverSquare = useCallback(({ square }: { square: string | null }) => {
+    setHoveredSquare(square);
+  }, []);
+  // Chỉ xoá khi rời đúng ô đang hover. Khi kéo quân, thư viện bắn onMouseOverSquare
+  // (ô mới) rồi onMouseOutSquare (ô cũ) theo thứ tự component nên nếu xoá vô điều
+  // kiện sẽ ghi đè ô mới về null → mất highlight.
+  const onMouseOutSquare = useCallback(({ square }: { square: string | null }) => {
+    setHoveredSquare((current) => (current === square ? null : current));
   }, []);
   const handleBoardMouseDown = useCallback((event: MouseEvent<HTMLElement>) => {
     if (event.button !== 1) return;
@@ -77,6 +89,15 @@ export function useInteractiveBoardHints({
     return styles;
   }, [controlledColor, enabled, fen, highlightedSquares, selectedSquare]);
 
+  // Ô đích hợp lệ mà con trỏ đang trỏ tới khi đang cầm/chọn quân — dùng để tô
+  // sáng kiểu chess.com (border + glow + bóng đổ) qua CSS class ở squareRenderer.
+  const hoverTargetSquare = useMemo(() => {
+    if (!enabled || !selectedSquare || !hoveredSquare || hoveredSquare === selectedSquare) return null;
+    const isLegal = getLegalMoveHints(fen, selectedSquare, controlledColor)
+      .some((hint) => hint.square === hoveredSquare);
+    return isLegal ? hoveredSquare : null;
+  }, [controlledColor, enabled, fen, hoveredSquare, selectedSquare]);
+
   const canDragPiece = useCallback(({ square }: { square: string | null }) => (
     enabled && canControlPiece(fen, square, controlledColor)
   ), [controlledColor, enabled, fen]);
@@ -90,6 +111,9 @@ export function useInteractiveBoardHints({
     onPieceDrag: selectPiece,
     onSquareClick: selectPiece,
     onSquareRightClick: handleSquareRightClick,
+    onMouseOverSquare,
+    onMouseOutSquare,
+    hoverTargetSquare,
     squareStyles,
   };
 }

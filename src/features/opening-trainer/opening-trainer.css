@@ -1,5 +1,3 @@
-.training-square-content.last-move-from { box-shadow: inset 0 0 0 999px rgba(246,190,73,.25); }
-.training-square-content.last-move-to { box-shadow: inset 0 0 0 999px rgba(246,190,73,.5); }
 
 .repertoire-picker { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
 .repertoire-build {
