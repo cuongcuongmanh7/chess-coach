@@ -243,27 +243,56 @@ fn rebuild_upserts_family_preserves_progress_and_other_families() {
 }
 
 #[test]
-fn rebuild_deduplicates_existing_family_case_insensitively() {
+fn rebuild_deduplicates_variations_by_base_family_and_keeps_colors_separate() {
     let mut connection = setup();
-    let canonical = save(&mut connection, vec![seed("e4", None, "e2e4", true)]);
+    let canonical = save_named(
+        &mut connection,
+        "Italian Game",
+        vec![seed("e4", None, "e2e4", true)],
+    );
     connection
         .execute(
             "INSERT INTO repertoires
                    (id, profile_id, color, name, eco, source, created_at, updated_at)
-                 VALUES ('duplicate', 1, 'w', ' test ', 'C50', 'history',
-                         datetime('now'), datetime('now'))",
+                 VALUES
+                   ('white-anti-fried', 1, 'w',
+                    'Italian Game: Anti-Fried Liver Defense', 'C50', 'history',
+                    datetime('now'), datetime('now')),
+                   ('white-classical', 1, 'w',
+                    'Italian Game: Classical Variation, Greco Gambit, Traditional Line',
+                    'C54', 'history', datetime('now'), datetime('now')),
+                   ('black-classical', 1, 'b',
+                    'Italian Game: Classical Variation', 'C54', 'history',
+                    datetime('now'), datetime('now'))",
             [],
         )
         .unwrap();
-    let rebuilt = save(&mut connection, vec![seed("e4", None, "e2e4", true)]);
+    let rebuilt = save_named(
+        &mut connection,
+        "Italian Game: Classical Variation",
+        vec![seed("e4", None, "e2e4", true)],
+    );
     assert_eq!(rebuilt, canonical);
-    let count: i64 = connection
+    let counts: (i64, i64) = connection
         .query_row(
-            "SELECT COUNT(*) FROM repertoires
-                 WHERE profile_id = 1 AND color = 'w' AND lower(trim(name)) = 'test'",
+            "SELECT
+               (SELECT COUNT(*) FROM repertoires
+                WHERE profile_id = 1 AND color = 'w'
+                  AND lower(name) LIKE 'italian game%'),
+               (SELECT COUNT(*) FROM repertoires
+                WHERE profile_id = 1 AND color = 'b'
+                  AND lower(name) LIKE 'italian game%')",
             [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(counts, (1, 1));
+    let canonical_name: String = connection
+        .query_row(
+            "SELECT name FROM repertoires WHERE id = ?1",
+            params![canonical],
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(count, 1);
+    assert_eq!(canonical_name, "Italian Game");
 }

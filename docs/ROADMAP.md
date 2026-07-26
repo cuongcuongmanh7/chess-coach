@@ -649,7 +649,7 @@ Sync-until-watermark:
 
 **Trạng thái:** Triển khai và phát hành ngày 2026-07-26 (schema SQLite v8 với `repertoires`/`repertoire_nodes`/`repertoire_progress`; cây biến dựng ở TypeScript từ ván đã chơi, Rust chỉ validate + lưu seed; tái dùng `schedule_review` cho lịch ôn). Repertoire structure + progress hiện lưu **local-only**; đồng bộ tiến độ để fast-follow.
 
-Rebuild lịch sử cập nhật theo `(hồ sơ, màu, opening family)`, giữ nguyên các family không xuất hiện trong lượt quét hiện tại, bảo toàn tiến độ của node còn tồn tại và gộp các repertoire trùng tên.
+Patch v0.11.1 chuẩn hóa family theo phần tên trước dấu `:`, nên các variation như `Italian Game: ...` được gộp đúng vào `Italian Game` trong cùng hồ sơ và màu. Rebuild lịch sử giữ nguyên các family khác, bảo toàn tiến độ của node còn tồn tại và gộp các repertoire trùng.
 
 ### Chiến lược
 

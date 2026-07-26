@@ -5,7 +5,7 @@ pub(crate) fn save_repertoire_connection(
     request: SaveRepertoireRequest,
 ) -> Result<SaveRepertoireResult, String> {
     validate_request(connection, &request)?;
-    let name = request.name.trim();
+    let name = opening_family_name(request.name.trim());
     let matching_ids = matching_repertoire_ids(connection, &request, name)?;
     let repertoire_id = match matching_ids.first() {
         Some(id) => id.clone(),
@@ -152,7 +152,12 @@ fn matching_repertoire_ids(
             "SELECT r.id
              FROM repertoires r
              WHERE r.profile_id = ?1 AND r.color = ?2
-               AND lower(trim(r.name)) = lower(?3)
+               AND lower(trim(
+                 CASE WHEN instr(r.name, ':') > 0
+                   THEN substr(r.name, 1, instr(r.name, ':') - 1)
+                   ELSE r.name
+                 END
+               )) = lower(?3)
              ORDER BY
                (SELECT COUNT(*) FROM repertoire_nodes n
                 JOIN repertoire_progress p ON p.node_id = n.id
@@ -167,6 +172,12 @@ fn matching_repertoire_ids(
         .map_err(|_| "Không thể đọc repertoire hiện có.".to_string())?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|_| "Dữ liệu repertoire hiện có không hợp lệ.".to_string())
+}
+
+fn opening_family_name(name: &str) -> &str {
+    name.split_once(':')
+        .map_or(name, |(family, _)| family)
+        .trim()
 }
 
 fn build_node_ids(
