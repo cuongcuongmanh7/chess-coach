@@ -224,11 +224,7 @@ mod tests {
                     needs_upgrade: false,
                     data: None,
                 }],
-                training_progress: Vec::new(),
-                engine_analyses: Vec::new(),
-                analysis_manifests: Vec::new(),
-                training_attempts: Vec::new(),
-                ai_explanations: Vec::new(),
+                ..Default::default()
             },
         )
         .unwrap();
@@ -262,11 +258,7 @@ mod tests {
                     needs_upgrade: false,
                     data: Some(game),
                 }],
-                training_progress: Vec::new(),
-                engine_analyses: Vec::new(),
-                analysis_manifests: Vec::new(),
-                training_attempts: Vec::new(),
-                ai_explanations: Vec::new(),
+                ..Default::default()
             },
         )
         .unwrap();

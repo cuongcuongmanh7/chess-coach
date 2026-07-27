@@ -2,13 +2,14 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.10.4**.
+Phiên bản hiện tại: **0.11.2**.
 
-## Điểm mới trong v0.10.4
+## Điểm mới trong v0.11.x
 
-- Khóa đồng bộ Firebase cho duy nhất tài khoản chủ sở hữu đã xác minh.
-- Focus mode của Phân tích tuỳ chọn giữ highlight nước dẫn vào vị trí gốc.
-- Header hai người chơi gọn hơn, chỉ giữ mã ECO thay vì tên đầy đủ của biến khai cuộc.
+- Opening Trainer cá nhân hóa: repertoire dựng từ chính các ván đã chơi, app tự đi nước đối phương theo cây biến, luyện được cả Trắng và Đen.
+- Đi lệch repertoire không làm hỏng session: quay lại, xem giải thích, lưu candidate thành biến phụ hoặc chuyển sang phân tích tự do.
+- Tiến độ ôn lưu theo từng node của cây biến, dùng chung lịch spaced repetition với Mistake Lab.
+- Gộp biến khai cuộc trùng theo family (`Italian Game: Giuoco Piano` vào `Italian Game`), bảo toàn tiến độ của node còn tồn tại.
 
 ## Chạy trên Windows
 
@@ -54,6 +55,8 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Candidate Lab cho phép thử tự do một nước hợp lệ, so sánh với best move cùng depth và trở về mainline mà không thay đổi ván gốc.
 - Mistake Lab tự tạo bài từ Mistake/Blunder của hồ sơ đang chọn, chống trùng và dùng được hoàn toàn offline.
 - Lịch ôn local hỗ trợ bài đến hạn, bài mới, đã thuộc, đánh dấu sao, tạm ẩn, bộ lọc và thống kê streak.
+- Opening Trainer dựng repertoire từ ván đã chơi cho từng hồ sơ và màu quân, tự đi nước đối phương và lưu tiến độ theo node.
+- Repertoire, cây biến (kể cả biến tự thêm) và tiến độ ôn được đồng bộ qua Firestore: đăng nhập trên máy mới là có ngay, không cần dựng lại. Định danh repertoire suy ra từ hồ sơ + màu + tên family nên hai máy dựng cùng khai cuộc sẽ hội tụ chứ không nhân đôi.
 - Tiến độ và event log của Mistake Lab được đồng bộ qua Firestore; FEN và best line của bài tập vẫn được tạo lại local từ PGN cùng cache engine.
 - Kết quả Stockfish được lưu theo từng nước trong SQLite; mở lại ván có thể tiếp tục phân tích còn dở.
 - Quản lý nhiều hồ sơ Chess.com/Lichess; hồ sơ mặc định là `Chess.com · Cuongkool` và `Lichess · chinsu1409`.

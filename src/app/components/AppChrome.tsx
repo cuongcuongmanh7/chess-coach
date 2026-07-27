@@ -72,6 +72,7 @@ export function AppChrome() {
     firebaseUser,
     authLoading,
     cloudSyncing,
+    pendingCloudChanges,
     currentGameId,
     workspaceMode,
     error,
@@ -91,6 +92,7 @@ export function AppChrome() {
     activeProfile,
     accountInitial,
     cloudAccountLabel,
+    pendingBadgeLabel,
     accountSwitchBusy,
     toggleSidebar,
     refreshSavedGames,
@@ -193,6 +195,11 @@ export function AppChrome() {
                 ? <LoaderCircle className="spin" size={16} />
                 : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
               <span>{cloudSyncing ? "Đang đồng bộ" : cloudAccountLabel}</span>
+              {firebaseUser && !cloudSyncing && pendingCloudChanges > 0 && (
+                <span className="cloud-pending-badge" title={pendingBadgeLabel}>
+                  {pendingCloudChanges > 99 ? "99+" : pendingCloudChanges}
+                </span>
+              )}
             </button>
             {firebaseUser && (
               <button
@@ -222,8 +229,9 @@ export function AppChrome() {
 
         <div className="top-actions">
           <button className="icon-button mobile-sidebar-action" onClick={() => setProfilesOpen(true)} aria-label="Quản lý hồ sơ"><UserRound size={17} /></button>
-          <button className={`icon-button mobile-sidebar-action ${firebaseUser ? "signed-in" : ""}`} onClick={() => setAccountOpen(true)} aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}` : "Đăng nhập Google để đồng bộ"}>
+          <button className={`icon-button mobile-sidebar-action ${firebaseUser ? "signed-in" : ""}`} onClick={() => setAccountOpen(true)} aria-label={firebaseUser ? `Tài khoản cloud ${cloudAccountLabel}${pendingCloudChanges > 0 ? `. ${pendingBadgeLabel}` : ""}` : "Đăng nhập Google để đồng bộ"}>
             {authLoading || cloudSyncing ? <LoaderCircle className="spin" size={15} /> : firebaseUser ? <AccountAvatar photoUrl={firebaseUser.photoURL} fallback={accountInitial} className="cloud-avatar" /> : <BrandIcon brand="google" size={16} />}
+            {firebaseUser && !cloudSyncing && pendingCloudChanges > 0 && <span className="cloud-pending-dot" aria-hidden="true" />}
           </button>
           <div className={`service-pill ${workspaceMode !== "analysis" || engine ? "online" : "working"}`}>
             <Cpu size={14} />

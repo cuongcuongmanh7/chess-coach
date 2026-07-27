@@ -3,7 +3,7 @@ import type { AnalysisStep } from "../../../analysis";
 import type { EngineMoveAnalysis } from "../../../stockfish";
 import { isTauri } from "../../../shared/services/tauriClient";
 import { trainingRepository } from "../services/trainingRepository";
-import { markSyncedPreferencesChanged } from "../../cloud/services/cloudPreferences";
+import { markSyncedPreferencesChanged } from "../../cloud/services/preferencesDirty";
 import type {
   TrainingCard,
   TrainingFilters,

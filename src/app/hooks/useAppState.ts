@@ -67,6 +67,8 @@ export function useAppState() {
   const [googleLoginPending, setGoogleLoginPending] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
+  // Số thay đổi local còn chờ đẩy lên cloud; 0 nghĩa là đã an toàn để đổi máy.
+  const [pendingCloudChanges, setPendingCloudChanges] = useState(0);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
@@ -153,6 +155,7 @@ export function useAppState() {
     authLoading, setAuthLoading, startupDataReady, setStartupDataReady,
     googleLoginPending, setGoogleLoginPending,
     cloudSyncing, setCloudSyncing, lastCloudSyncAt, setLastCloudSyncAt,
+    pendingCloudChanges, setPendingCloudChanges,
     currentGameId, setCurrentGameId, input, setInput, error, setError, loading, setLoading,
     savedGames, setSavedGames, libraryLoading, setLibraryLoading, libraryError, setLibraryError,
     dashboardRecords, setDashboardRecords, dashboardLoading, setDashboardLoading,

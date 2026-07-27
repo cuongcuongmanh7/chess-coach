@@ -41,6 +41,13 @@ pub(crate) fn acknowledge_cloud_changes(
 }
 
 #[tauri::command]
+pub(crate) fn count_pending_cloud_changes(
+    database: tauri::State<'_, DatabaseState>,
+) -> Result<usize, String> {
+    crate::count_pending_cloud_changes(database)
+}
+
+#[tauri::command]
 pub(crate) fn mark_cloud_changes_failed(
     database: tauri::State<'_, DatabaseState>,
     tokens: Vec<CloudAckToken>,

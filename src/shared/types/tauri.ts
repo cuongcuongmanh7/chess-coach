@@ -64,6 +64,9 @@ export type CloudMergeResult = {
   analysis_manifests_merged: number;
   training_attempts_merged: number;
   ai_explanations_merged: number;
+  repertoires_merged: number;
+  repertoire_nodes_merged: number;
+  repertoire_progress_merged: number;
 };
 
 export type CloudAckToken = {
@@ -74,7 +77,10 @@ export type CloudAckToken = {
     | "engine_analysis"
     | "analysis_manifest"
     | "training_attempt"
-    | "ai_explanation";
+    | "ai_explanation"
+    | "repertoire"
+    | "repertoire_node"
+    | "repertoire_progress";
   entity_id: string;
   generation: number;
 };

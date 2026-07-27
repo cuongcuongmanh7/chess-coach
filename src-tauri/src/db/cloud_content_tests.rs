@@ -1,15 +1,7 @@
 use crate::*;
 
 fn empty_merge_request() -> MergeCloudChangesRequest {
-    MergeCloudChangesRequest {
-        profiles: Vec::new(),
-        games: Vec::new(),
-        training_progress: Vec::new(),
-        engine_analyses: Vec::new(),
-        analysis_manifests: Vec::new(),
-        training_attempts: Vec::new(),
-        ai_explanations: Vec::new(),
-    }
+    MergeCloudChangesRequest::default()
 }
 
 fn insert_game(connection: &Connection, game_id: &str) {

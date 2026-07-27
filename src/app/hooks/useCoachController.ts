@@ -6,7 +6,7 @@ import { analysisRepository } from "../../features/analysis/services/analysisRep
 import { playerEloForColor } from "../../features/analysis/moveClassification";
 import type { DisplayMoveQuality } from "../../features/analysis/moveClassification";
 import { coachRepository } from "../../features/coach/services/coachRepository";
-import { markSyncedPreferencesChanged } from "../../features/cloud/services/cloudPreferences";
+import { markSyncedPreferencesChanged } from "../../features/cloud/services/preferencesDirty";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { AiProvider } from "../../shared/types/tauri";
 import type { useCloudController } from "./useCloudController";

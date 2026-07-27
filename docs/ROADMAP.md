@@ -1,9 +1,35 @@
 # Chess Coach — Kế hoạch phát triển sản phẩm
 
-> Trạng thái: Hoàn thành bản vá Candidate Lab
-> Mốc hiện tại: v0.9.1
-> Cập nhật: 2026-07-24
+> Trạng thái: Phát hành Repertoire Sync và tối ưu bundle
+> Mốc hiện tại: v0.12.0
+> Cập nhật: 2026-07-27
 > Phạm vi: ứng dụng desktop local-first trên Windows
+
+## Phiên bản v0.12.0 — Repertoire Sync và dọn nợ
+
+- Đồng bộ repertoire, cây biến và tiến độ ôn qua ba collection Firestore với định danh deterministic và tombstone rõ ràng.
+- Migration SQLite v9 gộp repertoire trùng, bảo toàn tiến độ, sửa liên kết cha-con và seed hàng đợi cloud; thao tác được bọc transaction và có backup trước migration.
+- UI hiển thị số thay đổi cloud còn tồn đọng, không còn báo thành công khi hàng đợi vẫn chưa đẩy hết.
+- Tách các module Rust/TypeScript trên đường thay đổi và code-split Firebase, charts, openings cùng các vendor lớn để giảm chunk app khởi động.
+
+## Bản vá v0.11.2 — Gộp biến khai cuộc trùng
+
+- Chuẩn hóa family theo phần tên trước dấu `:` khi dựng repertoire, nên các biến như `Italian Game: Giuoco Piano` được gộp đúng vào `Italian Game` trong cùng hồ sơ và màu.
+- Rebuild lịch sử giữ nguyên các family khác, bảo toàn tiến độ của node còn tồn tại và gộp các repertoire trùng thành một.
+
+## Phiên bản v0.11.0 — Opening Trainer cá nhân hóa
+
+- Repertoire cá nhân dựng từ chính các ván đã chơi của hồ sơ, không cần mạng và không cần cơ sở dữ liệu khai cuộc ngoài.
+- App tự đi nước đối phương theo cây biến; người dùng luyện nước đã học cho cả Trắng và Đen.
+- Một vị trí chấp nhận nhiều nước repertoire hợp lệ; đi lệch không làm hỏng session mà cho quay lại, xem giải thích, lưu candidate thành biến phụ hoặc chuyển sang phân tích tự do.
+- Tiến độ lưu theo từng node của cây biến, tái dùng `schedule_review` của Mistake Lab cho lịch ôn.
+- Schema SQLite v8 với `repertoires`, `repertoire_nodes` và `repertoire_progress`; cây dựng ở TypeScript, Rust chỉ validate và lưu seed.
+
+## Phiên bản v0.10.0 — Insights, Batch & Sync
+
+- Insights Dashboard cùng report card và estimated Elo mỗi ván, deterministic và hoạt động khi chưa cấu hình AI.
+- Phân tích toàn ván hàng loạt chạy tuần tự, bỏ qua ván đã phân tích, tạm dừng/dừng giữ nguyên phần đã xong.
+- Đồng bộ ván tăng dần theo watermark: watermark chỉ tiến khi dải ván liền mạch hoàn tất, tôn trọng rate limit Lichess.
 
 ## Bản vá v0.9.1 — Hoàn thiện hiển thị
 
@@ -32,26 +58,27 @@
 - Lịch sử review, tiến độ Mistake Lab, cache giải thích/tổng kết AI và cấu hình học được đồng bộ; API key, âm thanh và bố cục giao diện vẫn theo từng thiết bị.
 - Có regression test cho nâng cấp dữ liệu cũ, merge phân tích nhiều depth và tính idempotent của event log/cache AI.
 
-## Báo cáo tiến độ kiểm chứng ngày 2026-07-24
+## Báo cáo tiến độ kiểm chứng ngày 2026-07-27
 
 | Hạng mục | Kết quả |
 |---|---|
-| Source control | `main`, `origin/main` và tag `v0.8.1` cùng ở commit `3791845` |
-| Milestone | Hoàn thành 7/9 milestone phát hành; 2 milestone còn lại |
-| Bước tiếp theo | Performance Insights & Report Card v0.10.0 |
-| Test frontend/Node | 59/59 test đạt |
-| Test Rust | 31/31 test đạt |
-| Build production | `npm run build` thành công |
+| Source control | Release `v0.12.0` trên `main` |
+| Milestone | 10 mốc đã phát hành (0.6.1 → 0.12.0) |
+| Bước tiếp theo | Diễn tập nâng cấp trên DB thật và kiểm chứng đồng bộ hai máy thật |
+| Test frontend/Node | 12/12 regression test mục tiêu đạt |
+| Test Rust | 68/68 test đạt |
+| Build production | `npm run build` và `npm run tauri build` thành công |
 | Code-size gate | Thành công; không file source nào vượt giới hạn cứng 500 dòng |
-| Trạng thái repository | Bản vá hiển thị v0.9.1 đã kiểm chứng; chờ commit/tag phát hành |
+| Bundle Windows | NSIS x64 `Chess Coach_0.12.0_x64-setup.exe` |
 
 ### Sức khỏe codebase
 
 - Phase modularization đã xóa toàn bộ baseline nợ cũ.
-- `src/App.tsx` còn 21 dòng, `src-tauri/src/lib.rs` còn 154 dòng, `src/styles.css` còn 26 dòng và `src/firebase.ts` còn 33 dòng.
-- Còn 11 file vượt mục tiêu mềm 300 dòng, nằm trong khoảng 301–370 dòng; đây là cảnh báo cần giảm dần, chưa vi phạm giới hạn cứng.
-- `src/app/components/AnalysisWorkspace.tsx` đã giảm từ 414 xuống 306 dòng dù bổ sung Candidate focus mode; vẫn cần tiếp tục tách trước 1.0.
-- Bundle JavaScript chính sau build khoảng 1,68 MB chưa nén; Vite vẫn cảnh báo chunk lớn. Cần tiếp tục lazy-load/code splitting trước 1.0, nhưng chưa chặn Candidate Lab.
+- `src/App.tsx` còn 21 dòng, `src/styles.css` còn 26 dòng và `src/firebase.ts` còn 33 dòng.
+- Các file repertoire/model trên đường thay đổi đã được tách theo domain; code-size gate không có file nào vượt giới hạn cứng 500 dòng. Các file test lớn còn lại tiếp tục được theo dõi theo mục tiêu mềm 300 dòng.
+- `src/app/components/AnalysisWorkspace.tsx` đã giảm từ 414 xuống 306 dòng dù bổ sung Candidate focus mode; vẫn cần tiếp tục tách.
+- Bundle đã tách chunk ở 0.12.0: chunk app chính từ 1.752 kB xuống **235 kB**, lượt tải đầu từ 1.752 kB xuống **1.060 kB** (≈250 kB gzip). Firebase (686 kB) và recharts (406 kB) chuyển sang chunk async. Phần còn eager lớn nhất là `openings-data` 491 kB — xem ghi nhận ở §12.
+- Test seam của thumbnail trong `tests/game-previews.test.mjs` trước đây khoá cứng 50px/6px nên fail sau khi CSS đổi sang 74px/9px ở commit `460b182`. Đã viết lại thành assert theo invariant (track là số pixel nguyên, bàn vuông, khung = 8 track + hai viền, ô con đúng kích thước track) nên không còn vỡ khi đổi kích thước thumbnail.
 
 ## 1. Mục tiêu sản phẩm
 
@@ -77,7 +104,7 @@ Chess Coach không chỉ chỉ ra nước sai mà phải tạo được vòng l�
 - **Có thể kiểm chứng:** Mọi mũi tên, nhãn tactic và lời giải thích phải truy ngược được về FEN, nước đi và biến Stockfish.
 - **Không làm nặng giao diện:** Bàn cờ, nước hiện tại và hành động tiếp theo luôn là trọng tâm.
 
-## 3. Hiện trạng v0.9.1
+## 3. Hiện trạng v0.11.2
 
 App hiện đã có:
 
@@ -99,17 +126,15 @@ App hiện đã có:
 
 Khoảng trống sản phẩm còn lại:
 
-- Chưa có repertoire/opening trainer cá nhân hóa.
-- Dashboard mới dừng ở thống kê chất lượng nước; chưa có analytics hành vi (W/D/L theo opening, kết quả theo giờ/độ dài ván) và chưa có report card theo giai đoạn hay estimated Elo mỗi ván.
-- Chưa có phân tích toàn ván hàng loạt; đang phải bấm thủ công từng ván.
-- Đồng bộ hiện chỉ lấy 20 ván mới nhất, chưa tăng dần an toàn theo watermark (bỏ sót khi chơi nhiều ván giữa hai lần, chưa có mốc liền mạch).
+- **Repertoire chưa đồng bộ cloud.** Cây biến và tiến độ ôn chỉ nằm trong SQLite của từng máy: `repertoire.rs`/`repertoire_write.rs` không gọi `queue_cloud_change`, whitelist entity trong `cloud_state.rs` không có repertoire, và không có collection Firestore tương ứng. Repertoire tạo ở một máy không lên cloud và không xuống được máy khác; riêng `repertoire_progress` (streak, `due_at`, interval) là dữ liệu không thể tái tạo nếu mất. Đây là nội dung chính của 0.12.0.
 - Chưa xuất PGN có comment, NAG và cây biến phân tích.
-- Ask Coach dạng chat và local LLM vẫn được để sau 1.0.
+- Ask Coach dạng chat và local LLM vẫn chưa xếp lịch.
 
 Nợ kỹ thuật đang theo dõi:
 
-- 11 file source vượt mục tiêu mềm 300 dòng nhưng không file nào vượt giới hạn cứng 500 dòng.
-- Bundle chính còn lớn; cần tách thêm theo view/feature trước bản 1.0.
+- Một nhóm file vượt mục tiêu mềm 300 dòng nhưng không file nào vượt giới hạn cứng 500 dòng; danh sách cụ thể ở phần Sức khỏe codebase.
+- Bundle chính còn lớn; cần tách thêm theo view/feature.
+- `delete_player_profile` và nhánh xoá profile của `merge_cloud_changes_connection` chưa dọn `repertoires`/`repertoire_nodes`/`repertoire_progress`; hiện chỉ để lại row vô hình, nhưng sẽ khoá toàn bộ sync khi bật đồng bộ repertoire.
 - Cần duy trì đủ regression test cho migration, cloud merge, tactic và lịch luyện khi schema tiếp tục thay đổi.
 
 ## 4. Roadmap tổng thể
@@ -125,9 +150,9 @@ Nợ kỹ thuật đang theo dõi:
 | 0.9.0 ✅ | Candidate Lab | Thử và so sánh candidate move hoàn toàn bằng Stockfish | Hoàn thành 2026-07-24 |
 | 0.10.0 ✅ | Insights, Batch & Sync | Insights Dashboard + report card/estimated Elo; phân tích toàn ván hàng loạt; đồng bộ tăng dần theo watermark | Triển khai 2026-07-24 |
 | 0.11.0 ✅ | Opening Trainer | Repertoire cá nhân dựng từ ván đã chơi; tự đáp đối thủ, luyện nước lệch theory, lưu biến phụ và phân tích tự do khi lệch | Triển khai 2026-07-26 |
-| 1.0.0 | Study Workspace | PGN có chú thích, cây biến và trải nghiệm ổn định | 10–15 ngày |
+| 0.12.0 | Repertoire Sync & dọn nợ | Đồng bộ cây biến + tiến độ ôn qua cloud; tách các file quá hạn; code-splitting bundle | 5–8 ngày |
 
-Tiến độ theo số milestone phát hành: **9/10 hoàn thành (90%)**. Con số này chỉ thể hiện số mốc, không quy đổi theo độ lớn công việc.
+Đã phát hành **9 mốc** (0.6.1 → 0.11.0). Roadmap để mở: **không chốt mốc 1.0** cho tới khi có phản hồi người dùng thực tế. Study Workspace và PGN có chú thích được chuyển sang §13 (chưa xếp lịch) vì chưa có bằng chứng người dùng cần trước các việc khác.
 
 Ước lượng không gồm thời gian phát hành Microsoft Store hoặc mobile.
 
@@ -600,7 +625,7 @@ Mở rộng **modal "Tiến bộ"** (`GameInsightsModals.tsx`, nhánh `dashboard
 - **Luồng:** sheet chọn phạm vi (tất cả ván chưa phân tích của hồ sơ / N ván mới nhất, lọc theo time class, kèm ước tính thời gian) → **thẻ tiến trình cắm góc dưới-phải, KHÔNG chặn UI** (vẫn xem ván khác, mở Mistake Lab) → toast tổng kết ("đã phân tích X ván · Y lỗi bỏ qua"), có nút mở Tiến bộ.
 - **Ràng buộc:** hàng đợi **tuần tự 1 ván/lần** (đúng §15, Lite single-thread); **tái dùng cache** — ván/ply đã phân tích bị bỏ qua tức thì; nút Tạm dừng/Dừng chỉ dừng **sau khi ván hiện tại xong** (giữ cache toàn vẹn); **chỉ chạy Stockfish, không auto gọi AI** (tránh đốt quota).
 - **Đóng app giữa chừng:** nhờ cache đã lưu, chạy lại batch tự bỏ qua ván đã xong — không cần khôi phục hàng đợi phức tạp ở v1.
-- **Ranh giới:** chỉ làm bản **thủ công foreground**; auto-sync/phân tích chạy nền vẫn để sau 1.0 (§13). Batch chính là tiền đề cho auto-sync sau này.
+- **Ranh giới:** chỉ làm bản **thủ công foreground**; auto-sync/phân tích chạy nền vẫn chưa xếp lịch (§13). Batch chính là tiền đề cho auto-sync sau này.
 - Thẻ tiến trình tái dùng đúng state `analysis {running, completed, total}` của `FullGameAnalysisAction` cho thanh ply của ván hiện tại.
 
 ### Nhóm C — Sync-until-watermark (đồng bộ tăng dần an toàn)
@@ -647,7 +672,7 @@ Sync-until-watermark:
 
 ## 11. Milestone 0.11.0 — Opening Trainer cá nhân hóa
 
-**Trạng thái:** Triển khai và phát hành ngày 2026-07-26 (schema SQLite v8 với `repertoires`/`repertoire_nodes`/`repertoire_progress`; cây biến dựng ở TypeScript từ ván đã chơi, Rust chỉ validate + lưu seed; tái dùng `schedule_review` cho lịch ôn). Repertoire structure + progress hiện lưu **local-only**; đồng bộ tiến độ để fast-follow.
+**Trạng thái:** Triển khai và phát hành ngày 2026-07-26 (schema SQLite v8 với `repertoires`/`repertoire_nodes`/`repertoire_progress`; cây biến dựng ở TypeScript từ ván đã chơi, Rust chỉ validate + lưu seed; tái dùng `schedule_review` cho lịch ôn). Repertoire structure + progress lưu **local-only** ở mốc này; đồng bộ cloud đầy đủ được làm ở §12 (0.12.0).
 
 Patch v0.11.1 chuẩn hóa family theo phần tên trước dấu `:`, nên các variation như `Italian Game: ...` được gộp đúng vào `Italian Game` trong cùng hồ sơ và màu. Rebuild lịch sử giữ nguyên các family khác, bảo toàn tiến độ của node còn tồn tại và gộp các repertoire trùng.
 
@@ -698,42 +723,108 @@ Không bắt đầu bằng việc dạy toàn bộ cơ sở dữ liệu khai cu�
 - Đi lệch không làm hỏng session và có lựa chọn quay lại.
 - Tiến độ được lưu riêng theo hồ sơ.
 
-## 12. Milestone 1.0.0 — Study Workspace và PGN có chú thích
+## 12. Milestone 0.12.0 — Repertoire Sync và dọn nợ
+
+**Trạng thái:** Đã phát hành ngày 2026-07-27 (schema SQLite v9, ba collection Firestore, test đồng bộ repertoire và code-splitting bundle). Việc diễn tập nâng cấp trên DB thật và kiểm chứng hai máy thật tiếp tục là bước xác nhận sau phát hành.
+
+### Mục tiêu
+
+Đăng nhập trên máy mới là có ngay repertoire, cây biến và tiến độ ôn, không cần rebuild. `repertoire_progress` là dữ liệu không thể tái tạo nên đây là khoảng trống nghiêm trọng nhất còn lại.
+
+### Vấn đề định danh
+
+`repertoires.id` hiện sinh bằng `randomblob(16)` nên khác nhau giữa hai máy, và `repertoire_nodes.id = repertoire_node_id(repertoire_id, node_key)` thừa hưởng tính random đó. Ngược lại `node_key = "{position_key}|{move_uci}"` là deterministic.
+
+Giải pháp: làm chính primary key trở nên deterministic thay vì thêm không gian định danh kép:
+
+```
+profile_key       = "{platform}:{lower(username)}"
+family_key        = lower(trim(phần trước dấu ':' của name))
+repertoire_doc_id = sha256("repertoire:{profile_key}:{color}:{family_key}")
+node_doc_id       = sha256("{repertoire_doc_id}:{node_key}")
+progress_doc_id   = node_doc_id
+```
+
+An toàn vì không có repertoire id nào được lưu ngoài SQLite. `family_key` trở thành **wire contract**: đổi cách chuẩn hóa family sau này đồng nghĩa re-key toàn bộ cloud doc và phải bump `schemaVersion`. `eco` cố tình không tham gia id vì hai máy có thể gán ECO khác nhau cho cùng family.
 
 ### Phạm vi
 
+- Ba collection Firestore mới: `repertoires`, `repertoireNodes`, `repertoireProgress` — đồng bộ đầy đủ cây biến, gồm cả biến người dùng tự thêm.
+- Migration SQLite v9: thêm `repertoire_nodes.updated_at` (hiện chỉ có `created_at`, không thể LWW merge), hai bảng inbox cho doc đến sớm, unique index `(repertoire_id, position_key, move_uci)`, dedup repertoire trùng family rồi rewrite định danh, seed hàng đợi cloud.
+- Tombstone tường minh cho node bị loại khi rebuild, kèm guard chống churn để rebuild với input y hệt không re-enqueue node.
+- Dọn cascade repertoire khi xoá hồ sơ ở cả đường local và đường merge từ cloud.
+- Tách các file đã vượt mục tiêu mềm 300 dòng nằm trên đường thay đổi.
+- Code-splitting để giảm bundle chính.
+
+### Nguyên tắc
+
+- Mọi `queue_cloud_change` nằm trong cùng transaction với thao tác row, để rollback không để lại tombstone mồ côi đi xoá dữ liệu cloud còn sống.
+- Đúng một `queue_cloud_change` cho mỗi doc id mỗi transaction: hàm này bump `generation`, và ack chỉ xoá row còn khớp generation.
+- Doc cloud không hợp lệ thì **skip**, không abort batch — một doc lỗi không được làm nghẽn toàn bộ sync.
+- Drain inbox tuyệt đối không enqueue, tránh echo loop.
+- Node doc mang `parent_node_key` chứ không mang id local, nên resolve parent không cần row parent tồn tại.
+
+### Tiêu chí nghiệm thu
+
+- Nâng cấp v8→v9 trên DB có repertoire trùng family: còn đúng một repertoire, chuỗi `parent_id` vẫn resolve, và tiến độ là `MAX` của các bản trùng chứ không mất.
+- Export rồi merge sang một DB rỗng cùng hồ sơ cho ra row và id giống hệt; sync lần hai upload 0 change.
+- Rebuild với cùng tập ván không sinh node upsert nào.
+- Node bị loại ở máy A vẫn mất ở máy B sau hai vòng sync, không hồi sinh.
+- Hai máy dựng cùng family từ hai tập ván khác nhau thì hội tụ, không nhân đôi repertoire.
+- Xoá hồ sơ dọn sạch repertoire ở cả hai đường và không khoá sync.
+
+### Ghi nhận khi triển khai
+
+- **Biến thủ công (`source = 'manual'`) không còn bị rebuild xoá.** Trước đây `save_repertoire_connection` xoá toàn bộ node của repertoire rồi chèn lại từ seed, nên biến người dùng tự thêm bị mất mỗi lần dựng lại từ lịch sử. Đây là lỗi có sẵn, nhưng khi bật đồng bộ thì nó sẽ lan tombstone ra mọi thiết bị, nên đã loại `source = 'manual'` khỏi tập stale.
+- **Lần đồng bộ đầu sau nâng cấp v9 đẩy một lượng lớn doc.** Migration seed hàng đợi cho mọi repertoire/node/tiến độ (10 repertoire × 3.000 node ≈ 30.000 queue row ≈ 75 batch Firestore). Đây là chi phí một lần để có baseline cross-device đúng; không có cách giảm nào an toàn ngoài việc bỏ seed node, mà làm vậy sẽ để tiến độ nằm inbox trên máy thứ hai cho tới khi rebuild.
+- **`firestore.rules` không cần sửa**: rule dùng wildcard `match /{document=**}` dưới `users/{userId}` nên các subcollection mới đã được phủ; `orderBy("updatedAt") + orderBy(documentId())` cũng được index đơn tự động phục vụ.
+- **`delete_player_profile` và nhánh xoá hồ sơ của merge cloud đã được bổ sung cascade repertoire.** Nếu không, repertoire mồ côi sẽ làm `cloud_repertoire` không JOIN được `player_profiles`, export trả lỗi và khoá vô thời hạn toàn bộ đồng bộ.
+- **`export_*` của repertoire hạ mục mồ côi thành tombstone thay vì trả lỗi**, vì một `Err` trong `export_cloud_changes` làm chết cả lượt đồng bộ.
+
+### Trạng thái đồng bộ
+
+Trước 0.12.0 app đã báo *thành công* ở ba chỗ (toast tự tắt sau 6s, spinner topbar, mốc `lastCloudSyncAt` trong modal tài khoản) nhưng **không** báo *còn gì chưa lên cloud* — đúng cái người dùng cần biết trước khi đổi máy.
+
+- Số tồn đọng vốn đã được tính sẵn: `acknowledge_cloud_changes` trả về số row còn lại trong `cloud_sync_queue`, nhưng chỉ dùng để quyết định lặp vòng rồi bỏ. Nay được đưa ra UI.
+- Thêm command `count_pending_cloud_changes` (`COUNT(*)` trên hàng đợi) để badge đúng cả khi lượt đồng bộ vừa rồi thất bại. Cố ý không dùng `export_cloud_changes` cho việc đếm: hàm đó dựng payload đầy đủ từng mục, mà sau v9 hàng đợi có thể lên hàng chục nghìn row.
+- UI: badge số cạnh nút tài khoản ở sidebar (ẩn khi hover vì nút đăng xuất trượt vào chỗ đó), dot ở nút tài khoản khổ mobile, và một dòng trong modal tài khoản — hổ phách "Còn N thay đổi chưa đẩy lên" hoặc xanh "Mọi thay đổi đã lên cloud".
+- **Sửa một lỗi thông điệp**: vòng đồng bộ dừng ở 4 lượt, nhưng nếu hết 4 lượt mà hàng đợi vẫn còn thì app vẫn hiện toast xanh "Đồng bộ thành công". Người dùng tin là đã an toàn đổi máy trong khi chưa. Nay báo "Còn N mục chưa đẩy lên, app sẽ tiếp tục ở lượt sau".
+
+### Code-splitting bundle
+
+Kết quả: chunk app chính 1.752 kB → **235 kB**; lượt tải đầu 1.752 kB → **1.060 kB**.
+
+- `vite.config.ts` khai báo `manualChunks` tách vendor theo nhóm (react, chess, icons, charts, firebase) và tách `openings.json` thành chunk riêng. Lưu ý: **`manualChunks` chỉ tách file, không tự giảm byte của lượt tải đầu** — chunk nào còn import tĩnh thì vẫn nạp khi khởi động.
+- Firebase (686 kB) được defer thật bằng cách dựng **một ranh giới lazy duy nhất** là `features/cloud/services/lazyCloud.ts`. Hai thứ cần dùng đồng bộ được tách sang module không có firebase: `firebaseConfigured` → `firebaseConfig.ts`, `firebaseErrorMessage`/`isGoogleSignInCancelled` → `firebaseErrors.ts` (nhận `FirebaseError` theo hình dạng `name` + `code` thay vì `instanceof`). `markSyncedPreferencesChanged` chỉ ghi localStorage nên chuyển sang `preferencesDirty.ts`.
+- **`cloudSync.ts`, `cloudUpload.ts`, `cloudPreferences.ts`, `firebaseClient.ts` không bị sửa logic.** Đây là lựa chọn có ý thức: logic watermark/cursor trong `cloudSync.ts` là phần dễ vỡ nhất và hiện chưa có test bao (test cloud duy nhất chỉ phủ `ownerAccess`), nên ranh giới lazy được đặt ở phía consumer chứ không viết lại các module đó.
+- `src/firebase.ts` giờ chỉ được re-export từ `firebaseConfig`, `firebaseErrors` và `lazyCloud`. Re-export trực tiếp `auth`/`cloudSync`/`cloudPreferences` ở đây sẽ kéo SDK trở lại chunk khởi động — đây là bất biến cần giữ.
+- Firebase vẫn được **fetch ngay sau khi mount** khi build có cấu hình firebase, vì `observeFirebaseUser` phải phục hồi phiên đăng nhập. Cái thu được là first paint không còn chờ 686 kB, không phải giảm tổng byte.
+- `openings-data` (491 kB) **cố tình giữ eager**. Muốn defer thì phải đổi `openingAtFen`/`lastKnownOpening` thành async, mà tên family khai cuộc lại là đầu vào của `repertoire_doc_id` — một race ở đây sẽ sinh doc id sai trên cloud. Không đáng đổi để lấy thời gian tải từ đĩa cục bộ.
+
+## 13. Tính năng chưa xếp lịch
+
+### Study Workspace và PGN có chú thích
+
+Trước đây được xếp là mốc 1.0. Đã hoãn: chưa có bằng chứng người dùng cần trước đồng bộ repertoire và các việc ổn định hoá. Nội dung phân tích giữ lại nguyên vẹn dưới đây để dùng lại khi xếp lịch.
+
+Phạm vi:
+
 - Comment tiếng Việt theo từng nước.
-- NAG chuẩn:
-  - `!`, `?`, `??`;
-  - hoặc `$1`, `$2`, `$4` khi xuất PGN.
+- NAG chuẩn: `!`, `?`, `??`; hoặc `$1`, `$2`, `$4` khi xuất PGN.
 - Best line và phương án thứ hai là variation, không ghi đè mainline.
 - Cho phép người dùng thêm/sửa ghi chú riêng.
 - Cây biến có thể mở, thu gọn và phát lại trên bàn cờ.
-- Export:
-  - PGN gốc;
-  - PGN có Stockfish;
-  - PGN học tập có Stockfish + AI + ghi chú người dùng.
+- Export: PGN gốc; PGN có Stockfish; PGN học tập có Stockfish + AI + ghi chú người dùng.
 - Import lại PGN có comment/variation mà không làm mất cấu trúc.
 
-### Spike kỹ thuật bắt buộc
+Spike kỹ thuật bắt buộc trước khi triển khai: `chess.js` phù hợp cho luật cờ và mainline nhưng không nên tự viết parser variation phức tạp trong UI. Cần thử nghiệm một PGN AST parser có comment, NAG, nested variation, custom FEN, round-trip import/export ổn định và giấy phép phù hợp.
 
-`chess.js` phù hợp cho luật cờ và mainline nhưng không nên tự viết parser variation phức tạp trong UI. Trước khi triển khai cần thử nghiệm một PGN AST parser có:
-
-- comment;
-- NAG;
-- nested variation;
-- custom FEN;
-- round-trip import/export ổn định;
-- giấy phép phù hợp.
-
-### Tiêu chí nghiệm thu
+Tiêu chí nghiệm thu khi triển khai:
 
 - Export rồi import lại giữ mainline, comment và ít nhất hai tầng variation.
 - Click một node trong cây biến dựng đúng FEN.
 - Ghi chú người dùng không bị AI ghi đè.
 - PGN xuất ra mở được trên Lichess/Chess.com hoặc công cụ PGN phổ biến.
-
-## 13. Tính năng để sau 1.0
 
 ### Ask Coach dạng chat
 
@@ -835,7 +926,7 @@ Có thể thêm giọng “ngắn gọn”, “nghiêm khắc” hoặc “giả
   - API key;
   - cache AI;
   - kết quả Stockfish chi tiết;
-  - lịch sử chat nếu tính năng này được triển khai sau 1.0 và người dùng chưa bật đồng bộ.
+  - lịch sử chat nếu tính năng này được triển khai và người dùng chưa bật đồng bộ.
 - Có nút:
   - xem dữ liệu local;
   - export backup;
@@ -881,7 +972,7 @@ Nếu có analytics trong tương lai, chỉ gửi dữ liệu tổng hợp khi 
 7. [x] Candidate Lab offline — v0.9.0.
 8. [x] Insights + report card, batch analysis, sync-until-watermark — v0.10.0.
 9. [x] Opening Trainer cá nhân — v0.11.0.
-10. [ ] PGN annotation, cây biến, tối ưu bundle và phát hành 1.0.
+10. [x] Đồng bộ cloud cho repertoire, tách file quá hạn và tối ưu bundle — v0.12.0.
 
 Không bắt đầu tính năng mới trước khi hoàn tất phase 0. Sau phase 0, không nên làm Opening Trainer hoặc PGN tree trước Mistake Lab vì hai tính năng đó tạo thêm bề rộng, trong khi Mistake Lab tạo vòng lặp giá trị cốt lõi cho sản phẩm.
 

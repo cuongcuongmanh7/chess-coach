@@ -17,7 +17,7 @@ import {
   emptyCloudMergeResult,
 } from "../../features/cloud/utils";
 import { localCloudRepository } from "../../features/cloud/services/localCloudRepository";
-import { syncCloudPreferences } from "../../features/cloud/services/cloudPreferences";
+import { syncCloudPreferences } from "../../features/cloud/services/lazyCloud";
 import { gameRepository } from "../../features/library/services/gameRepository";
 import { hydrateGamePreviews } from "../../features/library/gamePreviews";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
@@ -38,6 +38,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     setCloudSyncing,
     setStartupDataReady,
     setLastCloudSyncAt,
+    setPendingCloudChanges,
     error,
     setSavedGames,
     setLibraryLoading,
@@ -130,6 +131,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     let activeTokens: CloudAckToken[] = [];
     let activeRetryAttempt = 0;
     let uploaded = 0;
+    let pending = 0;
     const mergedTotal: CloudMergeResult = emptyCloudMergeResult();
     try {
       let rounds = 0;
@@ -164,10 +166,14 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
           uploaded += activeTokens.length;
           const remaining = await localCloudRepository.acknowledge(activeTokens);
           activeTokens = [];
+          pending = remaining;
           if (remaining > 0) cloudSyncPendingRef.current = true;
+        } else {
+          pending = 0;
         }
         rounds += 1;
       } while (cloudSyncPendingRef.current && rounds < 4);
+      setPendingCloudChanges(pending);
 
       cloudRetryAttemptRef.current = 0;
       const completedAt = new Date().toISOString();
@@ -177,12 +183,17 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       if (showSuccess) {
         const imported = cloudMergedCount(mergedTotal);
         const deleted = mergedTotal.profiles_deleted + mergedTotal.games_deleted;
-        setSyncNotice({
-          type: "success",
-          message: imported || deleted || uploaded
-            ? `Cloud đã cập nhật: nhận ${imported} mục, áp dụng ${deleted} mục đã xoá và gửi ${uploaded} thay đổi local.`
-            : "Dữ liệu trên máy và Firebase đã đồng bộ.",
-        });
+        const summary = imported || deleted || uploaded
+          ? `Nhận ${imported} mục, áp dụng ${deleted} mục đã xoá và gửi ${uploaded} thay đổi local.`
+          : "Dữ liệu trên máy và Firebase đã khớp nhau.";
+        // Vòng đồng bộ dừng ở 4 lượt. Nếu hết 4 lượt mà hàng đợi vẫn còn thì
+        // KHÔNG được báo thành công: người dùng sẽ tin là đã an toàn để đổi máy.
+        setSyncNotice(pending > 0
+          ? {
+            type: "info",
+            message: `${summary} Còn ${pending} mục chưa đẩy lên, app sẽ tiếp tục ở lượt sau.`,
+          }
+          : { type: "success", message: `Cloud đã cập nhật: ${summary}` });
       }
     } catch (reason) {
       const message = firebaseErrorMessage(reason);
@@ -210,6 +221,11 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       cloudSyncInFlightRef.current = false;
       setCloudSyncing(false);
       setStartupDataReady(true);
+      // Đọc lại từ hàng đợi để badge đúng cả khi lượt đồng bộ vừa rồi thất bại.
+      await localCloudRepository
+        .pendingCount()
+        .then(setPendingCloudChanges)
+        .catch(() => undefined);
       if (cloudSyncPendingRef.current && cloudRetryTimerRef.current === null) {
         window.setTimeout(() => cloudRetryHandlerRef.current(), 0);
       }
@@ -271,6 +287,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       cloudSyncedUserRef.current = null;
       setFirebaseUser(null);
       setLastCloudSyncAt(null);
+      setPendingCloudChanges(0);
       resetForDatabaseSwitch();
       await refreshProfiles();
       setSyncNotice({ type: "info", message: "Đã đăng xuất. Kho tài khoản được giữ riêng và app đã quay về dữ liệu local." });

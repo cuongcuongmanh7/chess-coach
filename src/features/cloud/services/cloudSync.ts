@@ -21,6 +21,9 @@ import type {
   CloudSavedGame,
   CloudTrainingAttempt,
   CloudTrainingProgress,
+  CloudRepertoire,
+  CloudRepertoireNode,
+  CloudRepertoireProgress,
   CloudSyncCursor,
   CloudSyncCursors,
 } from "../types";
@@ -74,7 +77,10 @@ async function downloadCollectionChanges<T>(
     | "engineAnalyses"
     | "analysisManifests"
     | "trainingAttempts"
-    | "aiExplanations",
+    | "aiExplanations"
+    | "repertoires"
+    | "repertoireNodes"
+    | "repertoireProgress",
   cursor: CloudSyncCursor,
   maximumDocuments: number,
   expectedSchemaVersion: number,
@@ -168,6 +174,9 @@ export async function downloadCloudChanges(
     analysisManifests,
     trainingAttempts,
     aiExplanations,
+    repertoires,
+    repertoireNodes,
+    repertoireProgress,
   ] = await Promise.all([
     downloadCollectionChanges<CloudPlayerProfile>(uid, "profiles", cursors.profiles, 1_000, 2),
     downloadCollectionChanges<CloudSavedGame>(uid, "games", cursors.games, 10_000, 2),
@@ -206,6 +215,21 @@ export async function downloadCloudChanges(
       100_000,
       1,
     ),
+    downloadCollectionChanges<CloudRepertoire>(uid, "repertoires", cursors.repertoires, 2_000, 1),
+    downloadCollectionChanges<CloudRepertoireNode>(
+      uid,
+      "repertoireNodes",
+      cursors.repertoire_nodes,
+      200_000,
+      1,
+    ),
+    downloadCollectionChanges<CloudRepertoireProgress>(
+      uid,
+      "repertoireProgress",
+      cursors.repertoire_progress,
+      200_000,
+      1,
+    ),
   ]);
   return {
     changes: {
@@ -216,6 +240,9 @@ export async function downloadCloudChanges(
       analysis_manifests: analysisManifests.changes,
       training_attempts: trainingAttempts.changes,
       ai_explanations: aiExplanations.changes,
+      repertoires: repertoires.changes,
+      repertoire_nodes: repertoireNodes.changes,
+      repertoire_progress: repertoireProgress.changes,
     },
     cursors: {
       profiles: profiles.cursor,
@@ -225,6 +252,9 @@ export async function downloadCloudChanges(
       analysis_manifests: analysisManifests.cursor,
       training_attempts: trainingAttempts.cursor,
       ai_explanations: aiExplanations.cursor,
+      repertoires: repertoires.cursor,
+      repertoire_nodes: repertoireNodes.cursor,
+      repertoire_progress: repertoireProgress.cursor,
     },
   };
 }

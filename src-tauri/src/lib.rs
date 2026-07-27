@@ -29,15 +29,33 @@ mod db {
     pub(crate) mod cloud_state;
     pub(crate) mod game_previews;
     pub(crate) mod games;
+    pub(crate) mod migration_backup;
     pub(crate) mod migrations;
     #[cfg(test)]
     pub(crate) mod migrations_tests;
     pub(crate) mod profiles;
     pub(crate) mod repertoire;
+    pub(crate) mod repertoire_cleanup;
+    pub(crate) mod repertoire_cloud_dedupe;
+    pub(crate) mod repertoire_cloud_export;
+    pub(crate) mod repertoire_cloud_inbox;
+    pub(crate) mod repertoire_cloud_merge;
+    pub(crate) mod repertoire_cloud_migrate;
+    pub(crate) mod repertoire_cloud_queue;
+    pub(crate) mod repertoire_cloud_schema;
+    pub(crate) mod repertoire_cloud_validate;
+    #[cfg(test)]
+    pub(crate) mod repertoire_cloud_fixtures;
+    #[cfg(test)]
+    pub(crate) mod repertoire_cloud_sync_tests;
+    #[cfg(test)]
+    pub(crate) mod repertoire_cloud_tests;
+    pub(crate) mod repertoire_review;
     pub(crate) mod repertoire_schema;
     #[cfg(test)]
     pub(crate) mod repertoire_tests;
     pub(crate) mod repertoire_write;
+    pub(crate) mod repertoire_write_plan;
     pub(crate) mod startup;
     pub(crate) mod training;
     pub(crate) mod training_cards;
@@ -83,11 +101,23 @@ pub(crate) use db::cloud_merge::*;
 pub(crate) use db::cloud_state::*;
 pub(crate) use db::game_previews::*;
 pub(crate) use db::games::*;
+pub(crate) use db::migration_backup::*;
 pub(crate) use db::migrations::*;
 pub(crate) use db::profiles::*;
 pub(crate) use db::repertoire::*;
+pub(crate) use db::repertoire_cleanup::*;
+pub(crate) use db::repertoire_cloud_dedupe::*;
+pub(crate) use db::repertoire_cloud_export::*;
+pub(crate) use db::repertoire_cloud_inbox::*;
+pub(crate) use db::repertoire_cloud_merge::*;
+pub(crate) use db::repertoire_cloud_migrate::*;
+pub(crate) use db::repertoire_cloud_queue::*;
+pub(crate) use db::repertoire_cloud_schema::*;
+pub(crate) use db::repertoire_cloud_validate::*;
+pub(crate) use db::repertoire_review::*;
 pub(crate) use db::repertoire_schema::*;
 pub(crate) use db::repertoire_write::*;
+pub(crate) use db::repertoire_write_plan::*;
 pub(crate) use db::startup::*;
 pub(crate) use db::training::*;
 pub(crate) use db::training_cards::*;
@@ -155,6 +185,7 @@ pub fn run() {
             commands::cloud::get_cloud_sync_cursors,
             commands::cloud::set_cloud_sync_cursors,
             commands::cloud::acknowledge_cloud_changes,
+            commands::cloud::count_pending_cloud_changes,
             commands::cloud::mark_cloud_changes_failed,
             commands::cloud::activate_cloud_account,
             commands::cloud::deactivate_cloud_account,

@@ -76,10 +76,37 @@ test("thumbnail dùng track pixel nguyên để không sinh đường seam", () 
     new URL("../src/features/library/library.css", import.meta.url),
     "utf8",
   );
+  // Neo đầu dòng để không bắt vào rule dẫn xuất
+  // (`.library-thumbnail-status .game-position-thumbnail`).
+  const block = css.match(/^\.game-position-thumbnail\s*\{([^}]*)\}/m)?.[1];
+  assert.ok(block, "không tìm thấy rule .game-position-thumbnail");
 
-  assert.match(css, /width:\s*50px/);
-  assert.match(css, /height:\s*50px/);
-  assert.match(css, /grid-template-columns:\s*repeat\(8,6px\)/);
-  assert.match(css, /grid-template-rows:\s*repeat\(8,6px\)/);
-  assert.match(css, /\.game-position-thumbnail i\s*\{[^}]*overflow:\s*hidden/s);
+  const pixels = (pattern) => {
+    const value = block.match(pattern)?.[1];
+    assert.ok(value, `thiếu khai báo khớp ${pattern}`);
+    return Number(value);
+  };
+  const columns = pixels(/grid-template-columns:\s*repeat\(8,\s*(\d+(?:\.\d+)?)px\)/);
+  const rows = pixels(/grid-template-rows:\s*repeat\(8,\s*(\d+(?:\.\d+)?)px\)/);
+  const width = pixels(/\bwidth:\s*(\d+(?:\.\d+)?)px/);
+  const height = pixels(/\bheight:\s*(\d+(?:\.\d+)?)px/);
+  const border = pixels(/border:\s*(\d+(?:\.\d+)?)px/);
+
+  // Track phải là số pixel NGUYÊN: track lẻ làm trình duyệt làm tròn từng ô
+  // khác nhau và sinh đường seam giữa các ô bàn cờ.
+  assert.ok(Number.isInteger(columns), `track cột ${columns}px không phải số nguyên`);
+  assert.ok(Number.isInteger(rows), `track hàng ${rows}px không phải số nguyên`);
+  assert.equal(columns, rows, "bàn cờ thumbnail phải vuông");
+
+  // box-sizing: border-box nên khung ngoài = 8 track + hai viền, không được lệch.
+  assert.match(block, /box-sizing:\s*border-box/);
+  assert.equal(width, columns * 8 + border * 2, "chiều rộng lệch khỏi 8 track + viền");
+  assert.equal(height, rows * 8 + border * 2, "chiều cao lệch khỏi 8 track + viền");
+
+  // Ô con phải đúng kích thước track, nếu không nội dung sẽ tràn qua ô kế bên.
+  const cell = css.match(/^\.game-position-thumbnail i\s*\{([^}]*)\}/m)?.[1];
+  assert.ok(cell, "không tìm thấy rule ô thumbnail");
+  assert.match(cell, new RegExp(`\\bwidth:\\s*${columns}px`));
+  assert.match(cell, new RegExp(`\\bheight:\\s*${rows}px`));
+  assert.match(cell, /overflow:\s*hidden/);
 });

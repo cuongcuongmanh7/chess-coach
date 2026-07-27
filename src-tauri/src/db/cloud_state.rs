@@ -35,21 +35,21 @@ pub(crate) fn get_cloud_sync_cursors(
         .0
         .lock()
         .map_err(|_| "Không thể mở trạng thái đồng bộ.".to_string())?;
+    let read = |collection: &str| {
+        load_cloud_cursor(&connection, &uid, collection)
+            .map_err(|_| format!("Không thể đọc con trỏ {collection} trên cloud."))
+    };
     Ok(CloudSyncCursors {
-        profiles: load_cloud_cursor(&connection, &uid, "profiles")
-            .map_err(|_| "Không thể đọc con trỏ hồ sơ cloud.".to_string())?,
-        games: load_cloud_cursor(&connection, &uid, "games")
-            .map_err(|_| "Không thể đọc con trỏ ván cloud.".to_string())?,
-        training_progress: load_cloud_cursor(&connection, &uid, "trainingProgress")
-            .map_err(|_| "Không thể đọc con trỏ tiến độ luyện cloud.".to_string())?,
-        engine_analyses: load_cloud_cursor(&connection, &uid, "engineAnalyses")
-            .map_err(|_| "Không thể đọc con trỏ phân tích cloud.".to_string())?,
-        analysis_manifests: load_cloud_cursor(&connection, &uid, "analysisManifests")
-            .map_err(|_| "Không thể đọc con trỏ manifest phân tích.".to_string())?,
-        training_attempts: load_cloud_cursor(&connection, &uid, "trainingAttempts")
-            .map_err(|_| "Không thể đọc con trỏ lịch sử luyện.".to_string())?,
-        ai_explanations: load_cloud_cursor(&connection, &uid, "aiExplanations")
-            .map_err(|_| "Không thể đọc con trỏ cache HLV AI.".to_string())?,
+        profiles: read("profiles")?,
+        games: read("games")?,
+        training_progress: read("trainingProgress")?,
+        engine_analyses: read("engineAnalyses")?,
+        analysis_manifests: read("analysisManifests")?,
+        training_attempts: read("trainingAttempts")?,
+        ai_explanations: read("aiExplanations")?,
+        repertoires: read("repertoires")?,
+        repertoire_nodes: read("repertoireNodes")?,
+        repertoire_progress: read("repertoireProgress")?,
     })
 }
 
@@ -92,48 +92,47 @@ pub(crate) fn set_cloud_sync_cursors(
     let transaction = connection
         .transaction()
         .map_err(|_| "Không thể lưu con trỏ đồng bộ.".to_string())?;
-    save_cloud_cursor(&transaction, &uid, "profiles", &cursors.profiles)
-        .map_err(|_| "Không thể lưu con trỏ hồ sơ cloud.".to_string())?;
-    save_cloud_cursor(&transaction, &uid, "games", &cursors.games)
-        .map_err(|_| "Không thể lưu con trỏ ván cloud.".to_string())?;
-    save_cloud_cursor(
-        &transaction,
-        &uid,
-        "trainingProgress",
-        &cursors.training_progress,
-    )
-    .map_err(|_| "Không thể lưu con trỏ tiến độ luyện cloud.".to_string())?;
-    save_cloud_cursor(
-        &transaction,
-        &uid,
-        "engineAnalyses",
-        &cursors.engine_analyses,
-    )
-    .map_err(|_| "Không thể lưu con trỏ phân tích cloud.".to_string())?;
-    save_cloud_cursor(
-        &transaction,
-        &uid,
-        "analysisManifests",
-        &cursors.analysis_manifests,
-    )
-    .map_err(|_| "Không thể lưu con trỏ manifest phân tích.".to_string())?;
-    save_cloud_cursor(
-        &transaction,
-        &uid,
-        "trainingAttempts",
-        &cursors.training_attempts,
-    )
-    .map_err(|_| "Không thể lưu con trỏ lịch sử luyện.".to_string())?;
-    save_cloud_cursor(
-        &transaction,
-        &uid,
-        "aiExplanations",
-        &cursors.ai_explanations,
-    )
-    .map_err(|_| "Không thể lưu con trỏ cache HLV AI.".to_string())?;
+    for (collection, cursor) in [
+        ("profiles", &cursors.profiles),
+        ("games", &cursors.games),
+        ("trainingProgress", &cursors.training_progress),
+        ("engineAnalyses", &cursors.engine_analyses),
+        ("analysisManifests", &cursors.analysis_manifests),
+        ("trainingAttempts", &cursors.training_attempts),
+        ("aiExplanations", &cursors.ai_explanations),
+        ("repertoires", &cursors.repertoires),
+        ("repertoireNodes", &cursors.repertoire_nodes),
+        ("repertoireProgress", &cursors.repertoire_progress),
+    ] {
+        save_cloud_cursor(&transaction, &uid, collection, cursor)
+            .map_err(|_| format!("Không thể lưu con trỏ {collection} trên cloud."))?;
+    }
     transaction
         .commit()
         .map_err(|_| "Không thể hoàn tất lưu con trỏ cloud.".to_string())
+}
+
+/// Đếm số thay đổi local còn chờ đẩy lên cloud.
+///
+/// Dùng `COUNT(*)` chứ không đi qua `export_cloud_changes`: hàm export dựng payload
+/// đầy đủ cho từng mục, mà sau migration v9 hàng đợi có thể lên hàng chục nghìn row.
+pub(crate) fn count_pending_cloud_changes_connection(
+    connection: &Connection,
+) -> Result<usize, String> {
+    let total: i64 = connection
+        .query_row("SELECT COUNT(*) FROM cloud_sync_queue", [], |row| row.get(0))
+        .map_err(|_| "Không thể đếm hàng đợi cloud.".to_string())?;
+    Ok(total.max(0) as usize)
+}
+
+pub(crate) fn count_pending_cloud_changes(
+    database: tauri::State<'_, DatabaseState>,
+) -> Result<usize, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở hàng đợi cloud.".to_string())?;
+    count_pending_cloud_changes_connection(&connection)
 }
 
 pub(crate) fn acknowledge_cloud_changes_connection(
@@ -153,6 +152,9 @@ pub(crate) fn acknowledge_cloud_changes_connection(
                 | "analysis_manifest"
                 | "training_attempt"
                 | "ai_explanation"
+                | "repertoire"
+                | "repertoire_node"
+                | "repertoire_progress"
         ) {
             return Err("Loại thay đổi cloud không hợp lệ.".to_string());
         }

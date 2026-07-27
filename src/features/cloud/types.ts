@@ -96,6 +96,9 @@ export type CloudSyncBatch = {
   analysis_manifests: CloudPendingAnalysisManifestChange[];
   training_attempts: CloudPendingTrainingAttemptChange[];
   ai_explanations: CloudPendingAiExplanationChange[];
+  repertoires: CloudPendingRepertoireChange[];
+  repertoire_nodes: CloudPendingRepertoireNodeChange[];
+  repertoire_progress: CloudPendingRepertoireProgressChange[];
 };
 
 export type CloudEngineAnalysis = {
@@ -165,6 +168,52 @@ export type CloudRemoteContentChange<T> = {
   data: T | null;
 };
 
+export type CloudRepertoire = {
+  cloud_id: string;
+  profile_key: string;
+  color: "w" | "b";
+  name: string;
+  eco: string | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CloudRepertoireNode = {
+  cloud_id: string;
+  repertoire_cloud_id: string;
+  node_key: string;
+  // Khóa của node cha, không phải id: merge derive được parent_id mà không cần
+  // row cha đã tồn tại, nên node về trước cha vẫn resolve đúng.
+  parent_node_key: string | null;
+  position_key: string;
+  fen: string;
+  move_san: string;
+  move_uci: string;
+  side_to_move: "w" | "b";
+  is_user_move: boolean;
+  source: string;
+  frequency: number;
+  avg_cpl: number | null;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CloudRepertoireProgress = {
+  node_cloud_id: string;
+  repertoire_cloud_id: string;
+  profile_key: string;
+  correct_count: number;
+  wrong_count: number;
+  correct_streak: number;
+  status: string;
+  interval_days: number;
+  due_at: string;
+  last_correct_at: string | null;
+  updated_at: string;
+};
+
 export type CloudPendingEngineAnalysisChange = CloudPendingContentChange<CloudEngineAnalysis>;
 export type CloudPendingAnalysisManifestChange = CloudPendingContentChange<CloudAnalysisManifest>;
 export type CloudPendingTrainingAttemptChange = CloudPendingContentChange<CloudTrainingAttempt>;
@@ -173,6 +222,14 @@ export type CloudRemoteEngineAnalysisChange = CloudRemoteContentChange<CloudEngi
 export type CloudRemoteAnalysisManifestChange = CloudRemoteContentChange<CloudAnalysisManifest>;
 export type CloudRemoteTrainingAttemptChange = CloudRemoteContentChange<CloudTrainingAttempt>;
 export type CloudRemoteAiExplanationChange = CloudRemoteContentChange<CloudAiExplanation>;
+export type CloudPendingRepertoireChange = CloudPendingContentChange<CloudRepertoire>;
+export type CloudPendingRepertoireNodeChange = CloudPendingContentChange<CloudRepertoireNode>;
+export type CloudPendingRepertoireProgressChange =
+  CloudPendingContentChange<CloudRepertoireProgress>;
+export type CloudRemoteRepertoireChange = CloudRemoteContentChange<CloudRepertoire>;
+export type CloudRemoteRepertoireNodeChange = CloudRemoteContentChange<CloudRepertoireNode>;
+export type CloudRemoteRepertoireProgressChange =
+  CloudRemoteContentChange<CloudRepertoireProgress>;
 
 export type CloudSyncCursor = {
   initialized: boolean;
@@ -189,6 +246,9 @@ export type CloudSyncCursors = {
   analysis_manifests: CloudSyncCursor;
   training_attempts: CloudSyncCursor;
   ai_explanations: CloudSyncCursor;
+  repertoires: CloudSyncCursor;
+  repertoire_nodes: CloudSyncCursor;
+  repertoire_progress: CloudSyncCursor;
 };
 
 export type CloudDownloadResult = {
@@ -200,6 +260,9 @@ export type CloudDownloadResult = {
     analysis_manifests: CloudRemoteAnalysisManifestChange[];
     training_attempts: CloudRemoteTrainingAttemptChange[];
     ai_explanations: CloudRemoteAiExplanationChange[];
+    repertoires: CloudRemoteRepertoireChange[];
+    repertoire_nodes: CloudRemoteRepertoireNodeChange[];
+    repertoire_progress: CloudRemoteRepertoireProgressChange[];
   };
   cursors: CloudSyncCursors;
 };

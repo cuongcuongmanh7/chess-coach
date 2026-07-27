@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 8;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 9;
 const ENGINE_MULTIPV: i64 = 2;
 
 pub(crate) fn open_database(
@@ -12,29 +12,7 @@ pub(crate) fn open_database(
     let version = schema_version(&connection)?;
 
     if existed && version < CURRENT_SCHEMA_VERSION {
-        let file_name = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("database");
-        let release = if version < 2 {
-            "v0.6.2"
-        } else if version < 3 {
-            "v0.7.0"
-        } else if version < 4 {
-            "v0.7.0-preview"
-        } else if version < 5 {
-            "v0.7.1"
-        } else if version < 6 {
-            "v0.8.0"
-        } else if version < 7 {
-            "v0.10.0"
-        } else {
-            "v0.11.0"
-        };
-        let backup_path = path.with_file_name(format!("{file_name}.pre-{release}.bak"));
-        if !backup_path.exists() {
-            connection.backup(DatabaseName::Main, &backup_path, None)?;
-        }
+        backup_before_migration(&connection, path, version)?;
     }
 
     initialize_database(&connection, seed_default_profiles)?;
@@ -72,6 +50,9 @@ pub(crate) fn initialize_database(
     }
     if schema_version(connection)? < 8 {
         migrate_to_v8(connection)?;
+    }
+    if schema_version(connection)? < 9 {
+        migrate_to_v9(connection)?;
     }
     Ok(())
 }

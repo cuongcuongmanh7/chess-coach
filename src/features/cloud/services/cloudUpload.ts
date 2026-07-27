@@ -4,55 +4,53 @@ import {
   serverTimestamp,
   setDoc,
   writeBatch,
+  type Firestore,
 } from "firebase/firestore";
 import type { CloudSyncBatch } from "../types";
 import { requireFirestore } from "./firebaseClient";
 
+type PendingChange = {
+  document_id: string;
+  deleted: boolean;
+  data: unknown;
+};
+
+function collectionWrites(
+  db: Firestore,
+  uid: string,
+  collectionName: string,
+  changes: PendingChange[],
+  schemaVersion: number,
+) {
+  return changes.map((change) => ({
+    reference: doc(db, "users", uid, collectionName, change.document_id),
+    value: change.deleted
+      ? { deleted: true, schemaVersion, updatedAt: serverTimestamp() }
+      : {
+        ...(change.data as Record<string, unknown>),
+        deleted: false,
+        schemaVersion,
+        updatedAt: serverTimestamp(),
+      },
+  }));
+}
+
 export async function uploadCloudChanges(uid: string, changes: CloudSyncBatch) {
   const db = requireFirestore();
+  // Thứ tự quan trọng: repertoires trước nodes trước progress. uploadCloudChanges
+  // commit nhiều batch, nên nếu một batch giữa thất bại thì máy khác vẫn nhận được
+  // phần cha chứ không nhận node/progress mồ côi.
   const writes = [
-    ...changes.profiles.map((change) => ({
-      reference: doc(db, "users", uid, "profiles", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
-    })),
-    ...changes.games.map((change) => ({
-      reference: doc(db, "users", uid, "games", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
-    })),
-    ...changes.training_progress.map((change) => ({
-      reference: doc(db, "users", uid, "trainingProgress", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 2, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 2, updatedAt: serverTimestamp() },
-    })),
-    ...changes.engine_analyses.map((change) => ({
-      reference: doc(db, "users", uid, "engineAnalyses", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
-    })),
-    ...changes.analysis_manifests.map((change) => ({
-      reference: doc(db, "users", uid, "analysisManifests", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
-    })),
-    ...changes.training_attempts.map((change) => ({
-      reference: doc(db, "users", uid, "trainingAttempts", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
-    })),
-    ...changes.ai_explanations.map((change) => ({
-      reference: doc(db, "users", uid, "aiExplanations", change.document_id),
-      value: change.deleted
-        ? { deleted: true, schemaVersion: 1, updatedAt: serverTimestamp() }
-        : { ...change.data, deleted: false, schemaVersion: 1, updatedAt: serverTimestamp() },
-    })),
+    ...collectionWrites(db, uid, "profiles", changes.profiles, 2),
+    ...collectionWrites(db, uid, "games", changes.games, 2),
+    ...collectionWrites(db, uid, "trainingProgress", changes.training_progress, 2),
+    ...collectionWrites(db, uid, "engineAnalyses", changes.engine_analyses, 1),
+    ...collectionWrites(db, uid, "analysisManifests", changes.analysis_manifests, 1),
+    ...collectionWrites(db, uid, "trainingAttempts", changes.training_attempts, 1),
+    ...collectionWrites(db, uid, "aiExplanations", changes.ai_explanations, 1),
+    ...collectionWrites(db, uid, "repertoires", changes.repertoires, 1),
+    ...collectionWrites(db, uid, "repertoireNodes", changes.repertoire_nodes, 1),
+    ...collectionWrites(db, uid, "repertoireProgress", changes.repertoire_progress, 1),
   ];
 
   let batch = writeBatch(db);

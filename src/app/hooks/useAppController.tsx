@@ -99,6 +99,7 @@ export function useAppController() {
   const cloudAccountLabel = firebaseUser
     ? firebaseUser.displayName || firebaseUser.email || "Google"
     : firebaseConfigured ? "Đăng nhập" : "Cloud chưa cấu hình";
+  const pendingBadgeLabel = `Còn ${appState.pendingCloudChanges} thay đổi chưa đẩy lên cloud`;
   const candidateController = useCandidateLabComposition(appState, { step, engine });
   const {
     candidateState,
@@ -269,6 +270,7 @@ export function useAppController() {
     activeProfileLabel,
     accountInitial,
     cloudAccountLabel,
+    pendingBadgeLabel,
     accountSwitchBusy,
     movePairs,
     toggleSfx,

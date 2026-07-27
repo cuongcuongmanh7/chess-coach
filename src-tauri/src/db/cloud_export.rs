@@ -135,6 +135,9 @@ pub(crate) fn export_cloud_changes(
         .map_err(|_| "Không thể mở dữ liệu để đồng bộ.".to_string())?;
     let engine_analyses = export_engine_analyses(&connection)?;
     let analysis_manifests = export_analysis_manifests(&connection)?;
+    let repertoires = export_repertoires(&connection)?;
+    let repertoire_nodes = export_repertoire_nodes(&connection)?;
+    let repertoire_progress = export_repertoire_progress(&connection)?;
     let training_attempts = export_training_attempts(&connection)?;
     let ai_explanations = export_ai_explanations(&connection)?;
 
@@ -215,5 +218,8 @@ pub(crate) fn export_cloud_changes(
         analysis_manifests,
         training_attempts,
         ai_explanations,
+        repertoires,
+        repertoire_nodes,
+        repertoire_progress,
     })
 }

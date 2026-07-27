@@ -1,4 +1,3 @@
-import { FirebaseError } from "firebase/app";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -62,34 +61,6 @@ export async function cancelGoogleSignIn() {
   }
 }
 
-export function isGoogleSignInCancelled(reason: unknown) {
-  return String(reason).includes("Đăng nhập đã được hủy.");
-}
-
 export async function signOutFirebase() {
   await signOut(requireAuth());
-}
-
-export function firebaseErrorMessage(reason: unknown) {
-  if (!(reason instanceof FirebaseError)) {
-    return reason instanceof Error ? reason.message : String(reason);
-  }
-  switch (reason.code) {
-    case "auth/popup-closed-by-user":
-      return "Cửa sổ đăng nhập đã bị đóng trước khi hoàn tất.";
-    case "auth/popup-blocked":
-      return "Cửa sổ Google bị chặn. Hãy cho phép popup rồi thử lại.";
-    case "auth/invalid-credential":
-      return "Google không chấp nhận phiên đăng nhập vừa nhận. Hãy thử đăng nhập lại.";
-    case "auth/unauthorized-domain":
-      return "Domain hiện tại chưa được cho phép trong Firebase Authentication.";
-    case "auth/operation-not-allowed":
-      return "Google Sign-In chưa được bật trong Firebase Console.";
-    case "permission-denied":
-      return "Tài khoản này không có quyền đọc hoặc ghi dữ liệu Firestore.";
-    case "unavailable":
-      return "Firebase đang mất kết nối. Dữ liệu trên máy vẫn an toàn.";
-    default:
-      return reason.message;
-  }
 }

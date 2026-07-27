@@ -5,8 +5,10 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { requireFirestore } from "./firebaseClient";
-
-const DIRTY_KEY = "kypho-sync-preferences-dirty";
+import {
+  clearSyncedPreferencesDirty,
+  isSyncedPreferencesDirty,
+} from "./preferencesDirty";
 
 export type SyncedPreferences = {
   ai_provider: "openai" | "gemini";
@@ -70,17 +72,13 @@ function applyRemotePreferences(preferences: SyncedPreferences) {
   }));
 }
 
-export function markSyncedPreferencesChanged() {
-  localStorage.setItem(DIRTY_KEY, "true");
-}
-
 export async function syncCloudPreferences(uid: string) {
   const db = requireFirestore();
   const reference = doc(db, "users", uid, "preferences", "app");
   const snapshot = await getDoc(reference);
   const remote = snapshot.exists() ? parseRemotePreferences(snapshot.data()) : null;
   const local = readLocalPreferences();
-  const dirty = localStorage.getItem(DIRTY_KEY) === "true";
+  const dirty = isSyncedPreferencesDirty();
 
   if (remote && !dirty) {
     applyRemotePreferences(remote);
@@ -91,6 +89,6 @@ export async function syncCloudPreferences(uid: string) {
     schemaVersion: 1,
     updatedAt: serverTimestamp(),
   });
-  localStorage.removeItem(DIRTY_KEY);
+  clearSyncedPreferencesDirty();
   return local;
 }

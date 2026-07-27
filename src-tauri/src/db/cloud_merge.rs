@@ -46,6 +46,7 @@ pub(crate) fn merge_cloud_changes_connection(
                 .map_err(|_| "Không thể tìm hồ sơ cần xoá từ cloud.".to_string())?;
             if let Some(profile_id) = profile_id {
                 remove_training_for_profile(&transaction, profile_id, false)?;
+                remove_repertoires_for_profile(&transaction, profile_id, false)?;
                 transaction
                     .execute(
                         "DELETE FROM game_profiles WHERE profile_id = ?1",
@@ -314,6 +315,7 @@ pub(crate) fn merge_cloud_changes_connection(
     let training_progress_merged =
         merge_training_progress(&transaction, &request.training_progress)?;
     let content = merge_cloud_content(&transaction, &request)?;
+    let repertoire = merge_repertoire_cloud(&transaction, &request)?;
 
     transaction
         .commit()
@@ -328,6 +330,9 @@ pub(crate) fn merge_cloud_changes_connection(
         analysis_manifests_merged: content.analysis_manifests,
         training_attempts_merged: content.training_attempts,
         ai_explanations_merged: content.ai_explanations,
+        repertoires_merged: repertoire.repertoires,
+        repertoire_nodes_merged: repertoire.nodes,
+        repertoire_progress_merged: repertoire.progress,
     })
 }
 

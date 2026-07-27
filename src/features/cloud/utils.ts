@@ -12,6 +12,9 @@ export function emptyCloudMergeResult(): CloudMergeResult {
     analysis_manifests_merged: 0,
     training_attempts_merged: 0,
     ai_explanations_merged: 0,
+    repertoires_merged: 0,
+    repertoire_nodes_merged: 0,
+    repertoire_progress_merged: 0,
   };
 }
 
@@ -30,6 +33,9 @@ export function cloudBatchMaxAttempts(batch: CloudSyncBatch) {
     batch.analysis_manifests,
     batch.training_attempts,
     batch.ai_explanations,
+    batch.repertoires,
+    batch.repertoire_nodes,
+    batch.repertoire_progress,
   ].flatMap((changes) => changes.map((change) => change.attempts)));
 }
 
@@ -40,7 +46,10 @@ export function cloudMergedCount(result: CloudMergeResult) {
     + result.engine_analyses_merged
     + result.analysis_manifests_merged
     + result.training_attempts_merged
-    + result.ai_explanations_merged;
+    + result.ai_explanations_merged
+    + result.repertoires_merged
+    + result.repertoire_nodes_merged
+    + result.repertoire_progress_merged;
 }
 
 export function cloudAckTokens(batch: CloudSyncBatch): CloudAckToken[] {
@@ -77,6 +86,21 @@ export function cloudAckTokens(batch: CloudSyncBatch): CloudAckToken[] {
     })),
     ...batch.ai_explanations.map((change) => ({
       entity_type: "ai_explanation" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
+    ...batch.repertoires.map((change) => ({
+      entity_type: "repertoire" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
+    ...batch.repertoire_nodes.map((change) => ({
+      entity_type: "repertoire_node" as const,
+      entity_id: change.document_id,
+      generation: change.generation,
+    })),
+    ...batch.repertoire_progress.map((change) => ({
+      entity_type: "repertoire_progress" as const,
       entity_id: change.document_id,
       generation: change.generation,
     })),

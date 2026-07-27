@@ -56,26 +56,6 @@ pub(crate) struct CloudAiExplanation {
     pub(crate) created_at: String,
 }
 
-macro_rules! cloud_change_types {
-    ($remote:ident, $pending:ident, $data:ty) => {
-        #[derive(Deserialize)]
-        pub(crate) struct $remote {
-            pub(crate) document_id: String,
-            pub(crate) deleted: bool,
-            pub(crate) data: Option<$data>,
-        }
-
-        #[derive(Serialize)]
-        pub(crate) struct $pending {
-            pub(crate) document_id: String,
-            pub(crate) generation: i64,
-            pub(crate) attempts: i64,
-            pub(crate) deleted: bool,
-            pub(crate) data: Option<$data>,
-        }
-    };
-}
-
 cloud_change_types!(
     CloudRemoteEngineAnalysisChange,
     CloudPendingEngineAnalysisChange,
