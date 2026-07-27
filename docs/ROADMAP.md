@@ -1,9 +1,13 @@
 # Chess Coach — Kế hoạch phát triển sản phẩm
 
 > Trạng thái: Phát hành Repertoire Sync và tối ưu bundle
-> Mốc hiện tại: v0.12.0
+> Mốc hiện tại: v0.12.1
 > Cập nhật: 2026-07-27
 > Phạm vi: ứng dụng desktop local-first trên Windows
+
+## Bản vá v0.12.1 — Đồng bộ nhãn phiên bản
+
+- Đồng bộ version hiển thị trong UI và README với manifest Tauri/Cargo để app đã cài báo đúng phiên bản `0.12.1`.
 
 ## Phiên bản v0.12.0 — Repertoire Sync và dọn nợ
 
@@ -62,14 +66,14 @@
 
 | Hạng mục | Kết quả |
 |---|---|
-| Source control | Release `v0.12.0` trên `main` |
+| Source control | Release `v0.12.1` trên `main` |
 | Milestone | 10 mốc đã phát hành (0.6.1 → 0.12.0) |
 | Bước tiếp theo | Diễn tập nâng cấp trên DB thật và kiểm chứng đồng bộ hai máy thật |
 | Test frontend/Node | 12/12 regression test mục tiêu đạt |
 | Test Rust | 68/68 test đạt |
 | Build production | `npm run build` và `npm run tauri build` thành công |
 | Code-size gate | Thành công; không file source nào vượt giới hạn cứng 500 dòng |
-| Bundle Windows | NSIS x64 `Chess Coach_0.12.0_x64-setup.exe` |
+| Bundle Windows | NSIS x64 `Chess Coach_0.12.1_x64-setup.exe` |
 
 ### Sức khỏe codebase
 
