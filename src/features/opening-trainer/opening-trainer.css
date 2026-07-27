@@ -22,6 +22,13 @@
 .repertoire-build-progress-count { color: #9b9590; font-weight: 500; font-variant-numeric: tabular-nums; }
 .repertoire-build-progress-sub { color: #857f78; font-size: 11px; }
 
+/* Modal xếp dọc: danh sách repertoire tự cuộn, nút "Bắt đầu luyện" đứng yên ở đáy. */
+.training-modal.opening-trainer-modal { display: flex; flex-direction: column; }
+.opening-trainer-modal .repertoire-picker { flex: 1 1 auto; min-height: 0; }
+.opening-trainer-modal .repertoire-build,
+.opening-trainer-modal .repertoire-build-progress { flex: 0 0 auto; }
+.opening-trainer-modal .repertoire-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; }
+
 .repertoire-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .repertoire-empty {
   grid-column: 1 / -1; min-height: 160px; display: flex; flex-direction: column;
@@ -44,7 +51,19 @@
 .repertoire-card-body { display: grid; gap: 3px; min-width: 0; }
 .repertoire-card-body strong { color: #e8e7e5; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repertoire-card-body small { color: #857f78; font-size: 11px; }
-.repertoire-picker-footer { display: flex; justify-content: flex-end; }
+.repertoire-card-status { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.repertoire-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 800; line-height: 1.5; letter-spacing: .01em; }
+.repertoire-badge.new { color: #a9d0ff; background: rgba(103,167,255,.14); }
+.repertoire-badge.due { color: #ffd27a; background: rgba(229,161,60,.16); }
+.repertoire-badge.done { color: #a3d160; background: rgba(129,182,76,.14); }
+.repertoire-picker-footer {
+  flex: 0 0 auto; display: flex; justify-content: flex-end;
+  margin: 0 -30px -30px; padding: 15px 30px;
+  background: #171614; border-top: 1px solid #2a2825; border-radius: 0 0 16px 16px;
+}
+@media (max-width: 900px) {
+  .repertoire-picker-footer { margin: 0 -16px -22px; padding: 13px 16px; }
+}
 
 .repertoire-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .repertoire-status strong { color: #e8e7e5; font-size: 15px; }

@@ -100,8 +100,18 @@ export function RepertoirePicker({
                 <small>
                   {item.eco ? `${item.eco} · ` : ""}
                   {item.node_count} nước
-                  {item.due_count > 0 ? ` · ${item.due_count} đến hạn` : ""}
                 </small>
+                <span className="repertoire-card-status">
+                  {item.new_count > 0 && (
+                    <span className="repertoire-badge new">{item.new_count} cần học</span>
+                  )}
+                  {item.due_count > 0 && (
+                    <span className="repertoire-badge due">{item.due_count} đến hạn</span>
+                  )}
+                  {item.new_count === 0 && item.due_count === 0 && (
+                    <span className="repertoire-badge done">Đã thuộc</span>
+                  )}
+                </span>
               </span>
             </button>
           ))

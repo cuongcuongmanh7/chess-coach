@@ -78,6 +78,11 @@ export function useOpeningTrainerController(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openingTrainerOpen, refreshRepertoires]);
 
+  // Tải danh sách repertoire khi modal đóng để badge "đến hạn" hiển thị sẵn.
+  useEffect(() => {
+    if (!openingTrainerOpen) void refreshRepertoires();
+  }, [openingTrainerOpen, refreshRepertoires]);
+
   useEffect(() => {
     void reloadTree();
   }, [reloadTree]);
@@ -171,11 +176,18 @@ export function useOpeningTrainerController(
     setSelectedRepertoireId(id);
   }, []);
 
+  // Số nước cần xử lý = chưa học + đến hạn ôn (due_count backend bỏ sót node chưa học).
+  const repertoirePendingCount = useMemo(
+    () => repertoires.reduce((sum, item) => sum + item.due_count + item.new_count, 0),
+    [repertoires],
+  );
+
   return {
     openingTrainerOpen,
     openOpeningTrainer,
     closeOpeningTrainer,
     repertoires,
+    repertoirePendingCount,
     selectedRepertoire,
     selectedRepertoireId,
     selectRepertoire,

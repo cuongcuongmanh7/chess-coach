@@ -45,6 +45,7 @@ pub(crate) struct Repertoire {
     pub(crate) source: String,
     pub(crate) node_count: i64,
     pub(crate) due_count: i64,
+    pub(crate) new_count: i64,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }

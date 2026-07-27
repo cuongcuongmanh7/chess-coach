@@ -14,7 +14,7 @@ type RepertoireBoardProps = {
 
 export function RepertoireBoard({ session, color, onPieceDrop }: RepertoireBoardProps) {
   const interactionEnabled =
-    !session.loading && (session.status === "playing" || session.status === "free");
+    !session.loading && !session.machineThinking && (session.status === "playing" || session.status === "free");
   // Ở phân tích tự do, cho điều khiển bên đang tới lượt (cả hai màu); mode luyện giữ đúng màu repertoire.
   const controlledColor = session.status === "free" ? turnColor(session.fen) : color;
   const boardHints = useInteractiveBoardHints({

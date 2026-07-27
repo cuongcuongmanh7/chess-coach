@@ -92,9 +92,23 @@ export function useTrainingController(
     }
   }, [activeProfileId, sessionController.setTrainingSession, trainingQueue]);
 
+  // Chỉ tải stats (nhẹ) để badge "đến hạn" hiển thị ngay cả khi modal đóng.
+  const refreshTrainingStats = useCallback(async () => {
+    if (!activeProfileId || !isTauri()) {
+      setTrainingStats(EMPTY_STATS);
+      return;
+    }
+    try {
+      setTrainingStats(await trainingRepository.stats(activeProfileId));
+    } catch {
+      // Im lặng: badge chỉ là phụ trợ, không chặn luồng chính.
+    }
+  }, [activeProfileId]);
+
   useEffect(() => {
     if (trainingOpen) void refreshTraining();
-  }, [refreshTraining, trainingOpen]);
+    else void refreshTrainingStats();
+  }, [refreshTraining, refreshTrainingStats, trainingOpen]);
 
   const openTraining = useCallback(() => {
     setTrainingOpen(true);
@@ -118,8 +132,9 @@ export function useTrainingController(
       cards: buildTrainingSeeds(steps, engineCache),
     });
     if (trainingOpen) void refreshTraining();
+    else void refreshTrainingStats();
     return result;
-  }, [activeProfileId, includeInaccuracies, refreshTraining, trainingOpen]);
+  }, [activeProfileId, includeInaccuracies, refreshTraining, refreshTrainingStats, trainingOpen]);
 
   const updateTrainingCard = useCallback(async (
     card: TrainingCard,
@@ -158,6 +173,7 @@ export function useTrainingController(
     openTraining,
     closeTraining,
     refreshTraining,
+    refreshTrainingStats,
     generateCardsForGame,
     updateTrainingCard,
   };

@@ -55,6 +55,7 @@
   .top-actions .library-button, .top-actions .dashboard-button, .top-actions > .primary-button { width: 34px; min-width: 34px; min-height: 34px; padding: 0; gap: 0; overflow: visible; font-size: 0; }
   .top-actions .library-button { position: relative; }
   .top-actions .library-count { min-width: 15px; height: 15px; padding: 0 3px; position: absolute; top: -5px; right: -5px; font-size: 9px; }
+  .top-actions .dashboard-count { min-width: 15px; height: 15px; margin: 0; padding: 0 3px; position: absolute; top: -5px; right: -5px; font-size: 9px; }
   .workspace { padding: 19px 11px; }
   .game-heading { min-height: 61px; }
   .game-matchup { gap: 7px; }

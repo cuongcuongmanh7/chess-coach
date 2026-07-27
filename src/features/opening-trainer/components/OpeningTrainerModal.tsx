@@ -29,7 +29,7 @@ export function OpeningTrainerModal() {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={closeOpeningTrainer}>
       <section
-        className="modal-card training-modal"
+        className="modal-card training-modal opening-trainer-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="opening-trainer-title"
@@ -65,6 +65,11 @@ export function OpeningTrainerModal() {
               {session.loading && (
                 <p className="repertoire-message">
                   <LoaderCircle className="spin" size={15} /> Đang lưu…
+                </p>
+              )}
+              {session.machineThinking && !session.loading && (
+                <p className="repertoire-message">
+                  <LoaderCircle className="spin" size={15} /> Đối thủ đang đi…
                 </p>
               )}
 

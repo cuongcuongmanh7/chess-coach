@@ -98,7 +98,9 @@ export function AppChrome() {
     refreshSavedGames,
     openDashboard,
     openTraining,
+    trainingStats,
     openOpeningTrainer,
+    repertoirePendingCount,
     setBatchSheetOpen,
     handleGoogleLogout,
     changeActiveProfile,
@@ -107,6 +109,8 @@ export function AppChrome() {
     candidateState,
   } = useAppControllerContext();
   const analyzedGamesCount = savedGames.filter((game) => game.analysis_complete).length;
+  const pendingAnalysisCount = savedGames.length - analyzedGamesCount;
+  const formatBadgeCount = (value: number) => (value > 99 ? "99+" : String(value));
   return (
     <>
       {syncNotice && (
@@ -247,14 +251,17 @@ export function AppChrome() {
           <button className="ghost-button dashboard-button" onClick={() => void openDashboard()}>
             <BarChart3 size={16} /> Tiến bộ
           </button>
-          <button className="ghost-button dashboard-button" onClick={openTraining}>
+          <button className="ghost-button dashboard-button" onClick={openTraining} title={trainingStats.due > 0 ? `${trainingStats.due} bài đến hạn ôn` : undefined}>
             <Dumbbell size={16} /> Mistake Lab
+            {trainingStats.due > 0 && <span className="dashboard-count">{formatBadgeCount(trainingStats.due)}</span>}
           </button>
-          <button className="ghost-button dashboard-button" onClick={openOpeningTrainer}>
+          <button className="ghost-button dashboard-button" onClick={openOpeningTrainer} title={repertoirePendingCount > 0 ? `${repertoirePendingCount} nước khai cuộc cần học/ôn` : undefined}>
             <BookOpen size={16} /> Opening Trainer
+            {repertoirePendingCount > 0 && <span className="dashboard-count">{formatBadgeCount(repertoirePendingCount)}</span>}
           </button>
-          <button className="ghost-button dashboard-button" onClick={() => setBatchSheetOpen(true)}>
+          <button className="ghost-button dashboard-button" onClick={() => setBatchSheetOpen(true)} title={pendingAnalysisCount > 0 ? `${pendingAnalysisCount} ván chưa phân tích` : undefined}>
             <ListChecks size={16} /> Phân tích loạt
+            {pendingAnalysisCount > 0 && <span className="dashboard-count">{formatBadgeCount(pendingAnalysisCount)}</span>}
           </button>
           <button className="ghost-button library-button mobile-library-button" onClick={() => { setLibraryOpen(true); void refreshSavedGames(); }}>
             <Library size={16} /> Kho ván {savedGames.length > 0 && <span className="library-count">{savedGames.length}</span>}

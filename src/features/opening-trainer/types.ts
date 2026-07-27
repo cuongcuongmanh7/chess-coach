@@ -26,6 +26,7 @@ export type Repertoire = {
   source: string;
   node_count: number;
   due_count: number;
+  new_count: number;
   created_at: string;
   updated_at: string;
 };

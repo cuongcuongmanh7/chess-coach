@@ -62,6 +62,10 @@ pub(crate) fn list_repertoires(
                        JOIN repertoire_progress p ON p.node_id = n.id
                       WHERE n.repertoire_id = r.id AND n.is_user_move = 1
                         AND p.due_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                    (SELECT COUNT(*) FROM repertoire_nodes n
+                      WHERE n.repertoire_id = r.id AND n.is_user_move = 1
+                        AND NOT EXISTS
+                          (SELECT 1 FROM repertoire_progress p WHERE p.node_id = n.id)),
                     r.created_at, r.updated_at
              FROM repertoires r
              WHERE r.profile_id = ?1
@@ -79,8 +83,9 @@ pub(crate) fn list_repertoires(
                 source: row.get(5)?,
                 node_count: row.get(6)?,
                 due_count: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                new_count: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         })
         .map_err(|_| "Không thể đọc danh sách repertoire.".to_string())?;
