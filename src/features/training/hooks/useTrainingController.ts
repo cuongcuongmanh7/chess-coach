@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AnalysisStep } from "../../../analysis";
+import { analyzePgn, type AnalysisStep } from "../../../analysis";
 import type { EngineMoveAnalysis } from "../../../stockfish";
 import { isTauri } from "../../../shared/services/tauriClient";
+import { analysisRepository } from "../../analysis/services/analysisRepository";
+import { buildEngineCacheFromStored } from "../../analysis/engineCache";
+import { tacticCodes } from "../../tactics/detector.ts";
 import { trainingRepository } from "../services/trainingRepository";
 import { markSyncedPreferencesChanged } from "../../cloud/services/preferencesDirty";
 import type {
@@ -136,6 +139,64 @@ export function useTrainingController(
     return result;
   }, [activeProfileId, includeInaccuracies, refreshTraining, refreshTrainingStats, trainingOpen]);
 
+  // Dựng lại thẻ Mistake Lab cho các ván đã phân tích nhưng chưa có thẻ (điển
+  // hình sau khi khôi phục dữ liệu cloud trên máy mới). Thẻ là dữ liệu dẫn xuất,
+  // không được đồng bộ; ta tạo lại từ PGN + engine_analyses đã có, và bước tạo
+  // thẻ tự áp tiến độ ôn (training_progress_inbox) đang chờ.
+  const rebuildTrainingCards = useCallback(async () => {
+    if (!isTauri()) return { rebuilt: 0, games: 0 };
+    const targets = await trainingRepository.rebuildTargets(includeInaccuracies);
+    if (!targets.length) return { rebuilt: 0, games: 0 };
+    const byGame = new Map<string, { pgn: string; profileIds: number[] }>();
+    for (const target of targets) {
+      const entry = byGame.get(target.game_id) ?? { pgn: target.pgn, profileIds: [] };
+      entry.profileIds.push(target.profile_id);
+      byGame.set(target.game_id, entry);
+    }
+    let rebuilt = 0;
+    for (const [gameId, { pgn, profileIds }] of byGame) {
+      try {
+        const parsed = analyzePgn(pgn);
+        const stored = await analysisRepository.list(gameId);
+        const { cache, reclassified } = buildEngineCacheFromStored(parsed.steps, parsed.headers, stored);
+        // Ghi lại phân loại/nhãn đã đổi TRƯỚC khi tạo thẻ: generate_training_cards
+        // đối chiếu seed với engine_analyses, nếu lệch sẽ bỏ qua nước đó.
+        if (reclassified.length) {
+          await Promise.allSettled(reclassified.map(({ step, result }) =>
+            analysisRepository.save({
+              game_id: gameId,
+              ply: step.ply,
+              depth: result.depth,
+              result,
+              color: step.color,
+              phase: step.phase,
+              quality: result.quality,
+              centipawn_loss: result.centipawnLoss,
+              think_time_seconds: step.thinkTimeSeconds,
+              is_quick: step.isQuickMove,
+              is_time_pressure: step.isTimePressure,
+              tags: tacticCodes(result),
+            })));
+        }
+        const cards = buildTrainingSeeds(parsed.steps, cache);
+        for (const profileId of profileIds) {
+          const result = await trainingRepository.generate({
+            game_id: gameId,
+            profile_id: profileId,
+            include_inaccuracies: includeInaccuracies,
+            cards,
+          });
+          rebuilt += result.created;
+        }
+      } catch {
+        // Bỏ qua ván lỗi (PGN hỏng…) để không chặn các ván còn lại.
+      }
+    }
+    if (trainingOpen) void refreshTraining();
+    else void refreshTrainingStats();
+    return { rebuilt, games: byGame.size };
+  }, [includeInaccuracies, refreshTraining, refreshTrainingStats, trainingOpen]);
+
   const updateTrainingCard = useCallback(async (
     card: TrainingCard,
     changes: { starred?: boolean; suspended?: boolean },
@@ -175,6 +236,7 @@ export function useTrainingController(
     refreshTraining,
     refreshTrainingStats,
     generateCardsForGame,
+    rebuildTrainingCards,
     updateTrainingCard,
   };
 }

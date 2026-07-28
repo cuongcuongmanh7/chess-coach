@@ -19,7 +19,7 @@ fn seed(key: &str, parent: Option<&str>, uci: &str, is_user: bool) -> Repertoire
 
 fn setup() -> Connection {
     let connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     connection
         .execute(
             "INSERT INTO player_profiles(id, platform, username, created_at)

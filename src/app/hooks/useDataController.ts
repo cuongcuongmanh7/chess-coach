@@ -6,16 +6,14 @@ import type { EngineMoveAnalysis } from "../../stockfish";
 import { QUALITY_LABELS } from "../constants";
 import type { PlayerSummary } from "../types";
 import { analysisRepository } from "../../features/analysis/services/analysisRepository";
+import { buildEngineCacheFromStored } from "../../features/analysis/engineCache";
 import {
-  normalizeEngineAnalysis,
-  playerEloForColor,
   type DisplayMoveQuality,
 } from "../../features/analysis/moveClassification";
 import {
   tacticCodes,
   withTacticalAnalysis,
 } from "../../features/tactics/detector.ts";
-import { TACTICS_VERSION } from "../../features/tactics/types";
 import { profileRepository } from "../../features/profiles/services/profileRepository";
 import { isTauri } from "../../shared/services/tauriClient";
 import type { PlayerProfile } from "../../shared/types/tauri";
@@ -96,33 +94,12 @@ export function useDataController(
     if (!isTauri()) return;
     try {
       const stored = await analysisRepository.list(gameId);
-      const classificationUpdates: Promise<void>[] = [];
-      const cache = stored.reduce<Record<number, EngineMoveAnalysis>>((values, item) => {
-        const step = next.steps[item.ply - 1];
-        if (item.result && item.result.depth >= item.depth && step) {
-          const result = withTacticalAnalysis(
-            step,
-            normalizeEngineAnalysis(
-              step,
-              item.result,
-              playerEloForColor(next.headers, step.color),
-            ),
-          );
-          values[item.ply] = result;
-          if (
-            item.result.quality !== result.quality
-            || item.result.displayQuality !== result.displayQuality
-            || item.result.expectedPointsLoss === undefined
-            || item.result.tactics?.version !== TACTICS_VERSION
-          ) {
-            classificationUpdates.push(persistEngineResult(gameId, step, result));
-          }
-        }
-        return values;
-      }, {});
+      const { cache, reclassified } = buildEngineCacheFromStored(next.steps, next.headers, stored);
       setEngineCache(cache);
-      if (classificationUpdates.length) {
-        void Promise.allSettled(classificationUpdates);
+      if (reclassified.length) {
+        void Promise.allSettled(
+          reclassified.map(({ step, result }) => persistEngineResult(gameId, step, result)),
+        );
       }
       const complete = next.steps.length > 0 && next.steps.every((item) => Boolean(cache[item.ply]));
       if (complete) void analysisRepository.markComplete(gameId).catch(() => undefined);

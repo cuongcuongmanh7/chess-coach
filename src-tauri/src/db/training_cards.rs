@@ -223,6 +223,63 @@ pub(crate) fn list_training_cards(
         .map_err(|_| "Dữ liệu bài tập không hợp lệ.".to_string())
 }
 
+pub(crate) fn list_training_rebuild_targets(
+    database: tauri::State<'_, DatabaseState>,
+    request: ListTrainingRebuildTargetsRequest,
+) -> Result<Vec<TrainingRebuildTarget>, String> {
+    let connection = database
+        .0
+        .lock()
+        .map_err(|_| "Không thể mở kho bài tập.".to_string())?;
+    list_training_rebuild_targets_connection(&connection, request.include_inaccuracies)
+}
+
+pub(crate) fn list_training_rebuild_targets_connection(
+    connection: &Connection,
+    include_inaccuracies: bool,
+) -> Result<Vec<TrainingRebuildTarget>, String> {
+    // Chỉ nhắm các ván có nước đủ điều kiện tạo thẻ (theo đúng tuỳ chọn
+    // include_inaccuracies của người dùng) nhưng chưa có thẻ nào — nhờ vậy sau
+    // khi dựng lại, NOT EXISTS training_cards thành false và ván không bị quét lại
+    // ở lần đồng bộ sau. Ván không có lỗi sẽ không lọt vào danh sách.
+    let quality_clause = if include_inaccuracies {
+        "ea.quality IN ('mistake', 'blunder', 'inaccuracy')"
+    } else {
+        "ea.quality IN ('mistake', 'blunder')"
+    };
+    let sql = format!(
+        "SELECT sg.id, gp.profile_id, sg.pgn
+         FROM saved_games sg
+         JOIN game_profiles gp ON gp.game_id = sg.id
+         WHERE sg.analysis_complete = 1
+           AND EXISTS (
+             SELECT 1 FROM engine_analyses ea
+             WHERE ea.game_id = sg.id AND ea.engine_version = ?1 AND ea.multipv = ?2
+               AND ea.color = gp.player_color AND {quality_clause}
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM training_cards tc
+             WHERE tc.game_id = sg.id AND tc.profile_id = gp.profile_id
+           )
+         ORDER BY COALESCE(sg.played_at, sg.game_date) DESC, sg.id
+         LIMIT 5000"
+    );
+    let mut statement = connection
+        .prepare(&sql)
+        .map_err(|_| "Không thể chuẩn bị danh sách dựng lại Mistake Lab.".to_string())?;
+    let rows = statement
+        .query_map(params![ENGINE_VERSION, engine_multipv()], |row| {
+            Ok(TrainingRebuildTarget {
+                game_id: row.get(0)?,
+                profile_id: row.get(1)?,
+                pgn: row.get(2)?,
+            })
+        })
+        .map_err(|_| "Không thể đọc danh sách dựng lại Mistake Lab.".to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Dữ liệu dựng lại Mistake Lab không hợp lệ.".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,7 +287,7 @@ mod tests {
     #[test]
     fn generates_only_player_side_and_deduplicates_cards() {
         let mut connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         let game_id = "c".repeat(64);
         connection
             .execute(
@@ -297,5 +354,78 @@ mod tests {
         assert_eq!((second.created, second.eligible), (0, 1));
         assert_eq!(count, 1);
         assert_eq!(tags, r#"["fork"]"#);
+    }
+
+    #[test]
+    fn rebuild_targets_lists_complete_games_missing_cards_then_clears_after_generate() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        initialize_database(&connection).unwrap();
+        let game_id = "d".repeat(64);
+        connection
+            .execute(
+                "INSERT INTO player_profiles(platform, username, created_at)
+                 VALUES ('chesscom', 'learner', datetime('now'))",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO saved_games
+                 (id, pgn, white, black, opening, analysis_complete, created_at, last_opened_at)
+                 VALUES (?1, '1. e4 e5', 'Learner', 'Opponent', 'Ván cờ Italia', 1,
+                         datetime('now'), datetime('now'))",
+                params![&game_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO game_profiles(game_id, profile_id, player_color, linked_at)
+                 VALUES (?1, 1, 'w', datetime('now'))",
+                params![&game_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO engine_analyses
+                 (game_id, ply, engine_version, depth, multipv, result_json, color,
+                  phase, quality, centipawn_loss, updated_at)
+                 VALUES (?1, 1, ?2, 11, 2, '{}', 'w', 'Khai cuộc', 'mistake', 120,
+                         datetime('now'))",
+                params![&game_id, ENGINE_VERSION],
+            )
+            .unwrap();
+
+        // Ván complete, có mistake của người chơi, chưa có thẻ -> phải nằm trong danh sách.
+        let targets = list_training_rebuild_targets_connection(&connection, false).unwrap();
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].game_id, game_id);
+        assert_eq!(targets[0].profile_id, 1);
+        assert_eq!(targets[0].pgn, "1. e4 e5");
+
+        // Sau khi tạo thẻ, không còn là mục cần dựng lại.
+        generate_training_cards_connection(
+            &mut connection,
+            GenerateTrainingCardsRequest {
+                game_id: game_id.clone(),
+                profile_id: 1,
+                include_inaccuracies: false,
+                cards: vec![TrainingCardSeed {
+                    ply: 1,
+                    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string(),
+                    side_to_move: "w".to_string(),
+                    played_move: "e4".to_string(),
+                    best_move: "d4".to_string(),
+                    best_line: vec!["d4".to_string()],
+                    quality: "mistake".to_string(),
+                    centipawn_loss: 120.0,
+                    phase: "Khai cuộc".to_string(),
+                    tags: vec![],
+                }],
+            },
+        )
+        .unwrap();
+        assert!(list_training_rebuild_targets_connection(&connection, false)
+            .unwrap()
+            .is_empty());
     }
 }

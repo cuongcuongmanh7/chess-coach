@@ -3,10 +3,7 @@ use crate::*;
 pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 9;
 const ENGINE_MULTIPV: i64 = 2;
 
-pub(crate) fn open_database(
-    path: &Path,
-    seed_default_profiles: bool,
-) -> rusqlite::Result<Connection> {
+pub(crate) fn open_database(path: &Path) -> rusqlite::Result<Connection> {
     let existed = path.exists();
     let connection = Connection::open(path)?;
     let version = schema_version(&connection)?;
@@ -15,20 +12,17 @@ pub(crate) fn open_database(
         backup_before_migration(&connection, path, version)?;
     }
 
-    initialize_database(&connection, seed_default_profiles)?;
+    initialize_database(&connection)?;
     Ok(connection)
 }
 
-pub(crate) fn initialize_database(
-    connection: &Connection,
-    seed_default_profiles: bool,
-) -> rusqlite::Result<()> {
+pub(crate) fn initialize_database(connection: &Connection) -> rusqlite::Result<()> {
     let version = schema_version(connection)?;
     if version > CURRENT_SCHEMA_VERSION {
         return Err(rusqlite::Error::InvalidQuery);
     }
     if version < 1 {
-        migrate_to_v1(connection, seed_default_profiles)?;
+        migrate_to_v1(connection)?;
     }
     if schema_version(connection)? < 2 {
         migrate_to_v2(connection)?;
@@ -98,7 +92,7 @@ pub(crate) fn add_column_if_missing(
     Ok(())
 }
 
-fn migrate_to_v1(connection: &Connection, seed_default_profiles: bool) -> rusqlite::Result<()> {
+fn migrate_to_v1(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS ai_explanations (
             cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, model TEXT NOT NULL,
@@ -181,25 +175,16 @@ fn migrate_to_v1(connection: &Connection, seed_default_profiles: bool) -> rusqli
          WHERE source_platform IS NULL",
         [],
     )?;
-    seed_profiles_and_cloud_queue(connection, seed_default_profiles)?;
+    link_games_and_seed_cloud_queue(connection)?;
     connection.execute_batch("PRAGMA user_version = 1;")?;
     Ok(())
 }
 
-fn seed_profiles_and_cloud_queue(
-    connection: &Connection,
-    seed_default_profiles: bool,
-) -> rusqlite::Result<()> {
-    let profile_count: i64 =
-        connection.query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))?;
-    if seed_default_profiles && profile_count == 0 {
-        connection.execute_batch(
-            "INSERT INTO player_profiles (platform, username, created_at)
-             VALUES ('chesscom', 'Cuongkool', datetime('now'));
-             INSERT INTO player_profiles (platform, username, created_at)
-             VALUES ('lichess', 'chinsu1409', datetime('now'));",
-        )?;
-    }
+// Không seed hồ sơ mặc định: kho local mới khởi tạo với 0 hồ sơ để không lộ
+// tài khoản cá nhân trên máy mới. Hồ sơ được thêm thủ công hoặc lấy về từ cloud
+// sau khi đăng nhập. Hàm này chỉ liên kết ván với hồ sơ (nếu có) và mồi hàng
+// đợi đồng bộ cloud một lần.
+fn link_games_and_seed_cloud_queue(connection: &Connection) -> rusqlite::Result<()> {
     connection.execute(
         "INSERT OR IGNORE INTO game_profiles (game_id, profile_id, player_color, linked_at)
          SELECT sg.id, pp.id,

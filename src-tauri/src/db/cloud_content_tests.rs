@@ -39,7 +39,7 @@ fn cloud_analysis(game_id: &str, depth: u32) -> CloudEngineAnalysis {
 #[test]
 fn v6_migration_backfills_existing_cloud_content_without_deleting_it() {
     let connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     let game_id = "a".repeat(64);
     let cache_key = "b".repeat(64);
     insert_game(&connection, &game_id);
@@ -78,7 +78,7 @@ fn v6_migration_backfills_existing_cloud_content_without_deleting_it() {
         )
         .unwrap();
 
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     let engine_cloud_id: String = connection
         .query_row(
@@ -113,7 +113,7 @@ fn v6_migration_backfills_existing_cloud_content_without_deleting_it() {
 #[test]
 fn cloud_analysis_merge_is_union_and_uses_the_deepest_result() {
     let mut connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     let game_id = "c".repeat(64);
     let local_game_id = "9".repeat(64);
     insert_game(&connection, &game_id);
@@ -193,7 +193,7 @@ fn cloud_analysis_merge_is_union_and_uses_the_deepest_result() {
 #[test]
 fn training_attempts_and_ai_cache_merge_idempotently() {
     let mut connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     let game_id = "d".repeat(64);
     let profile_key = "chesscom:learner";
     let card_id = training_card_id(profile_key, &game_id, 1);

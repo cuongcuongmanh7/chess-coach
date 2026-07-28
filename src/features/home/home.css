@@ -72,6 +72,27 @@
   padding-inline: 17px;
 }
 
+.startup-account {
+  width: fit-content;
+  margin: 15px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.startup-account:hover {
+  color: var(--ink);
+  border-color: rgba(129,182,76,.35);
+  background: rgba(129,182,76,.06);
+}
+
 .startup-demo {
   margin-top: 17px;
   padding: 4px;

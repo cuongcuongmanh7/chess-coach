@@ -24,7 +24,7 @@ pub(crate) fn seed_node(
 
 pub(crate) fn cloud_connection() -> Connection {
     let connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     connection
         .execute(
             "INSERT INTO player_profiles(id, platform, username, created_at)

@@ -6,7 +6,7 @@ mod tests {
 
     fn cloud_test_connection() -> Connection {
         let connection = Connection::open_in_memory().expect("open in-memory database");
-        initialize_database(&connection, false).expect("create cloud test schema");
+        initialize_database(&connection).expect("create cloud test schema");
         connection
     }
 
@@ -49,7 +49,17 @@ mod tests {
         ));
         fs::create_dir_all(&data_dir).unwrap();
         let guest = Connection::open(data_dir.join("ky-pho.sqlite3")).unwrap();
-        initialize_database(&guest, true).unwrap();
+        initialize_database(&guest).unwrap();
+        // Kho local mới không còn seed hồ sơ mặc định; thêm tay để kiểm tra
+        // việc chuyển dữ liệu cũ (legacy claim) sang tài khoản đầu tiên.
+        guest
+            .execute_batch(
+                "INSERT INTO player_profiles (platform, username, created_at)
+                 VALUES ('chesscom', 'tester', datetime('now'));
+                 INSERT INTO player_profiles (platform, username, created_at)
+                 VALUES ('lichess', 'tester2', datetime('now'));",
+            )
+            .unwrap();
         let guest_profiles: i64 = guest
             .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
             .unwrap();
@@ -101,7 +111,7 @@ mod tests {
         ));
         fs::create_dir_all(&data_dir).unwrap();
         let guest = Connection::open(data_dir.join("ky-pho.sqlite3")).unwrap();
-        initialize_database(&guest, true).unwrap();
+        initialize_database(&guest).unwrap();
         for uid in ["firebase-user-a", "firebase-user-b"] {
             guest
                 .execute(

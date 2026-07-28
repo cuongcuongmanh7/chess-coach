@@ -43,6 +43,12 @@ export type StoredEngineAnalysis = {
   result: EngineMoveAnalysis;
 };
 
+export type TrainingRebuildTarget = {
+  game_id: string;
+  profile_id: number;
+  pgn: string;
+};
+
 export type PlayerProfile = {
   id: number;
   platform: SyncPlatform;

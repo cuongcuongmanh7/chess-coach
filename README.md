@@ -2,7 +2,14 @@
 
 Ứng dụng desktop local dùng Tauri 2, Rust, React, TypeScript, `chess.js`, Stockfish 18 Lite, OpenAI Responses API và Gemini API.
 
-Phiên bản hiện tại: **0.12.1**.
+Phiên bản hiện tại: **0.12.3**.
+
+## Điểm mới trong v0.12.3
+
+- Bảo mật riêng tư: kho local mới không còn seed sẵn hồ sơ cá nhân — máy mới khởi tạo với 0 hồ sơ, tự thêm username hoặc lấy về từ cloud sau khi đăng nhập.
+- Mistake Lab tự dựng lại sau khi đồng bộ: đăng nhập trên máy mới là thẻ hiện đủ cho mọi hồ sơ, không cần mở lại từng ván. Thẻ được tạo lại local từ PGN + kết quả Stockfish đã khôi phục, đồng thời áp tiến độ ôn đang chờ.
+- Màn hình đầu tách rõ hai nút: "Tải ván từ Chess.com/Lichess" (đồng bộ ván) và "Đăng nhập Google" (đồng bộ đám mây), tránh nhầm lẫn.
+- Sau khi đăng nhập Google, cửa sổ tài khoản khoá thao tác cho tới khi đồng bộ và dựng lại Mistake Lab xong.
 
 ## Điểm mới trong v0.11.x
 
@@ -59,7 +66,7 @@ File cài đặt NSIS sẽ nằm trong `src-tauri/target/release/bundle/nsis/`.
 - Repertoire, cây biến (kể cả biến tự thêm) và tiến độ ôn được đồng bộ qua Firestore: đăng nhập trên máy mới là có ngay, không cần dựng lại. Định danh repertoire suy ra từ hồ sơ + màu + tên family nên hai máy dựng cùng khai cuộc sẽ hội tụ chứ không nhân đôi.
 - Tiến độ và event log của Mistake Lab được đồng bộ qua Firestore; FEN và best line của bài tập vẫn được tạo lại local từ PGN cùng cache engine.
 - Kết quả Stockfish được lưu theo từng nước trong SQLite; mở lại ván có thể tiếp tục phân tích còn dở.
-- Quản lý nhiều hồ sơ Chess.com/Lichess; hồ sơ mặc định là `Chess.com · Cuongkool` và `Lichess · chinsu1409`.
+- Quản lý nhiều hồ sơ Chess.com/Lichess; kho mới khởi tạo trống, tự thêm username hoặc lấy về từ cloud sau khi đăng nhập (không seed sẵn hồ sơ cá nhân).
 - Kho ván và Dashboard được lọc theo hồ sơ đang chọn; một ván có thể liên kết với nhiều hồ sơ nếu các tài khoản gặp nhau.
 - Dashboard tiến bộ của từng hồ sơ tổng hợp ACPL, lỗi theo giai đoạn, màu quân, thể loại và khai cuộc.
 - Đồng bộ 20 ván gần nhất cho hồ sơ đang chọn theo thể loại; ván trùng tự bỏ qua.

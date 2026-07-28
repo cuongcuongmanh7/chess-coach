@@ -1,10 +1,13 @@
 import {
+  Cloud,
   Download,
   LoaderCircle,
+  LogIn,
   Sparkles,
   Upload,
 } from "lucide-react";
 import { DEMO_PGN } from "../../../demo";
+import { BrandIcon } from "../../../shared/components/BrandIdentity";
 import { useAppControllerContext } from "../../../app/AppControllerContext";
 import "../home.css";
 
@@ -13,6 +16,8 @@ export function StartupWorkspace() {
     loadAnalysis,
     setImportMode,
     setImportOpen,
+    setAccountOpen,
+    firebaseUser,
     workspaceMode,
   } = useAppControllerContext();
 
@@ -31,7 +36,7 @@ export function StartupWorkspace() {
         <div className="startup-icon"><Sparkles size={25} /></div>
         <div className="eyebrow">CHESS COACH</div>
         <h1 id="startup-title">Bắt đầu với ván cờ của bạn</h1>
-        <p>Nạp một ván PGN hoặc đồng bộ lịch sử thi đấu để Stockfish và HLV AI cùng phân tích.</p>
+        <p>Nạp một ván PGN hoặc tải lịch sử thi đấu từ Chess.com/Lichess để Stockfish và HLV AI cùng phân tích.</p>
         <div className="startup-actions">
           <button
             className="primary-button"
@@ -49,9 +54,19 @@ export function StartupWorkspace() {
               setImportOpen(true);
             }}
           >
-            <Download size={17} /> Đồng bộ tài khoản
+            <Download size={17} /> Tải ván từ Chess.com/Lichess
           </button>
         </div>
+        <button
+          className="startup-account"
+          onClick={() => setAccountOpen(true)}
+        >
+          {firebaseUser ? (
+            <><Cloud size={16} /> Tài khoản Google · đồng bộ đám mây</>
+          ) : (
+            <><BrandIcon brand="google" size={16} /> Đăng nhập Google để đồng bộ đám mây <LogIn size={14} /></>
+          )}
+        </button>
         <button
           className="startup-demo"
           onClick={() => loadAnalysis(DEMO_PGN)}

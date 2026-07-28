@@ -17,6 +17,14 @@ pub(crate) fn list_training_cards(
 }
 
 #[tauri::command]
+pub(crate) fn list_training_rebuild_targets(
+    database: tauri::State<'_, DatabaseState>,
+    request: ListTrainingRebuildTargetsRequest,
+) -> Result<Vec<TrainingRebuildTarget>, String> {
+    crate::list_training_rebuild_targets(database, request)
+}
+
+#[tauri::command]
 pub(crate) fn review_training_card(
     database: tauri::State<'_, DatabaseState>,
     request: ReviewTrainingCardRequest,

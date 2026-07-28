@@ -36,6 +36,8 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     googleLoginPending,
     setGoogleLoginPending,
     setCloudSyncing,
+    setCloudRebuilding,
+    setAccountSyncLocked,
     setStartupDataReady,
     setLastCloudSyncAt,
     setPendingCloudChanges,
@@ -60,6 +62,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
     cloudRetryTimerRef,
     cloudRetryAttemptRef,
     cloudRetryHandlerRef,
+    cloudRebuildHandlerRef,
     cloudSyncedUserRef,
     activeProfileStorageKeyRef,
   } = state;
@@ -180,6 +183,18 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       localStorage.setItem(`kypho-cloud-last-sync:${targetUser.uid}`, completedAt);
       setLastCloudSyncAt(completedAt);
       await Promise.all([refreshProfiles(), refreshSavedGames()]);
+      // Thẻ Mistake Lab không được đồng bộ; dựng lại local từ engine_analyses vừa
+      // hợp nhất để cả hai hồ sơ có đủ bài ngay, không phải mở từng ván.
+      if (mergedTotal.engine_analyses_merged > 0 || mergedTotal.training_progress_merged > 0) {
+        setCloudRebuilding(true);
+        try {
+          await cloudRebuildHandlerRef.current();
+        } catch {
+          // Không chặn luồng đồng bộ nếu dựng lại thất bại; lần sau sẽ thử tiếp.
+        } finally {
+          setCloudRebuilding(false);
+        }
+      }
       if (showSuccess) {
         const imported = cloudMergedCount(mergedTotal);
         const deleted = mergedTotal.profiles_deleted + mergedTotal.games_deleted;
@@ -250,7 +265,10 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       const user = await signInWithGoogle();
       cloudSyncedUserRef.current = user.uid;
       setFirebaseUser(user);
+      // Đưa người dùng vào modal tài khoản và khoá thao tác cho tới khi đồng bộ +
+      // dựng lại Mistake Lab xong, tránh sửa dữ liệu giữa chừng.
       setAccountOpen(true);
+      setAccountSyncLocked(true);
       await syncCloud(user, true);
     } catch (reason) {
       setSyncNotice({
@@ -258,6 +276,7 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
         message: firebaseErrorMessage(reason),
       });
     } finally {
+      setAccountSyncLocked(false);
       setGoogleLoginPending(false);
       setAuthLoading(false);
     }

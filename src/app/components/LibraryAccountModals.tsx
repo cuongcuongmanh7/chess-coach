@@ -79,6 +79,8 @@ export function LibraryAccountModals() {
     authLoading,
     googleLoginPending,
     cloudSyncing,
+    cloudRebuilding,
+    accountSyncLocked,
     lastCloudSyncAt,
     pendingCloudChanges,
     currentGameId,
@@ -173,6 +175,12 @@ export function LibraryAccountModals() {
                 );
               })}
               {profilesLoading && !profiles.length && <div className="library-empty"><LoaderCircle className="spin" size={22} /> Đang đọc hồ sơ…</div>}
+              {!profilesLoading && !profiles.length && (
+                <div className="library-empty">
+                  <UserRound size={22} />
+                  Chưa có hồ sơ nào. Thêm username Chess.com/Lichess bên dưới, hoặc đăng nhập Google để lấy hồ sơ từ cloud.
+                </div>
+              )}
             </div>
 
             <div className="profile-add-form">
@@ -197,13 +205,20 @@ export function LibraryAccountModals() {
       )}
 
       {accountOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setAccountOpen(false)}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => { if (!accountSyncLocked) setAccountOpen(false); }}>
           <section className="modal-card account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Đóng"><X size={20} /></button>
+            {!accountSyncLocked && <button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Đóng"><X size={20} /></button>}
             <div className="modal-icon"><Cloud size={24} /></div>
             <div className="eyebrow">GOOGLE · FIREBASE · SQLITE</div>
             <h2 id="account-title">Tài khoản & đồng bộ</h2>
             <p>Đăng nhập Google để sao lưu hồ sơ và kho ván, rồi tiếp tục trên máy khác. SQLite vẫn là bản dữ liệu offline trên máy này.</p>
+
+            {accountSyncLocked && (
+              <div className="account-sync-lock" role="status" aria-live="polite">
+                <LoaderCircle className="spin" size={16} />
+                <span>{cloudRebuilding ? "Đang dựng lại Mistake Lab…" : "Đang đồng bộ dữ liệu…"} Vui lòng chờ trong giây lát.</span>
+              </div>
+            )}
 
             {firebaseUser ? (
               <>
@@ -232,10 +247,10 @@ export function LibraryAccountModals() {
                 </div>
                 <div className="security-note"><ShieldCheck size={15} /> Mỗi Firebase UID có vùng Firestore và file SQLite riêng. Kết quả Stockfish, lịch luyện và cache HLV được hợp nhất; API key AI luôn chỉ nằm trong Credential Manager của máy.</div>
                 <div className="modal-actions account-actions">
-                  <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={accountSwitchBusy}><LogOut size={15} /> Đăng xuất</button>
-                  <button className="primary-button large" onClick={() => void syncCloud(firebaseUser, true)} disabled={cloudSyncing}>
+                  <button className="danger-ghost" onClick={() => void handleGoogleLogout()} disabled={accountSwitchBusy || accountSyncLocked}><LogOut size={15} /> Đăng xuất</button>
+                  <button className="primary-button large" onClick={() => void syncCloud(firebaseUser, true)} disabled={cloudSyncing || accountSyncLocked}>
                     {cloudSyncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
-                    {cloudSyncing ? "Đang đồng bộ…" : "Đồng bộ ngay"}
+                    {cloudRebuilding ? "Đang dựng lại…" : cloudSyncing ? "Đang đồng bộ…" : "Đồng bộ ngay"}
                   </button>
                 </div>
               </>

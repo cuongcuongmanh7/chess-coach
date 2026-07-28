@@ -34,6 +34,21 @@ pub(crate) struct ListTrainingCardsRequest {
     pub(crate) queue: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ListTrainingRebuildTargetsRequest {
+    pub(crate) include_inaccuracies: bool,
+}
+
+// Ván đã phân tích xong, có lỗi của người chơi nhưng thiếu thẻ Mistake Lab
+// (thường xảy ra ngay sau khi khôi phục dữ liệu từ cloud trên máy mới). Trả kèm
+// PGN để frontend dựng lại FEN/best line rồi tạo thẻ, không cần mở từng ván.
+#[derive(Serialize)]
+pub(crate) struct TrainingRebuildTarget {
+    pub(crate) game_id: String,
+    pub(crate) profile_id: i64,
+    pub(crate) pgn: String,
+}
+
 #[derive(Clone, Serialize)]
 pub(crate) struct TrainingCard {
     pub(crate) id: String,

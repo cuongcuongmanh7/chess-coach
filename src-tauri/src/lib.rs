@@ -142,7 +142,7 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
-            let connection = open_database(&data_dir.join("ky-pho.sqlite3"), true)?;
+            let connection = open_database(&data_dir.join("ky-pho.sqlite3"))?;
             app.manage(DatabaseState(Mutex::new(ActiveDatabase {
                 connection,
                 data_dir,
@@ -166,6 +166,7 @@ pub fn run() {
             commands::games::get_dashboard_records,
             commands::training::generate_training_cards,
             commands::training::list_training_cards,
+            commands::training::list_training_rebuild_targets,
             commands::training::review_training_card,
             commands::training::update_training_card,
             commands::training::get_training_stats,

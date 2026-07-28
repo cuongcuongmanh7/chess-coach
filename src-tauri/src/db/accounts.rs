@@ -81,7 +81,7 @@ pub(crate) fn activate_cloud_account_connection(
     let account_path = accounts_dir.join(format!("{uid_hash}.sqlite3"));
     let account_existed = account_path.exists();
     let guest_path = active.data_dir.join("ky-pho.sqlite3");
-    let guest = open_database(&guest_path, true)
+    let guest = open_database(&guest_path)
         .map_err(|_| "Không thể chuẩn bị kho local để chuyển dữ liệu.".to_string())?;
     let registry = initialize_account_registry(&active.data_dir)
         .map_err(|_| "Không thể mở registry tài khoản.".to_string())?;
@@ -112,7 +112,7 @@ pub(crate) fn activate_cloud_account_connection(
             ));
         }
     }
-    let account_connection = open_database(&account_path, false)
+    let account_connection = open_database(&account_path)
         .map_err(|_| "Không thể chuẩn bị kho riêng của tài khoản.".to_string())?;
     if should_claim_legacy {
         registry
@@ -171,7 +171,7 @@ pub(crate) fn deactivate_cloud_account(
             claimed_legacy_data: false,
         });
     }
-    let guest = open_database(&active.data_dir.join("ky-pho.sqlite3"), true)
+    let guest = open_database(&active.data_dir.join("ky-pho.sqlite3"))
         .map_err(|_| "Không thể chuẩn bị kho local.".to_string())?;
     active.connection = guest;
     active.active_uid = None;

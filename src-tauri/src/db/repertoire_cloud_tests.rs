@@ -62,7 +62,7 @@ fn v9_merges_duplicate_families_and_keeps_max_progress() {
     insert_legacy_progress(&connection, "node-a1", 9, "2026-01-05");
     insert_legacy_progress(&connection, "node-b1", 4, "2026-03-05");
 
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     let expected_id = repertoire_doc_id(&profile_key(), "w", "italian game");
     let (repertoires, id, name): (i64, String, String) = connection
@@ -108,7 +108,7 @@ fn v9_backfills_node_updated_at_from_created_at() {
     insert_legacy_repertoire(&connection, "legacy-a", "Italian Game", "2026-01-01");
     insert_legacy_node(&connection, "node-a1", "legacy-a", None, "e2e4");
 
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     assert_eq!(
         count(
@@ -133,7 +133,7 @@ fn v9_seeds_cloud_queue_for_all_three_entities() {
     insert_legacy_node(&connection, "node-a1", "legacy-a", None, "e2e4");
     insert_legacy_progress(&connection, "node-a1", 2, "2026-01-05");
 
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     assert_eq!(queue_count(&connection, "repertoire", "upsert"), 1);
     assert_eq!(queue_count(&connection, "repertoire_node", "upsert"), 1);
@@ -155,7 +155,7 @@ fn v9_drops_repertoires_without_profile() {
         .unwrap();
     insert_legacy_node(&connection, "node-orphan", "orphan", None, "e2e4");
 
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     let counts: (i64, i64, i64) = connection
         .query_row(
@@ -172,8 +172,8 @@ fn v9_drops_repertoires_without_profile() {
 #[test]
 fn v9_is_noop_on_fresh_database_and_idempotent() {
     let connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
-    initialize_database(&connection, false).expect("v9 phải chạy lặp an toàn");
+    initialize_database(&connection).unwrap();
+    initialize_database(&connection).expect("v9 phải chạy lặp an toàn");
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();

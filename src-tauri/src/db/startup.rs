@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn resumes_most_recently_opened_game_without_mutating_timestamp() {
         let connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         insert_game(&connection, "older", "1. d4 d5", "2026-07-24 10:00:00");
         insert_game(&connection, "recent", "1. e4 e5", "2026-07-25 10:00:00");
 
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn limits_resume_to_active_profile() {
         let connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         insert_game(
             &connection,
             "profile-one",

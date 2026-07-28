@@ -1,4 +1,5 @@
 import { invokeCommand } from "../../../shared/services/tauriClient";
+import type { TrainingRebuildTarget } from "../../../shared/types/tauri";
 import type {
   TrainingCard,
   TrainingCardSeed,
@@ -21,6 +22,11 @@ export const trainingRepository = {
   list(profileId: number, queue: TrainingQueue) {
     return invokeCommand<TrainingCard[]>("list_training_cards", {
       request: { profile_id: profileId, queue },
+    });
+  },
+  rebuildTargets(includeInaccuracies: boolean) {
+    return invokeCommand<TrainingRebuildTarget[]>("list_training_rebuild_targets", {
+      request: { include_inaccuracies: includeInaccuracies },
     });
   },
   review(request: {

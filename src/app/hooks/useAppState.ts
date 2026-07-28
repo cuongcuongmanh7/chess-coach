@@ -66,6 +66,11 @@ export function useAppState() {
   const [startupDataReady, setStartupDataReady] = useState(false);
   const [googleLoginPending, setGoogleLoginPending] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
+  // Đang dựng lại Mistake Lab sau đồng bộ (hiển thị dòng trạng thái riêng).
+  const [cloudRebuilding, setCloudRebuilding] = useState(false);
+  // Khoá thao tác + không cho đóng modal tài khoản trong lúc đăng nhập → đồng bộ
+  // → dựng lại thẻ, tránh người dùng sửa dữ liệu giữa chừng.
+  const [accountSyncLocked, setAccountSyncLocked] = useState(false);
   const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
   // Số thay đổi local còn chờ đẩy lên cloud; 0 nghĩa là đã an toàn để đổi máy.
   const [pendingCloudChanges, setPendingCloudChanges] = useState(0);
@@ -140,6 +145,9 @@ export function useAppState() {
   const cloudRetryTimerRef = useRef<number | null>(null);
   const cloudRetryAttemptRef = useRef(0);
   const cloudRetryHandlerRef = useRef<() => void>(() => undefined);
+  // Gán sau khi training controller khởi tạo; syncCloud gọi để dựng lại Mistake
+  // Lab ngay sau khi hợp nhất dữ liệu cloud.
+  const cloudRebuildHandlerRef = useRef<() => Promise<unknown>>(() => Promise.resolve());
   const cloudSyncedUserRef = useRef<string | null>(null);
   const activeProfileStorageKeyRef = useRef("kypho-active-profile-id:guest");
   const previousMoveIndexRef = useRef<number | null>(null);
@@ -154,7 +162,9 @@ export function useAppState() {
     sfxEnabled, setSfxEnabled, accountOpen, setAccountOpen, firebaseUser, setFirebaseUser,
     authLoading, setAuthLoading, startupDataReady, setStartupDataReady,
     googleLoginPending, setGoogleLoginPending,
-    cloudSyncing, setCloudSyncing, lastCloudSyncAt, setLastCloudSyncAt,
+    cloudSyncing, setCloudSyncing, cloudRebuilding, setCloudRebuilding,
+    accountSyncLocked, setAccountSyncLocked,
+    lastCloudSyncAt, setLastCloudSyncAt,
     pendingCloudChanges, setPendingCloudChanges,
     currentGameId, setCurrentGameId, input, setInput, error, setError, loading, setLoading,
     savedGames, setSavedGames, libraryLoading, setLibraryLoading, libraryError, setLibraryError,
@@ -178,7 +188,7 @@ export function useAppState() {
     cacheMissesRef, autoAttemptsRef, fullAnalysisAbortRef, batchAnalysisAbortRef,
     batchPausedRef, timelineScrollerRef,
     coachScrollerRef, cloudSyncInFlightRef, cloudSyncPendingRef, cloudRetryTimerRef,
-    cloudRetryAttemptRef, cloudRetryHandlerRef, cloudSyncedUserRef,
+    cloudRetryAttemptRef, cloudRetryHandlerRef, cloudRebuildHandlerRef, cloudSyncedUserRef,
     activeProfileStorageKeyRef, previousMoveIndexRef, modalWasOpenRef, analysisWasCompleteRef,
   };
 }

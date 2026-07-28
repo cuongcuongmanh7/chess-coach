@@ -144,6 +144,8 @@ export function useAppController() {
     if (firebaseUser) void syncCloud(firebaseUser, false);
   }, [firebaseUser, syncCloud]);
   const trainingController = useTrainingController(activeProfileId, syncTrainingProgress);
+  // syncCloud gọi ref này để dựng lại Mistake Lab sau khi hợp nhất dữ liệu cloud.
+  appState.cloudRebuildHandlerRef.current = trainingController.rebuildTrainingCards;
   const openingTrainerController = useOpeningTrainerController(
     activeProfileId,
     activeProfile?.username ?? null,

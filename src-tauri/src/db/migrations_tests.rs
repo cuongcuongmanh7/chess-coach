@@ -44,7 +44,7 @@ fn create_legacy_schema(connection: &Connection) {
 #[test]
 fn upgrades_v061_data_without_losing_games_or_caches() {
     let connection = legacy_connection();
-    initialize_database(&connection, false).expect("migrate database");
+    initialize_database(&connection).expect("migrate database");
 
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -88,7 +88,7 @@ fn upgrades_v061_data_without_losing_games_or_caches() {
     assert_eq!(game.4, None);
     assert_eq!(explanation, "Giải thích cũ");
     assert_eq!(engine, (11, 2));
-    initialize_database(&connection, false).expect("migration must be idempotent");
+    initialize_database(&connection).expect("migration must be idempotent");
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn creates_backup_before_file_database_migration() {
         create_legacy_schema(&connection);
     }
 
-    let connection = open_database(&database_path, false).expect("open and migrate");
+    let connection = open_database(&database_path).expect("open and migrate");
     let backup = directory.join("legacy.sqlite3.pre-v0.6.2.bak");
     assert!(backup.exists());
     assert_eq!(
@@ -136,7 +136,7 @@ fn creates_v070_backup_before_training_schema_migration() {
     let database_path = directory.join("current.sqlite3");
     {
         let connection = Connection::open(&database_path).unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         connection
             .execute_batch(
                 "DROP TABLE training_attempts;
@@ -147,7 +147,7 @@ fn creates_v070_backup_before_training_schema_migration() {
             .unwrap();
     }
 
-    let connection = open_database(&database_path, false).unwrap();
+    let connection = open_database(&database_path).unwrap();
     assert!(directory.join("current.sqlite3.pre-v0.7.0.bak").exists());
     assert_eq!(
         connection
@@ -173,13 +173,13 @@ fn creates_separate_backup_before_preview_cache_migration() {
     let database_path = directory.join("current.sqlite3");
     {
         let connection = Connection::open(&database_path).unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         connection
             .execute_batch("PRAGMA user_version = 3;")
             .unwrap();
     }
 
-    let connection = open_database(&database_path, false).unwrap();
+    let connection = open_database(&database_path).unwrap();
     assert!(directory
         .join("current.sqlite3.pre-v0.7.0-preview.bak")
         .exists());
@@ -207,7 +207,7 @@ fn upgrades_v4_with_nullable_ply_count_and_creates_release_backup() {
     let database_path = directory.join("current.sqlite3");
     {
         let connection = Connection::open(&database_path).unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         connection
             .execute_batch(
                 "ALTER TABLE saved_games DROP COLUMN ply_count;
@@ -221,7 +221,7 @@ fn upgrades_v4_with_nullable_ply_count_and_creates_release_backup() {
             .unwrap();
     }
 
-    let connection = open_database(&database_path, false).unwrap();
+    let connection = open_database(&database_path).unwrap();
     let ply_count: Option<i64> = connection
         .query_row(
             "SELECT ply_count FROM saved_games WHERE id = 'game-v4'",
@@ -245,7 +245,7 @@ fn upgrades_v4_with_nullable_ply_count_and_creates_release_backup() {
 #[test]
 fn engine_cache_keeps_profiles_and_reads_highest_depth() {
     let connection = Connection::open_in_memory().unwrap();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
     for depth in [11, 13] {
         connection
             .execute(
@@ -280,7 +280,7 @@ fn engine_cache_keeps_profiles_and_reads_highest_depth() {
 #[test]
 fn creates_training_schema_and_keeps_it_idempotent() {
     let connection = legacy_connection();
-    initialize_database(&connection, false).unwrap();
+    initialize_database(&connection).unwrap();
 
     let card_columns: i64 = connection
         .query_row(
@@ -301,13 +301,13 @@ fn creates_training_schema_and_keeps_it_idempotent() {
 
     assert_eq!(card_columns, 3);
     assert_eq!(attempt_table, 1);
-    initialize_database(&connection, false).expect("v3 migration must be idempotent");
+    initialize_database(&connection).expect("v3 migration must be idempotent");
 }
 
 #[test]
 fn v7_adds_profile_sync_watermark_columns_with_defaults() {
     let connection = legacy_connection();
-    initialize_database(&connection, false).expect("migrate database");
+    initialize_database(&connection).expect("migrate database");
 
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -331,13 +331,13 @@ fn v7_adds_profile_sync_watermark_columns_with_defaults() {
     assert_eq!(watermark, None);
     assert_eq!(gap, 0);
 
-    initialize_database(&connection, false).expect("v7 migration must be idempotent");
+    initialize_database(&connection).expect("v7 migration must be idempotent");
 }
 
 #[test]
 fn creates_repertoire_tables_on_v8() {
     let connection = Connection::open_in_memory().expect("open database");
-    initialize_database(&connection, false).expect("migrate database");
+    initialize_database(&connection).expect("migrate database");
     for table in ["repertoires", "repertoire_nodes", "repertoire_progress"] {
         let exists: i64 = connection
             .query_row(
@@ -348,5 +348,5 @@ fn creates_repertoire_tables_on_v8() {
             .unwrap();
         assert_eq!(exists, 1, "thiếu bảng {table}");
     }
-    initialize_database(&connection, false).expect("v8 migration must be idempotent");
+    initialize_database(&connection).expect("v8 migration must be idempotent");
 }

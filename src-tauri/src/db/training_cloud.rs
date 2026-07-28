@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn stores_remote_progress_until_card_is_generated() {
         let mut connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         let card_id = "a".repeat(64);
         let transaction = connection.transaction().unwrap();
         let merged = merge_training_progress(
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn skips_invalid_remote_progress_without_aborting_batch() {
         let mut connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         let good_id = "a".repeat(64);
         let bad_id = "c".repeat(64);
         let mut bad = progress(&bad_id);
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn pending_local_progress_wins_over_remote() {
         let mut connection = Connection::open_in_memory().unwrap();
-        initialize_database(&connection, false).unwrap();
+        initialize_database(&connection).unwrap();
         let card_id = "b".repeat(64);
         queue_cloud_change(&connection, "training_progress", &card_id, "upsert").unwrap();
         let transaction = connection.transaction().unwrap();
