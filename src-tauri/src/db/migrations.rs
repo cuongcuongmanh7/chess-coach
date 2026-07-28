@@ -1,6 +1,6 @@
 use crate::*;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 9;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 10;
 const ENGINE_MULTIPV: i64 = 2;
 
 pub(crate) fn open_database(path: &Path) -> rusqlite::Result<Connection> {
@@ -48,7 +48,35 @@ pub(crate) fn initialize_database(connection: &Connection) -> rusqlite::Result<(
     if schema_version(connection)? < 9 {
         migrate_to_v9(connection)?;
     }
+    if schema_version(connection)? < 10 {
+        migrate_to_v10(connection)?;
+    }
     Ok(())
+}
+
+// Dọn hồ sơ seed mặc định cũ (Cuongkool/chinsu1409) còn sót trong kho local đã
+// migrate trước khi bỏ seed. Chỉ xoá khi hồ sơ CHƯA liên kết ván nào (pristine) —
+// hồ sơ đang dùng thật (có ván) được giữ nguyên. Xoá bằng SQL thô, KHÔNG tạo
+// tombstone nên không ảnh hưởng dữ liệu cloud của tài khoản. Nhờ vậy khi đăng
+// xuất về kho local, dropdown không còn hiện hồ sơ cá nhân seed sẵn.
+pub(crate) fn migrate_to_v10(connection: &Connection) -> rusqlite::Result<()> {
+    connection.execute(
+        "DELETE FROM cloud_sync_queue
+         WHERE entity_type = 'profile' AND entity_id IN (
+           SELECT pp.platform || '_' || lower(pp.username) FROM player_profiles pp
+           WHERE ((pp.platform = 'chesscom' AND lower(pp.username) = 'cuongkool')
+               OR (pp.platform = 'lichess' AND lower(pp.username) = 'chinsu1409'))
+             AND NOT EXISTS (SELECT 1 FROM game_profiles gp WHERE gp.profile_id = pp.id))",
+        [],
+    )?;
+    connection.execute(
+        "DELETE FROM player_profiles
+         WHERE ((platform = 'chesscom' AND lower(username) = 'cuongkool')
+             OR (platform = 'lichess' AND lower(username) = 'chinsu1409'))
+           AND id NOT IN (SELECT profile_id FROM game_profiles)",
+        [],
+    )?;
+    connection.execute_batch("PRAGMA user_version = 10;")
 }
 
 fn migrate_to_v7(connection: &Connection) -> rusqlite::Result<()> {

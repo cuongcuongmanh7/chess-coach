@@ -350,3 +350,41 @@ fn creates_repertoire_tables_on_v8() {
     }
     initialize_database(&connection).expect("v8 migration must be idempotent");
 }
+
+#[test]
+fn v10_removes_pristine_default_seed_profiles_but_keeps_used_ones() {
+    let connection = Connection::open_in_memory().expect("open database");
+    initialize_database(&connection).expect("migrate database");
+    // Giả lập kho local cũ: 2 hồ sơ seed mặc định, trong đó chinsu1409 đã có ván.
+    connection
+        .execute_batch(
+            "INSERT INTO player_profiles (platform, username, created_at)
+             VALUES ('chesscom', 'Cuongkool', datetime('now'));
+             INSERT INTO player_profiles (platform, username, created_at)
+             VALUES ('lichess', 'chinsu1409', datetime('now'));
+             INSERT INTO saved_games (id, pgn, white, black, created_at, last_opened_at)
+             VALUES ('g1', '1. e4', 'chinsu1409', 'x', datetime('now'), datetime('now'));
+             INSERT INTO game_profiles (game_id, profile_id, player_color, linked_at)
+             VALUES ('g1', 2, 'w', datetime('now'));",
+        )
+        .unwrap();
+
+    migrate_to_v10(&connection).unwrap();
+
+    let remaining: Vec<String> = connection
+        .prepare("SELECT lower(username) FROM player_profiles ORDER BY 1")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    // Cuongkool (0 ván) bị xoá; chinsu1409 (có ván) được giữ.
+    assert_eq!(remaining, vec!["chinsu1409".to_string()]);
+
+    // Idempotent.
+    migrate_to_v10(&connection).unwrap();
+    let count: i64 = connection
+        .query_row("SELECT COUNT(*) FROM player_profiles", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+}

@@ -177,7 +177,7 @@ fn v9_is_noop_on_fresh_database_and_idempotent() {
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 9);
+    assert_eq!(version, CURRENT_SCHEMA_VERSION);
     assert_eq!(
         count(
             &connection,
