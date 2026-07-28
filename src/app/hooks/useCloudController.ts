@@ -183,17 +183,17 @@ export function useCloudController(state: AppState, accountSwitchBusy: boolean) 
       localStorage.setItem(`kypho-cloud-last-sync:${targetUser.uid}`, completedAt);
       setLastCloudSyncAt(completedAt);
       await Promise.all([refreshProfiles(), refreshSavedGames()]);
-      // Thẻ Mistake Lab không được đồng bộ; dựng lại local từ engine_analyses vừa
-      // hợp nhất để cả hai hồ sơ có đủ bài ngay, không phải mở từng ván.
-      if (mergedTotal.engine_analyses_merged > 0 || mergedTotal.training_progress_merged > 0) {
-        setCloudRebuilding(true);
-        try {
-          await cloudRebuildHandlerRef.current();
-        } catch {
-          // Không chặn luồng đồng bộ nếu dựng lại thất bại; lần sau sẽ thử tiếp.
-        } finally {
-          setCloudRebuilding(false);
-        }
+      // Thẻ Mistake Lab không được đồng bộ; dựng lại local từ engine_analyses đã có.
+      // Luôn gọi (không gating theo số mục vừa merge): hàm tự truy vấn ván còn
+      // thiếu thẻ và no-op nếu không còn — nhờ vậy tự chữa lành cả khi dữ liệu đã
+      // được đồng bộ từ trước mà lần sync này không merge thêm gì mới.
+      setCloudRebuilding(true);
+      try {
+        await cloudRebuildHandlerRef.current();
+      } catch {
+        // Không chặn luồng đồng bộ nếu dựng lại thất bại; lần sau sẽ thử tiếp.
+      } finally {
+        setCloudRebuilding(false);
       }
       if (showSuccess) {
         const imported = cloudMergedCount(mergedTotal);
